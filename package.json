@@ -11,6 +11,11 @@
     "build": "npm run build -w apps/obsidian-plugin && npm run build -w apps/browser-extension",
     "dev:plugin": "npm run dev -w apps/obsidian-plugin",
     "build:plugin": "npm run build -w apps/obsidian-plugin",
-    "build:extension": "npm run build -w apps/browser-extension"
+    "build:extension": "npm run build -w apps/browser-extension",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
   }
 }
