@@ -1,0 +1,13 @@
+{
+  "name": "canvas-browser-bridge-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.315",
+    "esbuild": "^0.25.1",
+    "typescript": "^5.8.2"
+  }
+}

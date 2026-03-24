@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Canvas to Obsidian Sync",
+  "version": "0.1.0",
+  "description": "Collect Canvas course data from your browser session and send to Obsidian.",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": ["activeTab", "scripting", "tabs"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://*.instructure.com/*",
+    "https://canvas.*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}

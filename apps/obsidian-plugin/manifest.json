@@ -1,0 +1,10 @@
+{
+  "id": "canvas-sync-bridge",
+  "name": "Canvas Sync Bridge",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Receives Canvas data from a browser extension and syncs it into your vault.",
+  "author": "You",
+  "authorUrl": "",
+  "isDesktopOnly": true
+}

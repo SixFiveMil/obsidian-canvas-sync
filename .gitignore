@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+apps/obsidian-plugin/main.js
+apps/obsidian-plugin/styles.css
+apps/obsidian-plugin/data.json
+Course-Export/

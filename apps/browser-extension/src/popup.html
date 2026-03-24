@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canvas Sync</title>
+    <style>
+      :root {
+        --bg: #f6f7f3;
+        --card: #ffffff;
+        --ink: #1f2d24;
+        --accent: #0f7b5f;
+        --accent-2: #e05b2b;
+        --muted: #637067;
+      }
+      body {
+        margin: 0;
+        width: 320px;
+        min-height: 220px;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top right, #d8efe7, var(--bg) 58%);
+        color: var(--ink);
+      }
+      .shell {
+        padding: 16px;
+      }
+      .panel {
+        background: var(--card);
+        border-radius: 14px;
+        padding: 14px;
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.08);
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 18px;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      label {
+        margin-top: 12px;
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      input {
+        margin-top: 6px;
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #ced4cd;
+        border-radius: 10px;
+        padding: 8px 10px;
+      }
+      button {
+        margin-top: 12px;
+        width: 100%;
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: linear-gradient(120deg, var(--accent), #139874);
+        color: #ffffff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: linear-gradient(120deg, var(--accent-2), #ef7e37);
+      }
+      #status {
+        margin-top: 10px;
+        font-size: 12px;
+        min-height: 16px;
+      }
+      .ok {
+        color: #13684d;
+      }
+      .error {
+        color: #a0291e;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="panel">
+        <h1>Canvas to Obsidian</h1>
+        <p>Open a Canvas course tab, then sync into your local Obsidian bridge.</p>
+
+        <label for="port">Bridge Port</label>
+        <input id="port" type="number" min="1" max="65535" value="27125" />
+
+        <label for="apiToken">Canvas API Token (optional)</label>
+        <input id="apiToken" type="password" placeholder="Use when pages API is restricted" />
+
+        <button id="syncBtn">Sync Active Course</button>
+        <button id="testBtn" class="secondary">Test Bridge</button>
+        <div id="status"></div>
+      </div>
+    </div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

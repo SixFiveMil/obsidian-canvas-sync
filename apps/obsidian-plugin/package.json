@@ -1,0 +1,21 @@
+{
+  "name": "obsidian-canvas-bridge-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch"
+  },
+  "dependencies": {
+    "obsidian": "latest",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/turndown": "^5.0.5",
+    "esbuild": "^0.25.1",
+    "typescript": "^5.8.2"
+  }
+}
