@@ -17,7 +17,14 @@ const safeApiTokenInput = apiTokenInput;
 void initializeForm();
 
 safeApiTokenInput.addEventListener("change", async () => {
-  await chrome.storage.local.set({ canvasApiToken: safeApiTokenInput.value.trim() });
+  const nextToken = safeApiTokenInput.value.trim();
+  if (chrome.storage?.local) {
+    await chrome.storage.local.set({ canvasApiToken: nextToken });
+    return;
+  }
+
+  // Fallback for environments where storage API is unavailable.
+  window.localStorage.setItem("canvasApiToken", nextToken);
 });
 
 safeSyncBtn.addEventListener("click", async () => {
@@ -71,7 +78,13 @@ function setStatus(message: string, className: "" | "ok" | "error"): void {
 }
 
 async function initializeForm(): Promise<void> {
-  const stored = await chrome.storage.local.get(["canvasApiToken"]);
-  const token = typeof stored.canvasApiToken === "string" ? stored.canvasApiToken : "";
+  let token = "";
+  if (chrome.storage?.local) {
+    const stored = await chrome.storage.local.get(["canvasApiToken"]);
+    token = typeof stored.canvasApiToken === "string" ? stored.canvasApiToken : "";
+  } else {
+    token = window.localStorage.getItem("canvasApiToken") || "";
+  }
+
   safeApiTokenInput.value = token;
 }

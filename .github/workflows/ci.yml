@@ -33,3 +33,6 @@ jobs:
 
       - name: Build all
         run: npm run build
+
+      - name: Validate extension dist and manifest
+        run: node apps/browser-extension/scripts/validate-dist.mjs
