@@ -75,3 +75,17 @@ jobs:
             release/obsidian-plugin/manifest.json
             release/obsidian-plugin/main.js
             release/canvas-to-obsidian-sync-${{ env.RELEASE_TAG }}.zip
+
+      - name: Verify uploaded release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
+            > release.json
+
+          node -e "const fs = require('fs'); const rel = JSON.parse(fs.readFileSync('release.json', 'utf8')); const names = new Set((rel.assets || []).map(a => a.name)); const required = ['manifest.json', 'main.js', 'canvas-to-obsidian-sync-' + process.env.RELEASE_TAG + '.zip']; const missing = required.filter(name => !names.has(name)); if (missing.length > 0) { console.error('Missing release assets: ' + missing.join(', ')); process.exit(1); } console.log('Verified release assets: ' + required.join(', '));"
+
+          rm -f release.json
