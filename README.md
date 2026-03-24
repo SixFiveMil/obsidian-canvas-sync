@@ -25,3 +25,7 @@ Canvas API access can be limited for students. The browser extension uses your e
 5. Load the extension from `apps/browser-extension/dist` in your browser's developer extension page.
 
 Detailed setup and usage docs are in each app folder.
+
+## Release
+
+Release guidance for the Obsidian community plugin and Chrome Web Store package is in `docs/releasing.md`.

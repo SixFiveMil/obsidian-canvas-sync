@@ -633,7 +633,7 @@ class CanvasSyncSettingTab extends PluginSettingTab {
       .setDesc("Localhost port that receives data from the browser extension.")
       .addText((text) =>
         text
-          .setPlaceholder("27124")
+          .setPlaceholder("27125")
           .setValue(String(this.plugin.getSettings().listenPort))
           .onChange(async (value) => {
             const next = Number.parseInt(value, 10);
