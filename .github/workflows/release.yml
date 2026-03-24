@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing tag to package and publish"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.release_tag || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches Obsidian plugin version
+        run: |
+          node -e "const fs = require('fs'); const manifest = JSON.parse(fs.readFileSync('apps/obsidian-plugin/manifest.json', 'utf8')); if (manifest.version !== process.env.RELEASE_TAG) { console.error('Tag does not match apps/obsidian-plugin/manifest.json version'); process.exit(1); }"
+
+      - name: Run tests
+        run: npm test
+
+      - name: Type check browser extension
+        run: npx tsc -p apps/browser-extension/tsconfig.json --noEmit
+
+      - name: Type check Obsidian plugin
+        run: npx tsc -p apps/obsidian-plugin/tsconfig.json --noEmit
+
+      - name: Build all
+        run: npm run build
+
+      - name: Validate extension dist and manifest
+        run: node apps/browser-extension/scripts/validate-dist.mjs
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release/obsidian-plugin
+          cp apps/obsidian-plugin/manifest.json release/obsidian-plugin/manifest.json
+          cp apps/obsidian-plugin/main.js release/obsidian-plugin/main.js
+          cd apps/browser-extension/dist
+          zip -r ../../../release/canvas-to-obsidian-sync-${RELEASE_TAG}.zip .
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          files: |
+            release/obsidian-plugin/manifest.json
+            release/obsidian-plugin/main.js
+            release/canvas-to-obsidian-sync-${{ env.RELEASE_TAG }}.zip

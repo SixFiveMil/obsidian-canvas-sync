@@ -15,19 +15,14 @@ Official submission reference:
 
 1. Confirm `apps/obsidian-plugin/manifest.json` has the correct `id`, `name`, `version`, `author`, and `description`.
 2. Confirm `apps/obsidian-plugin/versions.json` maps the plugin version to the correct minimum Obsidian version.
-3. Build the plugin:
-   - `npm install`
-   - `npm run build:plugin`
-4. Verify these files exist and are current in `apps/obsidian-plugin/`:
+3. Push a version tag that exactly matches the plugin version.
+   - Example: `git tag 0.1.0`
+   - `git push origin 0.1.0`
+4. The release workflow will build and attach these files automatically:
    - `manifest.json`
    - `main.js`
-5. Create a GitHub release whose tag matches the plugin version exactly.
-   - Example: if `manifest.json` says `0.1.0`, the release tag must be `0.1.0`
-   - Do not prefix the tag with `v`
-6. Attach release assets:
-   - `manifest.json`
-   - `main.js`
-7. Submit a PR to `obsidianmd/obsidian-releases` adding the plugin entry to `community-plugins.json`.
+5. Confirm the GitHub release was created for that tag and includes the generated assets.
+6. Submit a PR to `obsidianmd/obsidian-releases` adding the plugin entry to `community-plugins.json`.
 
 ### Submission JSON fields
 
@@ -54,20 +49,34 @@ Official publishing references:
 ### Pre-submit checklist
 
 1. Register a Chrome Web Store developer account and pay the one-time fee.
-2. Build the extension:
-   - `npm install`
-   - `npm run build:extension`
-3. Verify the built package contains a valid `manifest.json` at the ZIP root.
-4. Ensure the manifest has current `name`, `version`, `description`, `icons`, `permissions`, and `host_permissions` values.
-5. Load the unpacked extension from `apps/browser-extension/dist` and test the real sync flow.
-6. Create the store listing assets:
+2. Push a release tag after updating the extension version.
+3. Download the generated `canvas-to-obsidian-sync-<version>.zip` asset from the GitHub release.
+4. Verify the ZIP contains a valid `manifest.json` at the root.
+5. Ensure the manifest has current `name`, `version`, `description`, `icons`, `permissions`, and `host_permissions` values.
+6. Load the unpacked extension from `apps/browser-extension/dist` and test the real sync flow.
+7. Create the store listing assets:
    - icon set
    - screenshots
    - promotional artwork if requested by the dashboard
-7. Prepare the Privacy tab answers for Canvas page and course data access, optional token storage in local browser storage, and localhost transfer to Obsidian.
-8. Prepare reviewer instructions explaining how to test sync with Obsidian running locally.
-9. Zip the contents of `apps/browser-extension/dist` so `manifest.json` is at the root of the ZIP.
+8. Prepare the Privacy tab answers for Canvas page and course data access, optional token storage in local browser storage, and localhost transfer to Obsidian.
+9. Prepare reviewer instructions explaining how to test sync with Obsidian running locally.
 10. Upload the ZIP in the Chrome Web Store dashboard and complete the Store Listing, Privacy, Distribution, and Test Instructions sections.
+
+## GitHub Automation
+
+This repository includes a release workflow in `.github/workflows/release.yml`.
+
+- It runs on pushed tags matching `*.*.*`
+- It can also be started manually for an existing tag with `workflow_dispatch`
+- It verifies the tag matches `apps/obsidian-plugin/manifest.json`
+- It runs tests, type checks, builds, and extension validation
+- It creates a GitHub release automatically
+- It uploads:
+  - Obsidian `manifest.json`
+  - Obsidian `main.js`
+  - Chrome extension ZIP built from `apps/browser-extension/dist`
+
+This automates GitHub artifact creation, but it does not submit to the Obsidian community directory or the Chrome Web Store. Those steps still require store-side actions.
 
 ### Reviewer notes to provide
 
