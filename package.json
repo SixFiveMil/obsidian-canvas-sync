@@ -13,6 +13,8 @@
     "dev:plugin": "npm run dev -w apps/obsidian-plugin",
     "build:plugin": "npm run build -w apps/obsidian-plugin",
     "build:extension": "npm run build -w apps/browser-extension",
+    "publish:plugin-repo": "powershell -ExecutionPolicy Bypass -File scripts/publish-plugin-repo.ps1",
+    "publish:plugin-repo:tag": "powershell -ExecutionPolicy Bypass -File scripts/publish-plugin-repo.ps1 -Tag $env:npm_package_version",
     "test": "vitest run",
     "test:watch": "vitest"
   },

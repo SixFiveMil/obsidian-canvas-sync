@@ -11,6 +11,24 @@ Official submission reference:
 
 - https://docs.obsidian.md/Plugins/Releasing/Submit+your+plugin
 
+### Recommended repo setup for submission
+
+To avoid Obsidian scanner false positives from non-plugin code in this monorepo,
+publish a plugin-only mirror repo from `apps/obsidian-plugin` and submit that
+repo to `obsidianmd/obsidian-releases`.
+
+1. Create a new GitHub repo (example: `SixFiveMil/canvas-sync-bridge-plugin`).
+2. Configure remote once:
+   - `npm run publish:plugin-repo -- --RemoteName obsidian-plugin --RemoteUrl https://github.com/SixFiveMil/canvas-sync-bridge-plugin.git`
+3. Push plugin-only updates whenever needed:
+   - `npm run publish:plugin-repo -- --RemoteName obsidian-plugin`
+4. Push plugin-only updates and matching version tag:
+   - `npm run publish:plugin-repo:tag -- --RemoteName obsidian-plugin`
+
+The helper script uses `git subtree split --prefix apps/obsidian-plugin`, so the
+plugin mirror repo has `manifest.json`, `versions.json`, and plugin source at
+its root.
+
 ### Pre-submit checklist
 
 1. Confirm `apps/obsidian-plugin/manifest.json` has the correct `id`, `name`, `version`, `author`, and `description`.
@@ -34,7 +52,7 @@ Use this shape when adding the entry to `community-plugins.json`:
   "name": "Canvas Sync Bridge",
   "author": "SixFiveMil",
   "description": "Receives Canvas data from a browser extension and syncs it into your vault.",
-  "repo": "SixFiveMil/obsidian-canvas-sync"
+   "repo": "SixFiveMil/canvas-sync-bridge-plugin"
 }
 ```
 
