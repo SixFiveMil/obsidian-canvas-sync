@@ -11,7 +11,7 @@ function Exec([string]$Command) {
   Write-Host "> $Command"
   iex $Command
   if ($LASTEXITCODE -ne 0) {
-    throw "Command failed with exit code $LASTEXITCODE: $Command"
+    throw "Command failed with exit code ${LASTEXITCODE}: $Command"
   }
 }
 
