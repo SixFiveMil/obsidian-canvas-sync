@@ -2,6 +2,7 @@
   "name": "obsidian-canvas-sync",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Bridge Canvas LMS content into Obsidian as Markdown",
   "workspaces": [
     "apps/obsidian-plugin",

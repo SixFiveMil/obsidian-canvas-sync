@@ -26,6 +26,8 @@ const DEFAULT_SETTINGS: CanvasSyncSettings = {
 };
 
 export default class CanvasSyncBridgePlugin extends Plugin {
+  private static readonly TRUSTED_CLIENT_HEADER = "x-canvas-sync-client";
+  private static readonly TRUSTED_CLIENT_VALUE = "canvas-browser-extension";
   private settings: CanvasSyncSettings = DEFAULT_SETTINGS;
   private server: ReturnType<typeof createServer> | null = null;
   private turndown = this.createTurndown();
@@ -115,19 +117,49 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const allowedOrigin = this.getAllowedExtensionOrigin(req);
+
     if (req.method === "OPTIONS") {
+      if (!allowedOrigin) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, message: "Origin not allowed." }));
+        return;
+      }
+
       res.writeHead(204, {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": allowedOrigin,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type"
+        "Access-Control-Allow-Headers": "Content-Type, X-Canvas-Sync-Client",
+        "Vary": "Origin"
       });
       res.end();
       return;
     }
 
     if (req.method !== "POST" || req.url !== "/canvas-sync") {
-      res.writeHead(404, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, message: "Not found" }));
+      return;
+    }
+
+    if (!allowedOrigin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, message: "Origin not allowed." }));
+      return;
+    }
+
+    const clientHeader = req.headers[CanvasSyncBridgePlugin.TRUSTED_CLIENT_HEADER];
+    const trustedClient =
+      (typeof clientHeader === "string" && clientHeader === CanvasSyncBridgePlugin.TRUSTED_CLIENT_VALUE) ||
+      (Array.isArray(clientHeader) && clientHeader.includes(CanvasSyncBridgePlugin.TRUSTED_CLIENT_VALUE));
+
+    if (!trustedClient) {
+      res.writeHead(403, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": allowedOrigin,
+        "Vary": "Origin"
+      });
+      res.end(JSON.stringify({ ok: false, message: "Untrusted client." }));
       return;
     }
 
@@ -136,16 +168,37 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       this.validateEnvelope(envelope);
       await this.syncCourse(envelope);
 
-      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": allowedOrigin,
+        "Vary": "Origin"
+      });
       res.end(JSON.stringify({ ok: true }));
       new Notice(`Canvas sync complete: ${envelope.payload.courseName}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown sync error";
-      res.writeHead(400, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      res.writeHead(400, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": allowedOrigin,
+        "Vary": "Origin"
+      });
       res.end(JSON.stringify({ ok: false, message }));
       new Notice(`Canvas sync failed: ${message}`);
       console.error("Canvas sync error", error);
     }
+  }
+
+  private getAllowedExtensionOrigin(req: IncomingMessage): string | null {
+    const origin = req.headers.origin;
+    if (typeof origin !== "string") {
+      return null;
+    }
+
+    if (origin.startsWith("chrome-extension://") || origin.startsWith("moz-extension://")) {
+      return origin;
+    }
+
+    return null;
   }
 
   private async readJsonBody<T>(req: IncomingMessage): Promise<T> {
@@ -580,7 +633,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       return;
     }
 
-    if (await this.app.vault.adapter.exists(path)) {
+    if (this.app.vault.getAbstractFileByPath(path)) {
       return;
     }
 
@@ -588,7 +641,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     let cursor = "";
     for (const segment of segments) {
       cursor = cursor ? `${cursor}/${segment}` : segment;
-      if (!(await this.app.vault.adapter.exists(cursor))) {
+      if (!this.app.vault.getAbstractFileByPath(cursor)) {
         await this.app.vault.createFolder(cursor);
       }
     }
@@ -600,7 +653,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
     const existing = this.app.vault.getAbstractFileByPath(path);
     if (existing instanceof TFile) {
-      await this.app.vault.modify(existing, content);
+      await this.app.vault.process(existing, () => content);
       return;
     }
 
@@ -629,7 +682,7 @@ class CanvasSyncSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName("Listen Port")
+      .setName("Listen port")
       .setDesc("Localhost port that receives data from the browser extension.")
       .addText((text) =>
         text
@@ -646,7 +699,7 @@ class CanvasSyncSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Root Folder")
+      .setName("Root folder")
       .setDesc("Vault folder where course data should be written.")
       .addText((text) =>
         text
@@ -658,7 +711,7 @@ class CanvasSyncSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Store Raw Payload")
+      .setName("Store raw payload")
       .setDesc("Save incoming JSON payload for debugging.")
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.getSettings().includeRawPayload).onChange(async (value) => {

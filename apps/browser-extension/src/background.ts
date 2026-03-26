@@ -70,7 +70,10 @@ async function extractFromActiveCanvasTab(apiToken?: string): Promise<CanvasSync
 async function postToLocalBridge(envelope: CanvasSyncEnvelope, port: number): Promise<unknown> {
   const res = await fetch(`http://127.0.0.1:${port}/canvas-sync`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Canvas-Sync-Client": "canvas-browser-extension"
+    },
     body: JSON.stringify(envelope)
   });
 

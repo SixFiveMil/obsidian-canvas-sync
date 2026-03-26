@@ -54,3 +54,4 @@ The GitHub release tag must match the version in `manifest.json` exactly, for ex
 ## Security Note
 
 The listener binds to `127.0.0.1` only, not your network interface.
+The bridge only accepts requests from browser extension origins (`chrome-extension://` or `moz-extension://`) and requires the `X-Canvas-Sync-Client: canvas-browser-extension` request header.
