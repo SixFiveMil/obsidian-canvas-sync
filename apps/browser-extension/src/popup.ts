@@ -14,6 +14,16 @@ const safeTestBtn = testBtn;
 const safePortInput = portInput;
 const safeApiTokenInput = apiTokenInput;
 
+function requestStatus(url: string, method: "OPTIONS"): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    xhr.onload = () => resolve(xhr.status);
+    xhr.onerror = () => reject(new Error("Network request failed."));
+    xhr.send();
+  });
+}
+
 void initializeForm();
 
 safeApiTokenInput.addEventListener("change", async () => {
@@ -56,12 +66,10 @@ safeTestBtn.addEventListener("click", async () => {
 
   try {
     const port = Number.parseInt(safePortInput.value, 10) || 27125;
-    const response = await fetch(`http://127.0.0.1:${port}/canvas-sync`, {
-      method: "OPTIONS"
-    });
+    const status = await requestStatus(`http://127.0.0.1:${port}/canvas-sync`, "OPTIONS");
 
-    if (!response.ok && response.status !== 204) {
-      throw new Error(`Bridge returned status ${response.status}.`);
+    if (status < 200 || (status >= 300 && status !== 204)) {
+      throw new Error(`Bridge returned status ${status}.`);
     }
 
     setStatus("Bridge reachable on localhost.", "ok");
@@ -83,7 +91,7 @@ async function initializeForm(): Promise<void> {
     const stored = await chrome.storage.local.get(["canvasApiToken"]);
     token = typeof stored.canvasApiToken === "string" ? stored.canvasApiToken : "";
   } else {
-    token = window.localStorage.getItem("canvasApiToken") || "";
+    token = window.localStorage.getItem("canvasApiToken") ?? "";
   }
 
   safeApiTokenInput.value = token;

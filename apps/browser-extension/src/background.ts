@@ -67,23 +67,75 @@ async function extractFromActiveCanvasTab(apiToken?: string): Promise<CanvasSync
   return result;
 }
 
-async function postToLocalBridge(envelope: CanvasSyncEnvelope, port: number): Promise<unknown> {
-  const res = await fetch(`http://127.0.0.1:${port}/canvas-sync`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Canvas-Sync-Client": "canvas-browser-extension"
-    },
-    body: JSON.stringify(envelope)
-  });
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = typeof json?.message === "string" ? json.message : `HTTP ${res.status}`;
+function requestText(
+  url: string,
+  options?: {
+    method?: "GET" | "POST" | "OPTIONS";
+    headers?: Record<string, string>;
+    body?: string;
+    withCredentials?: boolean;
+  }
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(options?.method ?? "GET", url, true);
+    xhr.withCredentials = options?.withCredentials ?? false;
+
+    const headers = options?.headers ?? {};
+    for (const [key, value] of Object.entries(headers)) {
+      xhr.setRequestHeader(key, value);
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.responseText);
+        return;
+      }
+      reject(new Error(`Request failed: ${xhr.status}`));
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Network request failed."));
+    };
+
+    xhr.send(options?.body);
+  });
+}
+
+async function requestJson(
+  url: string,
+  options?: {
+    method?: "GET" | "POST" | "OPTIONS";
+    headers?: Record<string, string>;
+    body?: string;
+    withCredentials?: boolean;
+  }
+): Promise<unknown> {
+  const text = await requestText(url, options);
+  if (!text.trim()) {
+    return {};
+  }
+  return JSON.parse(text) as unknown;
+}
+
+async function postToLocalBridge(envelope: CanvasSyncEnvelope, port: number): Promise<unknown> {
+  try {
+    return await requestJson(`http://127.0.0.1:${port}/canvas-sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Canvas-Sync-Client": "canvas-browser-extension"
+      },
+      body: JSON.stringify(envelope)
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Bridge request failed";
     throw new Error(`Bridge rejected payload: ${message}`);
   }
-
-  return json;
 }
 
 function isCanvasUrl(url: string): boolean {
@@ -199,7 +251,7 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
         courseId: id
       });
 
-      const fallbackHtml = document.querySelector(".user_content, .show-content")?.innerHTML || "";
+      const fallbackHtml = document.querySelector(".user_content, .show-content")?.innerHTML ?? "";
       const fallbackTitle = document.querySelector("h1")?.textContent?.trim() || "Current Canvas Page";
       const fallbackSlug = extractSlugFromCoursePageUrl(href, id);
       return fallbackHtml
@@ -374,7 +426,7 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
   }
 
   function normalizeModuleItemType(typeValue: unknown): CanvasModuleItemPayload["type"] {
-    const type = String(typeValue || "").toLowerCase();
+    const type = String(typeValue ?? "").toLowerCase();
     if (type === "page" || type === "wikipage") {
       return "WikiPage";
     }
@@ -405,19 +457,14 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
   }
 
   async function fetchPageHtml(url: string): Promise<string> {
-    const response = await fetch(url, { credentials: "include" });
-    if (!response.ok) {
-      throw new Error(`Page HTML fetch failed: ${response.status}`);
-    }
-
-    const htmlDoc = await response.text();
+    const htmlDoc = await requestText(url, { withCredentials: true });
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlDoc, "text/html");
     const content =
-      doc.querySelector(".user_content")?.innerHTML ||
-      doc.querySelector(".show-content")?.innerHTML ||
-      doc.querySelector(".user_content.enhanced")?.innerHTML ||
-      doc.querySelector(".ic-Layout-contentMain .user_content")?.innerHTML ||
+      doc.querySelector(".user_content")?.innerHTML ??
+      doc.querySelector(".show-content")?.innerHTML ??
+      doc.querySelector(".user_content.enhanced")?.innerHTML ??
+      doc.querySelector(".ic-Layout-contentMain .user_content")?.innerHTML ??
       "";
     return content.trim();
   }
@@ -463,7 +510,7 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
       }));
 
       const rubricCount = assignments.filter((assignment) => (assignment.rubric?.length ?? 0) > 0).length;
-      console.info("Canvas assignment rubric debug", {
+      console.debug("Canvas assignment rubric debug", {
         courseId: id,
         assignmentCount: assignments.length,
         assignmentsWithRubric: rubricCount
@@ -475,48 +522,52 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
     }
   }
 
-  function parseRubricCriteria(item: any): CanvasAssignmentPayload["rubric"] {
-    if (!Array.isArray(item?.rubric)) {
+  function parseRubricCriteria(item: unknown): CanvasAssignmentPayload["rubric"] {
+    if (!isRecord(item) || !Array.isArray(item.rubric)) {
       return undefined;
     }
 
     const criteria = item.rubric
-      .map((criterion: any) => {
-        const ratings = Array.isArray(criterion?.ratings)
+      .map((criterion): CanvasAssignmentPayload["rubric"][number] | null => {
+        if (!isRecord(criterion)) {
+          return null;
+        }
+
+        const ratings = Array.isArray(criterion.ratings)
           ? criterion.ratings
-              .map((rating: any) => {
-                if (typeof rating?.points !== "number") {
+              .map((rating): CanvasAssignmentPayload["rubric"][number]["ratings"][number] | null => {
+                if (!isRecord(rating) || typeof rating.points !== "number") {
                   return null;
                 }
 
                 return {
-                  description: String(rating?.description || "Unnamed Rating"),
+                  description: String(rating.description ?? "Unnamed Rating"),
                   longDescription:
-                    typeof rating?.long_description === "string" && rating.long_description.trim() !== ""
+                    typeof rating.long_description === "string" && rating.long_description.trim() !== ""
                       ? rating.long_description
                       : undefined,
                   points: Number(rating.points)
                 };
               })
-              .filter((rating: any): rating is NonNullable<typeof rating> => rating !== null)
+              .filter((rating): rating is NonNullable<typeof rating> => rating !== null)
           : [];
 
-        if (typeof criterion?.points !== "number") {
+        if (typeof criterion.points !== "number") {
           return null;
         }
 
         return {
-          id: String(criterion?.id ?? "unknown"),
-          description: String(criterion?.description || "Unnamed Criterion"),
+          id: String(criterion.id ?? "unknown"),
+          description: String(criterion.description ?? "Unnamed Criterion"),
           longDescription:
-            typeof criterion?.long_description === "string" && criterion.long_description.trim() !== ""
+            typeof criterion.long_description === "string" && criterion.long_description.trim() !== ""
               ? criterion.long_description
               : undefined,
           points: Number(criterion.points),
           ratings
         };
       })
-      .filter((criterion: any): criterion is NonNullable<typeof criterion> => criterion !== null);
+      .filter((criterion): criterion is NonNullable<typeof criterion> => criterion !== null);
 
     return criteria.length > 0 ? criteria : undefined;
   }
@@ -562,7 +613,7 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
     }
   }
 
-  async function api(path: string): Promise<any> {
+  async function api(path: string): Promise<unknown> {
     const headers: Record<string, string> = {
       Accept: "application/json"
     };
@@ -570,15 +621,9 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
       headers.Authorization = `Bearer ${apiToken.trim()}`;
     }
 
-    const response = await fetch(`${window.location.origin}${path}`, {
-      credentials: "include",
+    return requestJson(`${window.location.origin}${path}`, {
+      withCredentials: true,
       headers
     });
-
-    if (!response.ok) {
-      throw new Error(`Canvas API error: ${response.status}`);
-    }
-
-    return response.json();
   }
 }

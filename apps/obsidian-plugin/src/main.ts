@@ -45,10 +45,11 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
     this.addCommand({
       id: "canvas-sync-restart-server",
-      name: "Restart Canvas Sync Bridge server",
-      callback: async () => {
-        await this.restartServer();
-        new Notice(`Canvas Sync Bridge listening on localhost:${this.settings.listenPort}`);
+      name: "Restart server",
+      callback: () => {
+        void this.restartServer().then(() => {
+          new Notice(`Canvas Sync Bridge listening on localhost:${this.settings.listenPort}`);
+        });
       }
     });
   }
@@ -368,7 +369,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 
   private renderHtmlDoc(title: string, html: string): string {
-    const markdown = this.turndown.turndown(html || "").trim();
+    const markdown = this.turndown.turndown(html).trim();
     return [`# ${title}`, "", markdown || "No content available."].join("\n");
   }
 
@@ -387,7 +388,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         .trim() + "\n";
     }
 
-    const pageBody = this.turndown.turndown(page.html || "").trim();
+    const pageBody = this.turndown.turndown(page.html).trim();
     return [
       `# ${page.title}`,
       "",
@@ -498,7 +499,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         lines.push("| Rating | Points | Details |");
         lines.push("| --- | ---: | --- |");
         for (const rating of criterion.ratings) {
-          const details = (rating.longDescription || "").replace(/\|/g, "\\|").replace(/\n+/g, " ").trim();
+          const details = (rating.longDescription ?? "").replace(/\|/g, "\\|").replace(/\n+/g, " ").trim();
           lines.push(`| ${rating.description} | ${rating.points} | ${details} |`);
         }
         lines.push("");
@@ -564,7 +565,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       return lines.join("\n");
     }
 
-    const sorted = [...assignments].sort((a, b) => (a.dueAt || "").localeCompare(b.dueAt || ""));
+    const sorted = [...assignments].sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""));
     for (const assignment of sorted) {
       const due = assignment.dueAt ? new Date(assignment.dueAt).toISOString().slice(0, 10) : "No due date";
       const points = assignment.pointsPossible ?? "?";
@@ -612,7 +613,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       return lines.join("\n");
     }
 
-    const sorted = [...events].sort((a, b) => (a.startAt || "").localeCompare(b.startAt || ""));
+    const sorted = [...events].sort((a, b) => (a.startAt ?? "").localeCompare(b.startAt ?? ""));
     for (const event of sorted) {
       const start = event.startAt ? new Date(event.startAt).toISOString() : "Unknown start";
       const end = event.endAt ? new Date(event.endAt).toISOString() : "Unknown end";
@@ -688,13 +689,14 @@ class CanvasSyncSettingTab extends PluginSettingTab {
         text
           .setPlaceholder("27125")
           .setValue(String(this.plugin.getSettings().listenPort))
-          .onChange(async (value) => {
+          .onChange((value) => {
             const next = Number.parseInt(value, 10);
             if (!Number.isFinite(next) || next < 1 || next > 65535) {
               return;
             }
-            await this.plugin.updateSettings({ listenPort: next });
-            await this.plugin.restartServer();
+            void this.plugin.updateSettings({ listenPort: next }).then(async () => {
+              await this.plugin.restartServer();
+            });
           })
       );
 
@@ -705,8 +707,8 @@ class CanvasSyncSettingTab extends PluginSettingTab {
         text
           .setPlaceholder("Canvas")
           .setValue(this.plugin.getSettings().rootFolder)
-          .onChange(async (value) => {
-            await this.plugin.updateSettings({ rootFolder: value.trim() || "Canvas" });
+          .onChange((value) => {
+            void this.plugin.updateSettings({ rootFolder: value.trim() || "Canvas" });
           })
       );
 
@@ -714,8 +716,8 @@ class CanvasSyncSettingTab extends PluginSettingTab {
       .setName("Store raw payload")
       .setDesc("Save incoming JSON payload for debugging.")
       .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().includeRawPayload).onChange(async (value) => {
-          await this.plugin.updateSettings({ includeRawPayload: value });
+        toggle.setValue(this.plugin.getSettings().includeRawPayload).onChange((value) => {
+          void this.plugin.updateSettings({ includeRawPayload: value });
         })
       );
   }

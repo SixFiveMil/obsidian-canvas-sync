@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { sanitizeFileName, validateEnvelopeShape } from "../src/security-utils";
+import type { CanvasSyncEnvelope } from "../src/types";
 
 describe("validateEnvelopeShape", () => {
   it("accepts a valid envelope", () => {
@@ -19,12 +20,12 @@ describe("validateEnvelopeShape", () => {
       }
     } as const;
 
-    expect(() => validateEnvelopeShape(envelope as any)).not.toThrow();
+    expect(() => validateEnvelopeShape(envelope as unknown as CanvasSyncEnvelope)).not.toThrow();
   });
 
   it("rejects unexpected source", () => {
     expect(() =>
-      validateEnvelopeShape({ source: "bad", version: "1", payload: { courseId: "1", courseName: "A" } } as any)
+      validateEnvelopeShape({ source: "bad", version: "1", payload: { courseId: "1", courseName: "A" } } as unknown as CanvasSyncEnvelope)
     ).toThrow(/Unexpected payload source/);
   });
 
@@ -34,7 +35,7 @@ describe("validateEnvelopeShape", () => {
         source: "canvas-browser-extension",
         version: "2",
         payload: { courseId: "1", courseName: "A" }
-      } as any)
+      } as unknown as CanvasSyncEnvelope)
     ).toThrow(/Unsupported payload version/);
   });
 });
