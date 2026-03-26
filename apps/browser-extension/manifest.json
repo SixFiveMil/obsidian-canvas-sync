@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Canvas to Obsidian Sync",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Collect Canvas course data from your browser session and send to Obsidian.",
   "icons": {
     "16": "icon16.png",
