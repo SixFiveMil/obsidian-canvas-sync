@@ -206,11 +206,12 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const chunks: Buffer[] = [];
     let size = 0;
 
+    const limitMb = 25;
     for await (const chunk of req) {
       const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       size += part.length;
-      if (size > 5 * 1024 * 1024) {
-        throw new Error("Payload too large. Limit is 5 MB.");
+      if (size > limitMb * 1024 * 1024) {
+        throw new Error(`Payload too large. Limit is ${limitMb} MB.`);
       }
       chunks.push(part);
     }

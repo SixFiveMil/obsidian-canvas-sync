@@ -106,6 +106,83 @@ function requestText(
   });
 }
 
+function requestBinary(url: string, withCredentials = true): Promise<{ data: ArrayBuffer; contentType: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.withCredentials = withCredentials;
+    xhr.responseType = "arraybuffer";
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const contentType = xhr.getResponseHeader("Content-Type") ?? "application/octet-stream";
+        resolve({ data: xhr.response as ArrayBuffer, contentType });
+        return;
+      }
+      reject(new Error(`Binary request failed: ${xhr.status}`));
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Binary network request failed."));
+    };
+
+    xhr.send();
+  });
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+async function inlineImages(html: string, origin: string): Promise<string> {
+  if (!html) {
+    return html;
+  }
+
+  const srcPattern = /<img\b([^>]*?)\ssrc=["']([^"']+)["']([^>]*?)>/gi;
+  const matches: Array<{ full: string; before: string; src: string; after: string }> = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = srcPattern.exec(html)) !== null) {
+    matches.push({ full: match[0], before: match[1], src: match[2], after: match[3] });
+  }
+
+  const replacements = await Promise.all(
+    matches.map(async ({ full, before, src, after }) => {
+      try {
+        const absoluteSrc = src.startsWith("http") ? src : `${origin}${src.startsWith("/") ? "" : "/"}${src}`;
+        // Only inline images hosted on the same Canvas origin
+        if (!absoluteSrc.startsWith(origin)) {
+          return { full, replacement: full };
+        }
+        const { data, contentType } = await requestBinary(absoluteSrc);
+        const mimeType = contentType.split(";")[0].trim();
+        if (!mimeType.startsWith("image/")) {
+          return { full, replacement: full };
+        }
+        const dataUri = `data:${mimeType};base64,${arrayBufferToBase64(data)}`;
+        return { full, replacement: `<img${before} src="${dataUri}"${after}>` };
+      } catch {
+        // Leave original src intact on failure
+        return { full, replacement: full };
+      }
+    })
+  );
+
+  let result = html;
+  for (const { full, replacement } of replacements) {
+    if (full !== replacement) {
+      result = result.replace(full, replacement);
+    }
+  }
+  return result;
+}
+
 async function requestJson(
   url: string,
   options?: {
@@ -122,7 +199,20 @@ async function requestJson(
   return JSON.parse(text) as unknown;
 }
 
+const BRIDGE_PAYLOAD_LIMIT_MB = 25;
+
 async function postToLocalBridge(envelope: CanvasSyncEnvelope, port: number): Promise<unknown> {
+  const serialized = JSON.stringify(envelope);
+  const sizeBytes = new TextEncoder().encode(serialized).length;
+  const sizeMb = sizeBytes / (1024 * 1024);
+  if (sizeMb > BRIDGE_PAYLOAD_LIMIT_MB) {
+    throw new Error(
+      `Payload is ${sizeMb.toFixed(1)} MB which exceeds the ${BRIDGE_PAYLOAD_LIMIT_MB} MB limit. ` +
+      `Your course has too many or too large images. Try enabling the Obsidian plugin's ` +
+      `"Reduce image payload" option or reduce the number of synced modules.`
+    );
+  }
+
   try {
     return await requestJson(`http://127.0.0.1:${port}/canvas-sync`, {
       method: "POST",
@@ -167,12 +257,41 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
     getEvents(courseId)
   ]);
 
+  const origin = window.location.origin;
+
+  const [inlinedHomeHtml, inlinedSyllabusHtml] = await Promise.all([
+    courseHomePageHtml ? inlineImages(courseHomePageHtml, origin) : Promise.resolve(courseHomePageHtml),
+    syllabusHtml ? inlineImages(syllabusHtml, origin) : Promise.resolve(syllabusHtml)
+  ]);
+
+  await Promise.all(
+    pages.map(async (page) => {
+      page.html = await inlineImages(page.html, origin);
+    })
+  );
+
+  await Promise.all(
+    assignments.map(async (assignment) => {
+      if (assignment.descriptionHtml) {
+        assignment.descriptionHtml = await inlineImages(assignment.descriptionHtml, origin);
+      }
+    })
+  );
+
+  await Promise.all(
+    discussions.map(async (discussion) => {
+      if (discussion.messageHtml) {
+        discussion.messageHtml = await inlineImages(discussion.messageHtml, origin);
+      }
+    })
+  );
+
   const payload: CanvasCoursePayload = {
     courseId,
     courseName,
     fetchedAt: new Date().toISOString(),
-    courseHomePageHtml: courseHomePageHtml || undefined,
-    syllabusHtml: syllabusHtml || undefined,
+    courseHomePageHtml: inlinedHomeHtml || undefined,
+    syllabusHtml: inlinedSyllabusHtml || undefined,
     modules: moduleIndex.modules,
     pages,
     assignments,
