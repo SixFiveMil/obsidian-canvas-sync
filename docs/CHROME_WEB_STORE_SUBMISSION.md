@@ -97,14 +97,23 @@ REQUIREMENTS:
 
 ---
 
-## 4. Privacy Practices Answers
+## 4. Privacy Practices & Privacy Policy URL
 
-When completing the **Privacy** tab in the Chrome Web Store Developer Dashboard:
+### Privacy Policy Field (Developer Dashboard)
+In the Chrome Web Store Developer Dashboard under the **Privacy** tab:
+- **Privacy Policy URL:**
+  ```
+  https://github.com/SixFiveMil/obsidian-canvas-sync/blob/main/PRIVACY.md
+  ```
+  *(Alternative standalone HTML version: `https://sixfivemil.github.io/obsidian-canvas-sync/privacy.html` or `https://raw.githubusercontent.com/SixFiveMil/obsidian-canvas-sync/main/docs/privacy.html`)*
 
 ### Single Purpose
 - **Question:** Does your extension have a single purpose?
 - **Answer:** **Yes**.
-- **Explanation:** The extension only extracts course content from the user's active Canvas session and forwards it to their local Obsidian vault.
+- **Explanation:**
+  ```
+  The extension only extracts course content from the user's active Canvas LMS browser session and forwards it directly to their local Obsidian vault via loopback (127.0.0.1).
+  ```
 
 ### Data Usage Disclosures
 - **User Data Collection:** Check **NO** for all categories:
@@ -122,6 +131,7 @@ When completing the **Privacy** tab in the Chrome Web Store Developer Dashboard:
 - [x] **I certify that this extension complies with the Limited Use policy.**
 - [x] **I certify that the data is not used or transferred for purposes unrelated to the item's core purpose.**
 - [x] **I certify that the data is not sold, transferred, or used for personalized advertising or creditworthiness.**
+
 
 ---
 

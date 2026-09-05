@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - Canvas to Obsidian Sync</title>
+  <meta name="description" content="Privacy Policy for Canvas to Obsidian Sync Chrome Extension and Obsidian Plugin. Local-first, zero telemetry, zero cloud data collection.">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-hover: #0ea5e9;
+      --accent-green: #34d399;
+      --accent-purple: #a78bfa;
+      --code-bg: #090d16;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc;
+        --card-bg: #ffffff;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --text-muted: #64748b;
+        --primary: #0284c7;
+        --primary-hover: #0369a1;
+        --accent-green: #059669;
+        --accent-purple: #7c3aed;
+        --code-bg: #f1f5f9;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.65;
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 3rem 2.5rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    }
+    @media (max-width: 640px) {
+      .container { padding: 1.5rem 1.25rem; }
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.75rem;
+      margin-bottom: 2rem;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--accent-green);
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+    .meta {
+      font-size: 0.925rem;
+      color: var(--text-muted);
+    }
+    .meta a { color: var(--primary); text-decoration: none; }
+    .meta a:hover { text-decoration: underline; }
+    h2 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      margin: 2rem 0 1rem 0;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.25rem 0 0.5rem 0;
+      color: var(--text);
+    }
+    p { margin-bottom: 1rem; color: var(--text); }
+    ul, ol {
+      margin-left: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    li { margin-bottom: 0.5rem; }
+    .highlight-box {
+      background: rgba(56, 189, 248, 0.08);
+      border-left: 4px solid var(--primary);
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      margin: 1.5rem 0;
+    }
+    .highlight-box p { margin-bottom: 0.5rem; }
+    .highlight-box p:last-child { margin-bottom: 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      text-align: left;
+    }
+    th {
+      background-color: var(--code-bg);
+      font-weight: 600;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88em;
+      background-color: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    footer a { color: var(--primary); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge">Privacy Policy & Transparency</span>
+      <h1>Canvas to Obsidian Sync</h1>
+      <p class="meta">
+        <strong>Effective Date:</strong> September 5, 2026 &bull; 
+        <strong>Last Updated:</strong> September 5, 2026<br>
+        <strong>Publisher:</strong> Joshua (<a href="https://github.com/SixFiveMil" target="_blank" rel="noopener">@SixFiveMil</a>) &bull; 
+        <strong>Project:</strong> <a href="https://github.com/SixFiveMil/obsidian-canvas-sync" target="_blank" rel="noopener">github.com/SixFiveMil/obsidian-canvas-sync</a>
+      </p>
+    </header>
+
+    <div class="highlight-box">
+      <p><strong>Core Guarantee:</strong> Canvas to Obsidian Sync is a <strong>100% local-first, privacy-respecting utility</strong>. We run <strong>no remote cloud servers</strong>, collect <strong>no telemetry or analytics</strong>, and store <strong>no personal data</strong>. Course materials are transmitted strictly over a secure local loopback connection (<code>127.0.0.1</code>) directly to your Obsidian desktop application.</p>
+    </div>
+
+    <h2>1. Introduction & Single Purpose</h2>
+    <p>Canvas to Obsidian Sync is a companion browser extension designed for students, researchers, and educators who use Obsidian for academic knowledge management. The single, dedicated purpose of the extension is to extract academic course materials (modules, syllabus documents, assignments, rubrics, announcements, discussion prompts, and pacing tables) from an active Canvas LMS session and securely deliver them as clean GitHub Flavored Markdown (GFM) notes to the user's personal Obsidian vault.</p>
+
+    <h2>2. Information Handled by the Extension</h2>
+    <p>To fulfill its single purpose, the extension processes the following data categories strictly on your local machine:</p>
+
+    <h3>A. Academic Course Content</h3>
+    <ul>
+      <li><strong>Data Handled:</strong> Course title, course code, module names, page texts, assignment prompts, rubrics, discussions, syllabus text, and pacing guide tables.</li>
+      <li><strong>Processing:</strong> Upon user click ("Sync Active Course"), the extension parses the DOM of your active Canvas course tab, converts the elements into structured Markdown, and temporarily holds the payload in browser memory.</li>
+      <li><strong>Transmission:</strong> The Markdown payload is sent directly via local HTTP POST to <code>http://127.0.0.1:27125</code> (or your custom configured loopback port).</li>
+      <li><strong>Storage:</strong> The local Obsidian plugin writes the received Markdown directly to your local file system vault. The browser extension does not store course contents.</li>
+    </ul>
+
+    <h3>B. Session Credentials & Authentication</h3>
+    <ul>
+      <li>The extension operates strictly through your existing logged-in browser session with your institution's Canvas LMS.</li>
+      <li>The extension <strong>never</strong> intercepts, records, logs, or transmits your Canvas passwords, login credentials, session cookies, or multi-factor authentication tokens.</li>
+      <li>If you choose to input a Canvas personal access token for restricted school environments, the token is saved strictly in your browser's private local storage (<code>chrome.storage.local</code>) and is only sent directly to your institution's official Canvas domain.</li>
+    </ul>
+
+    <h3>C. Local Settings & Preferences</h3>
+    <ul>
+      <li>Configuration choices (such as local bridge port, folder naming templates, and timestamp of the last sync) are saved locally using Chrome's <code>chrome.storage.local</code> API on your machine.</li>
+    </ul>
+
+    <h2>3. Information We Do NOT Collect</h2>
+    <p>We do not collect, track, or share any user data. Specifically, we do NOT collect:</p>
+    <ul>
+      <li>Personal identification information (name, email address, physical address, student ID).</li>
+      <li>Web browsing history, navigation habits, or search history.</li>
+      <li>IP addresses, geolocation coordinates, or network telemetry.</li>
+      <li>Financial, credit, or payment details.</li>
+      <li>Academic evaluation metrics, grades, or submitted coursework without explicit user sync invocation.</li>
+      <li>Tracking pixels, advertising IDs, or telemetry SDKs (e.g., Google Analytics, Segment, Sentry).</li>
+    </ul>
+
+    <h2>4. Chrome Extension Permissions & Technical Justifications</h2>
+    <p>Every permission requested in <code>manifest.json</code> is strictly tied to the extension's core functionality:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Permission</th>
+          <th>Technical Justification</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>activeTab</code></td>
+          <td>Grants temporary access to the active browser tab only when you click the extension popup to inspect or extract course content from Canvas LMS.</td>
+        </tr>
+        <tr>
+          <td><code>scripting</code></td>
+          <td>Allows the extension to inject extraction scripts into the active Canvas tab to parse the course DOM, retrieve module items, and format pacing tables.</td>
+        </tr>
+        <tr>
+          <td><code>tabs</code></td>
+          <td>Verifies that the active tab URL matches an active Canvas course route (<code>/courses/{id}</code>) prior to extraction, preventing unintended execution on unrelated websites.</td>
+        </tr>
+        <tr>
+          <td><code>storage</code></td>
+          <td>Stores local configuration settings (e.g., bridge port number, folder naming templates) within your browser's private local storage.</td>
+        </tr>
+        <tr>
+          <td><code>host_permissions</code><br><code>http://127.0.0.1/*</code><br><code>http://localhost/*</code></td>
+          <td>Permits HTTP POST requests across the loopback network to transfer course Markdown to the local Obsidian bridge server running on your device.</td>
+        </tr>
+        <tr>
+          <td><code>host_permissions</code><br><code>https://*.instructure.com/*</code><br><code>https://*.canvaslms.com/*</code></td>
+          <td>Permits API queries and media resource downloads (such as course figures and diagrams) directly from your institution's Canvas LMS instance for offline viewing in Obsidian.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>5. Compliance with Chrome Web Store Limited Use Requirements</h2>
+    <p>Canvas to Obsidian Sync complies fully with the <strong>Chrome Web Store User Data Policy</strong>, including the <strong>Limited Use</strong> requirements:</p>
+    <ul>
+      <li><strong>No Sale of Data:</strong> User data is never sold, leased, or traded to third parties, advertising networks, or data brokers.</li>
+      <li><strong>No Unrelated Data Transfers:</strong> User data is never transferred or used for any purpose other than providing and enhancing the single core function of the extension.</li>
+      <li><strong>No Targeted Advertising:</strong> User data is never used or transferred for personalized advertising, retargeting, or promotional profiling.</li>
+      <li><strong>No Creditworthiness Assessment:</strong> User data is never used or transferred to determine creditworthiness or for financial lending purposes.</li>
+    </ul>
+
+    <h2>6. Security and Local Loopback Isolation</h2>
+    <p>All communication between the browser extension and Obsidian occurs solely across the host machine's loopback interface (<code>127.0.0.1</code>). No data leaves your personal computer during the sync process. Requests to the bridge include custom verification headers (<code>X-Canvas-Sync-Client</code>) to protect against unauthorized cross-origin calls.</p>
+
+    <h2>7. User Rights, Data Ownership & Deletion</h2>
+    <p>You retain 100% ownership and control over your data. All exported coursework notes reside as plain Markdown files on your local drive within your Obsidian vault. You may edit, relocate, or delete them at any time.</p>
+    <p>To erase all stored preferences in the browser extension, simply remove the extension via <code>chrome://extensions</code> or clear site data for the extension.</p>
+
+    <h2>8. Children's Online Privacy Protection Act (COPPA)</h2>
+    <p>Canvas to Obsidian Sync does not knowingly collect or solicit personal information from children under the age of 13. The extension is an educational utility that requires neither account registration nor remote data storage.</p>
+
+    <h2>9. Policy Revisions</h2>
+    <p>Any revisions to this Privacy Policy will be published directly to this page and the project's open-source GitHub repository with an updated revision date.</p>
+
+    <h2>10. Contact Information</h2>
+    <p>For questions or privacy inquiries regarding Canvas to Obsidian Sync, please visit our public repository or submit an issue:</p>
+    <ul>
+      <li><strong>GitHub Issues:</strong> <a href="https://github.com/SixFiveMil/obsidian-canvas-sync/issues" target="_blank" rel="noopener">https://github.com/SixFiveMil/obsidian-canvas-sync/issues</a></li>
+      <li><strong>Repository:</strong> <a href="https://github.com/SixFiveMil/obsidian-canvas-sync" target="_blank" rel="noopener">https://github.com/SixFiveMil/obsidian-canvas-sync</a></li>
+      <li><strong>Maintainer:</strong> Joshua (<a href="https://github.com/SixFiveMil" target="_blank" rel="noopener">@SixFiveMil</a>)</li>
+    </ul>
+
+    <footer>
+      <span>&copy; 2026 Canvas to Obsidian Sync. Open source under MIT License.</span>
+      <span><a href="https://github.com/SixFiveMil/obsidian-canvas-sync" target="_blank" rel="noopener">GitHub Project</a></span>
+    </footer>
+  </div>
+</body>
+</html>
