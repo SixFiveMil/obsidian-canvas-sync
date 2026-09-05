@@ -1,4 +1,4 @@
-﻿# Chrome Web Store Submission Guide: Canvas to Obsidian Sync
+# Chrome Web Store Submission Guide: Canvas to Obsidian Sync
 
 This document contains the complete listing metadata, permission justifications, privacy disclosure responses, and reviewer instructions required for publishing **Canvas to Obsidian Sync** on the Google Chrome Web Store.
 
@@ -25,12 +25,18 @@ Extract Canvas LMS modules, pages, and assignments from your active course and s
 - **Visibility:** Public
 - **Regions:** All regions
 
-### Store Assets
-The following promotional assets are located in [`docs/store-assets/`](./store-assets/):
+### Store Assets (Pixel-Perfect & No Alpha Channel)
+All assets are located in [`docs/store-assets/`](./store-assets/) and comply with Chrome Web Store upload specifications (available in both JPEG and 24-bit PNG without alpha):
 - **Store Icon (128x128 PNG):** `docs/store-assets/icon128.png`
-- **Small Promo Tile (440x280 JPG):** `docs/store-assets/promo_small_440x280.jpg`
-- **Marquee Promo Tile (1400x560 JPG):** `docs/store-assets/promo_marquee_1400x560.jpg`
-- **Screenshot / Mockup (1280x800 / 16:9 JPG):** `docs/store-assets/screenshot_sync_flow.jpg`
+- **Small Promo Tile (440x280 Canvas):**
+  - `docs/store-assets/promo_small_440x280.jpg` (JPEG)
+  - `docs/store-assets/promo_small_440x280.png` (24-bit RGB PNG, no alpha)
+- **Marquee Promo Tile (1400x560 Canvas):**
+  - `docs/store-assets/promo_marquee_1400x560.jpg` (JPEG)
+  - `docs/store-assets/promo_marquee_1400x560.png` (24-bit RGB PNG, no alpha)
+- **Screenshots (1280x800):**
+  - Screenshot 1 (Sync Flow & Popup): `docs/store-assets/screenshot_1280x800.jpg` / `.png`
+  - Screenshot 2 (Rendered Obsidian Notes & GFM Tables): `docs/store-assets/screenshot2_obsidian_notes_1280x800.jpg` / `.png`
 
 ---
 
