@@ -40,21 +40,18 @@ its root.
    - `manifest.json`
    - `main.js`
 5. Confirm the GitHub release was created for that tag and includes the generated assets.
-6. Submit a PR to `obsidianmd/obsidian-releases` adding the plugin entry to `community-plugins.json`.
+6. Submit your plugin via the official Obsidian Community Directory portal at https://community.obsidian.md.
 
-### Submission JSON fields
+### Submission via the Community Directory Portal
 
-Use this shape when adding the entry to `community-plugins.json`:
+Obsidian now handles all community plugin submissions through their official developer portal at **[community.obsidian.md](https://community.obsidian.md)** (manual pull requests on `obsidian-releases` have been deprecated and disabled).
 
-```json
-{
-  "id": "canvas-sync-bridge",
-  "name": "Canvas Sync Bridge",
-  "author": "SixFiveMil",
-  "description": "Receives Canvas data from a browser extension and syncs it into your vault.",
-   "repo": "SixFiveMil/canvas-sync-bridge-plugin"
-}
-```
+1. Sign in to **[community.obsidian.md](https://community.obsidian.md)** with your Obsidian account.
+2. In your profile settings, link your GitHub account (`SixFiveMil`).
+3. Click **Add a plugin** (or **Submit a plugin**).
+4. Select your plugin repository: `SixFiveMil/canvas-sync-bridge-plugin`.
+5. The portal will automatically inspect `manifest.json` on the `main` branch, verify the release assets (`main.js` and `manifest.json`) on tag `0.2.0`, and run automated validation checks.
+6. Submit for review! Once approved by the Obsidian moderation team, the plugin will appear in the Community Plugins directory inside the app.
 
 ## Chrome Web Store
 
