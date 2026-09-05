@@ -75,6 +75,7 @@ export interface CanvasEventPayload {
 export interface CanvasCoursePayload {
   courseId: string;
   courseName: string;
+  courseCode?: string;
   fetchedAt: string;
   courseHomePageHtml?: string;
   syllabusHtml?: string;

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { isCanvasUrl, normalizeModuleItemType, parseRubricCriteria } from "../src/sync-utils";
+import {
+  cleanCourseName,
+  extractCourseCode,
+  isCanvasUrl,
+  isDashboardTitle,
+  normalizeModuleItemType,
+  parseCourseInfo,
+  parseRubricCriteria
+} from "../src/sync-utils";
 
 describe("isCanvasUrl", () => {
   it("accepts Canvas course URLs", () => {
@@ -54,3 +62,99 @@ describe("parseRubricCriteria", () => {
     expect(rubric?.[0].ratings[1].longDescription).toBe("Needs work");
   });
 });
+
+describe("extractCourseCode", () => {
+  it("extracts hyphenated codes like CSOL-500", () => {
+    expect(extractCourseCode("CSOL-500 Foundations of Cyber Security")).toBe("CSOL-500");
+  });
+
+  it("extracts space-separated codes like CSOL 500", () => {
+    expect(extractCourseCode("CSOL 500: Foundations of Cyber Security")).toBe("CSOL 500");
+  });
+
+  it("extracts unhyphenated codes like MATH101", () => {
+    expect(extractCourseCode("Welcome to MATH101 Calculus I")).toBe("MATH101");
+  });
+
+  it("extracts alphanumeric codes like CS106A", () => {
+    expect(extractCourseCode("CS106A Programming Methodology")).toBe("CS106A");
+  });
+
+  it("returns null when no code pattern matches", () => {
+    expect(extractCourseCode("General Studies")).toBeNull();
+    expect(extractCourseCode("")).toBeNull();
+  });
+});
+
+describe("isDashboardTitle", () => {
+  it("detects dashboard variants", () => {
+    expect(isDashboardTitle("My Dashboard")).toBe(true);
+    expect(isDashboardTitle("Dashboard")).toBe(true);
+    expect(isDashboardTitle("dashboard - Canvas")).toBe(true);
+    expect(isDashboardTitle("Courses")).toBe(true);
+  });
+
+  it("does not flag real course names", () => {
+    expect(isDashboardTitle("CSOL-500 Foundations")).toBe(false);
+    expect(isDashboardTitle("Cyber Security")).toBe(false);
+  });
+});
+
+describe("cleanCourseName", () => {
+  it("returns empty string for dashboard titles", () => {
+    expect(cleanCourseName("My Dashboard")).toBe("");
+    expect(cleanCourseName("Dashboard")).toBe("");
+  });
+
+  it("strips Canvas suffixes and course codes", () => {
+    expect(cleanCourseName("CSOL-500: Foundations of Cyber Security - Canvas LMS", "CSOL-500")).toBe(
+      "Foundations of Cyber Security"
+    );
+    expect(cleanCourseName("CSOL-500 - Foundations of Cyber Security: Modules", "CSOL-500")).toBe(
+      "Foundations of Cyber Security"
+    );
+    expect(cleanCourseName("Foundations of Cyber Security (CSOL-500)")).toBe("Foundations of Cyber Security");
+  });
+});
+
+describe("parseCourseInfo", () => {
+  it("uses official Canvas API data when available", () => {
+    const result = parseCourseInfo({
+      courseId: "12345",
+      apiName: "CSOL-500: Foundations of Cyber Security",
+      apiCourseCode: "CSOL-500"
+    });
+    expect(result.courseCode).toBe("CSOL-500");
+    expect(result.courseName).toBe("Foundations of Cyber Security");
+  });
+
+  it("filters out 'My Dashboard' and uses real course title from breadcrumbs", () => {
+    const result = parseCourseInfo({
+      courseId: "12345",
+      breadcrumbText: "CSOL-500 Foundations of Cyber Security",
+      courseTitleElText: "My Dashboard"
+    });
+    expect(result.courseCode).toBe("CSOL-500");
+    expect(result.courseName).toBe("Foundations of Cyber Security");
+  });
+
+  it("extracts from document title when DOM breadcrumbs are absent", () => {
+    const result = parseCourseInfo({
+      courseId: "999",
+      documentTitle: "CSOL-510: Information Assurance - Canvas LMS"
+    });
+    expect(result.courseCode).toBe("CSOL-510");
+    expect(result.courseName).toBe("Information Assurance");
+  });
+
+  it("falls back to Course ID when no valid title or code exists", () => {
+    const result = parseCourseInfo({
+      courseId: "888",
+      breadcrumbText: "My Dashboard",
+      documentTitle: "Dashboard"
+    });
+    expect(result.courseCode).toBe("");
+    expect(result.courseName).toBe("Course 888");
+  });
+});
+

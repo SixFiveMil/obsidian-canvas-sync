@@ -6,6 +6,8 @@ import type {
   CanvasModuleItemPayload,
   CanvasModulePayload,
   CanvasPagePayload,
+  CanvasRubricCriterionPayload,
+  CanvasRubricRatingPayload,
   CanvasSyncEnvelope
 } from "./types";
 
@@ -14,6 +16,13 @@ const DEFAULT_PORT = 27125;
 interface SyncCanvasCourseMessage {
   type: "syncCanvasCourse";
   port?: number;
+  apiToken?: string;
+  courseCode?: string;
+  courseName?: string;
+}
+
+interface DetectCourseInfoMessage {
+  type: "detectCourseInfo";
   apiToken?: string;
 }
 
@@ -25,6 +34,19 @@ interface CourseModuleIndex {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "detectCourseInfo") {
+    const detectMessage = message as DetectCourseInfoMessage;
+    void (async () => {
+      try {
+        const info = await detectCourseFromActiveTab(detectMessage.apiToken);
+        sendResponse({ ok: true, ...info });
+      } catch (error) {
+        sendResponse({ ok: false, message: error instanceof Error ? error.message : "Failed to detect course." });
+      }
+    })();
+    return true;
+  }
+
   if (message?.type !== "syncCanvasCourse") {
     return;
   }
@@ -33,7 +55,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   void (async () => {
     try {
-      const envelope = await extractFromActiveCanvasTab(syncMessage.apiToken);
+      const envelope = await extractFromActiveCanvasTab(
+        syncMessage.apiToken,
+        syncMessage.courseName,
+        syncMessage.courseCode
+      );
       const response = await postToLocalBridge(envelope, syncMessage.port ?? DEFAULT_PORT);
       sendResponse({ ok: true, response });
     } catch (error) {
@@ -44,7 +70,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
-async function extractFromActiveCanvasTab(apiToken?: string): Promise<CanvasSyncEnvelope> {
+async function detectCourseFromActiveTab(
+  apiToken?: string
+): Promise<{ courseId: string; courseCode: string; courseName: string }> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !tab.url) {
+    throw new Error("No active tab available.");
+  }
+
+  if (!isCanvasUrl(tab.url)) {
+    throw new Error("Open a Canvas course tab first (URL should include /courses/{id}).");
+  }
+
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: detectCanvasCourseInPage,
+    args: [apiToken ?? null]
+  });
+
+  if (!result) {
+    throw new Error("Canvas course detection returned no result.");
+  }
+
+  return result;
+}
+
+async function extractFromActiveCanvasTab(
+  apiToken?: string,
+  customCourseName?: string,
+  customCourseCode?: string
+): Promise<CanvasSyncEnvelope> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !tab.url) {
     throw new Error("No active tab available.");
@@ -57,7 +112,7 @@ async function extractFromActiveCanvasTab(apiToken?: string): Promise<CanvasSync
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     func: scrapeCanvasFromPage,
-    args: [apiToken ?? null]
+    args: [apiToken ?? null, customCourseName ?? null, customCourseCode ?? null]
   });
 
   if (!result) {
@@ -237,7 +292,11 @@ function isCanvasUrl(url: string): boolean {
   }
 }
 
-async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSyncEnvelope> {
+async function scrapeCanvasFromPage(
+  apiToken: string | null,
+  customCourseName: string | null = null,
+  customCourseCode: string | null = null
+): Promise<CanvasSyncEnvelope> {
   const href = window.location.href;
   const match = window.location.pathname.match(/\/courses\/(\d+)/);
   if (!match) {
@@ -245,7 +304,108 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
   }
 
   const courseId = match[1];
-  const courseName = document.querySelector(".course-title, #breadcrumbs span")?.textContent?.trim() || `Course ${courseId}`;
+
+  let detectedCourseCode = "";
+  let detectedCourseName = "";
+
+  // 1. Attempt Canvas API fetch /api/v1/courses/${courseId} to extract official name and course_code
+  try {
+    const courseDetail = (await api(`/api/v1/courses/${courseId}`)) as Record<string, unknown> | null;
+    if (isRecord(courseDetail)) {
+      if (typeof courseDetail.course_code === "string" && courseDetail.course_code.trim()) {
+        detectedCourseCode = courseDetail.course_code.trim();
+      }
+      if (typeof courseDetail.name === "string" && courseDetail.name.trim()) {
+        detectedCourseName = courseDetail.name.trim();
+      }
+    }
+  } catch {
+    // API failure handled with DOM fallbacks
+  }
+
+  const COURSE_CODE_REGEX = /\b([A-Z]{2,5}[-\s]?\d{3,4}[A-Z]?)\b/i;
+
+  function isDashboard(text: string): boolean {
+    const n = text.trim().toLowerCase();
+    return (
+      n === "dashboard" ||
+      n === "my dashboard" ||
+      n.startsWith("dashboard") ||
+      n.startsWith("my dashboard") ||
+      n === "courses" ||
+      n === "my courses"
+    );
+  }
+
+  function cleanTitle(raw: string, code?: string): string {
+    if (isDashboard(raw)) return "";
+    let s = raw
+      .trim()
+      .replace(/\s*[-:|•]\s*Canvas(?:\s+LMS)?.*$/i, "")
+      .replace(/\s*[-:|•]\s*(?:Course\s+)?Home$/i, "")
+      .replace(/\s*[-:|•]\s*Modules$/i, "")
+      .replace(/\s*[-:|•]\s*Syllabus$/i, "")
+      .replace(/\s*[-:|•]\s*Assignments$/i, "")
+      .trim();
+
+    const c = code || s.match(COURSE_CODE_REGEX)?.[1];
+    if (c) {
+      const esc = c.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+      s = s.replace(new RegExp(`^${esc}\\s*[-:]*\\s*`, "i"), "");
+      s = s.replace(new RegExp(`\\s*[([]?\\s*${esc}\\s*[)\\]]?$`, "i"), "");
+    }
+    s = s.replace(/\s+/g, " ").trim();
+    return isDashboard(s) ? "" : s;
+  }
+
+  // 2. Query DOM:
+  // - '#breadcrumbs a[href*="/courses/"]'
+  // - '#breadcrumbs li:last-child span'
+  // - '.course-title'
+  // - document '<title>'
+  const breadcrumbCourseEl = document.querySelector('#breadcrumbs a[href*="/courses/"]');
+  const breadcrumbCourseText = breadcrumbCourseEl?.textContent?.trim() || "";
+
+  const lastBreadcrumbSpan = document.querySelector('#breadcrumbs li:last-child span');
+  const lastBreadcrumbText = lastBreadcrumbSpan?.textContent?.trim() || "";
+
+  const courseTitleEl = document.querySelector('.course-title');
+  const courseTitleText = courseTitleEl?.textContent?.trim() || "";
+
+  const docTitle = document.title || document.querySelector("title")?.textContent?.trim() || "";
+
+  const domCandidates = [
+    breadcrumbCourseText,
+    courseTitleText,
+    lastBreadcrumbText,
+    docTitle
+  ].filter((t): t is string => Boolean(t && !isDashboard(t)));
+
+  if (!detectedCourseCode) {
+    for (const text of [detectedCourseName, ...domCandidates]) {
+      const m = text.match(COURSE_CODE_REGEX);
+      if (m) {
+        detectedCourseCode = m[1].trim();
+        break;
+      }
+    }
+  }
+
+  if (!detectedCourseName || isDashboard(detectedCourseName)) {
+    for (const text of domCandidates) {
+      const cleaned = cleanTitle(text, detectedCourseCode);
+      if (cleaned) {
+        detectedCourseName = cleaned;
+        break;
+      }
+    }
+  } else {
+    detectedCourseName = cleanTitle(detectedCourseName, detectedCourseCode) || detectedCourseName;
+  }
+
+  const finalCourseCode = customCourseCode?.trim() || detectedCourseCode || undefined;
+  const finalCourseName = customCourseName?.trim() || detectedCourseName || `Course ${courseId}`;
+
   const moduleIndex = await getCourseModuleIndex(courseId);
 
   const [courseHomePageHtml, syllabusHtml, pages, assignments, discussions, events] = await Promise.all([
@@ -288,7 +448,8 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
 
   const payload: CanvasCoursePayload = {
     courseId,
-    courseName,
+    courseCode: finalCourseCode,
+    courseName: finalCourseName,
     fetchedAt: new Date().toISOString(),
     courseHomePageHtml: inlinedHomeHtml || undefined,
     syllabusHtml: inlinedSyllabusHtml || undefined,
@@ -307,7 +468,7 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
 
   async function getCourseHomePage(id: string): Promise<string> {
     try {
-      const frontPage = await api(`/api/v1/courses/${id}/front_page`);
+      const frontPage = (await api(`/api/v1/courses/${id}/front_page`)) as Record<string, unknown> | null;
       if (typeof frontPage?.body === "string" && frontPage.body.trim() !== "") {
         return frontPage.body;
       }
@@ -319,7 +480,7 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
 
   async function getSyllabus(id: string): Promise<string> {
     try {
-      const course = await api(`/api/v1/courses/${id}?include[]=syllabus_body`);
+      const course = (await api(`/api/v1/courses/${id}?include[]=syllabus_body`)) as Record<string, unknown> | null;
       if (typeof course?.syllabus_body === "string" && course.syllabus_body.trim() !== "") {
         return course.syllabus_body;
       }
@@ -398,7 +559,7 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
     const routeUrl = `${window.location.origin}/courses/${id}/pages/${encodeURIComponent(slug)}`;
 
     try {
-      const detail = await api(`/api/v1/courses/${id}/pages/${encodeURIComponent(slug)}`);
+      const detail = (await api(`/api/v1/courses/${id}/pages/${encodeURIComponent(slug)}`)) as Record<string, unknown> | null;
       let html = typeof detail?.body === "string" ? detail.body : "";
       if (!html) {
         html = await fetchPageHtml(routeUrl);
@@ -409,11 +570,11 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
       }
 
       return {
-        title: detail?.title || fallbackTitle,
+        title: typeof detail?.title === "string" && detail.title.trim() !== "" ? detail.title : fallbackTitle,
         html,
         url: routeUrl,
         slug,
-        updatedAt: detail?.updated_at || fallbackUpdatedAt || undefined,
+        updatedAt: typeof detail?.updated_at === "string" ? detail.updated_at : fallbackUpdatedAt || undefined,
         moduleNames: moduleNames && moduleNames.length > 0 ? moduleNames : undefined
       };
     } catch (error) {
@@ -647,14 +808,14 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
     }
 
     const criteria = item.rubric
-      .map((criterion): CanvasAssignmentPayload["rubric"][number] | null => {
+      .map((criterion): CanvasRubricCriterionPayload | null => {
         if (!isRecord(criterion)) {
           return null;
         }
 
         const ratings = Array.isArray(criterion.ratings)
           ? criterion.ratings
-              .map((rating): CanvasAssignmentPayload["rubric"][number]["ratings"][number] | null => {
+              .map((rating): CanvasRubricRatingPayload | null => {
                 if (!isRecord(rating) || typeof rating.points !== "number") {
                   return null;
                 }
@@ -746,3 +907,170 @@ async function scrapeCanvasFromPage(apiToken: string | null): Promise<CanvasSync
     });
   }
 }
+
+async function detectCanvasCourseInPage(
+  apiToken: string | null
+): Promise<{ courseId: string; courseCode: string; courseName: string }> {
+  const match = window.location.pathname.match(/\/courses\/(\d+)/);
+  if (!match) {
+    throw new Error("Could not determine Canvas course ID from URL.");
+  }
+
+  const courseId = match[1];
+
+  let detectedCourseCode = "";
+  let detectedCourseName = "";
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+  }
+
+  function requestText(
+    url: string,
+    options?: {
+      method?: "GET" | "POST" | "OPTIONS";
+      headers?: Record<string, string>;
+      body?: string;
+      withCredentials?: boolean;
+    }
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(options?.method ?? "GET", url, true);
+      xhr.withCredentials = options?.withCredentials ?? false;
+
+      const headers = options?.headers ?? {};
+      for (const [key, value] of Object.entries(headers)) {
+        xhr.setRequestHeader(key, value);
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(xhr.responseText);
+          return;
+        }
+        reject(new Error(`Request failed: ${xhr.status}`));
+      };
+
+      xhr.onerror = () => {
+        reject(new Error("Network request failed."));
+      };
+
+      xhr.send(options?.body);
+    });
+  }
+
+  async function api(path: string): Promise<unknown> {
+    const headers: Record<string, string> = {
+      Accept: "application/json"
+    };
+    if (apiToken && apiToken.trim() !== "") {
+      headers.Authorization = `Bearer ${apiToken.trim()}`;
+    }
+
+    const text = await requestText(`${window.location.origin}${path}`, {
+      withCredentials: true,
+      headers
+    });
+    if (!text.trim()) {
+      return {};
+    }
+    return JSON.parse(text);
+  }
+
+  try {
+    const courseDetail = (await api(`/api/v1/courses/${courseId}`)) as Record<string, unknown> | null;
+    if (isRecord(courseDetail)) {
+      if (typeof courseDetail.course_code === "string" && courseDetail.course_code.trim()) {
+        detectedCourseCode = courseDetail.course_code.trim();
+      }
+      if (typeof courseDetail.name === "string" && courseDetail.name.trim()) {
+        detectedCourseName = courseDetail.name.trim();
+      }
+    }
+  } catch {
+    // API failure handled with DOM fallbacks
+  }
+
+  const COURSE_CODE_REGEX = /\b([A-Z]{2,5}[-\s]?\d{3,4}[A-Z]?)\b/i;
+
+  function isDashboard(text: string): boolean {
+    const n = text.trim().toLowerCase();
+    return (
+      n === "dashboard" ||
+      n === "my dashboard" ||
+      n.startsWith("dashboard") ||
+      n.startsWith("my dashboard") ||
+      n === "courses" ||
+      n === "my courses"
+    );
+  }
+
+  function cleanTitle(raw: string, code?: string): string {
+    if (isDashboard(raw)) return "";
+    let s = raw
+      .trim()
+      .replace(/\s*[-:|•]\s*Canvas(?:\s+LMS)?.*$/i, "")
+      .replace(/\s*[-:|•]\s*(?:Course\s+)?Home$/i, "")
+      .replace(/\s*[-:|•]\s*Modules$/i, "")
+      .replace(/\s*[-:|•]\s*Syllabus$/i, "")
+      .replace(/\s*[-:|•]\s*Assignments$/i, "")
+      .trim();
+
+    const c = code || s.match(COURSE_CODE_REGEX)?.[1];
+    if (c) {
+      const esc = c.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+      s = s.replace(new RegExp(`^${esc}\\s*[-:]*\\s*`, "i"), "");
+      s = s.replace(new RegExp(`\\s*[([]?\\s*${esc}\\s*[)\\]]?$`, "i"), "");
+    }
+    s = s.replace(/\s+/g, " ").trim();
+    return isDashboard(s) ? "" : s;
+  }
+
+  const breadcrumbCourseEl = document.querySelector('#breadcrumbs a[href*="/courses/"]');
+  const breadcrumbCourseText = breadcrumbCourseEl?.textContent?.trim() || "";
+
+  const lastBreadcrumbSpan = document.querySelector('#breadcrumbs li:last-child span');
+  const lastBreadcrumbText = lastBreadcrumbSpan?.textContent?.trim() || "";
+
+  const courseTitleEl = document.querySelector('.course-title');
+  const courseTitleText = courseTitleEl?.textContent?.trim() || "";
+
+  const docTitle = document.title || document.querySelector("title")?.textContent?.trim() || "";
+
+  const domCandidates = [
+    breadcrumbCourseText,
+    courseTitleText,
+    lastBreadcrumbText,
+    docTitle
+  ].filter((t): t is string => Boolean(t && !isDashboard(t)));
+
+  if (!detectedCourseCode) {
+    for (const text of [detectedCourseName, ...domCandidates]) {
+      const m = text.match(COURSE_CODE_REGEX);
+      if (m) {
+        detectedCourseCode = m[1].trim();
+        break;
+      }
+    }
+  }
+
+  if (!detectedCourseName || isDashboard(detectedCourseName)) {
+    for (const text of domCandidates) {
+      const cleaned = cleanTitle(text, detectedCourseCode);
+      if (cleaned) {
+        detectedCourseName = cleaned;
+        break;
+      }
+    }
+  } else {
+    detectedCourseName = cleanTitle(detectedCourseName, detectedCourseCode) || detectedCourseName;
+  }
+
+  return {
+    courseId,
+    courseCode: detectedCourseCode,
+    courseName: detectedCourseName || `Course ${courseId}`
+  };
+}
+

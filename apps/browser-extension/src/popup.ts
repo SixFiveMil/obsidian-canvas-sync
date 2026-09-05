@@ -3,8 +3,10 @@ const syncBtn = document.querySelector<HTMLButtonElement>("#syncBtn");
 const testBtn = document.querySelector<HTMLButtonElement>("#testBtn");
 const portInput = document.querySelector<HTMLInputElement>("#port");
 const apiTokenInput = document.querySelector<HTMLInputElement>("#apiToken");
+const courseCodeInput = document.querySelector<HTMLInputElement>("#courseCode");
+const courseNameInput = document.querySelector<HTMLInputElement>("#courseName");
 
-if (!statusEl || !syncBtn || !testBtn || !portInput || !apiTokenInput) {
+if (!statusEl || !syncBtn || !testBtn || !portInput || !apiTokenInput || !courseCodeInput || !courseNameInput) {
   throw new Error("Popup UI failed to initialize.");
 }
 
@@ -13,6 +15,8 @@ const safeSyncBtn = syncBtn;
 const safeTestBtn = testBtn;
 const safePortInput = portInput;
 const safeApiTokenInput = apiTokenInput;
+const safeCourseCodeInput = courseCodeInput;
+const safeCourseNameInput = courseNameInput;
 
 function requestStatus(url: string, method: "OPTIONS"): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -44,10 +48,15 @@ safeSyncBtn.addEventListener("click", async () => {
   try {
     const port = Number.parseInt(safePortInput.value, 10) || 27125;
     const apiToken = safeApiTokenInput.value.trim();
+    const courseCode = safeCourseCodeInput.value.trim();
+    const courseName = safeCourseNameInput.value.trim();
+
     const response = await chrome.runtime.sendMessage({
       type: "syncCanvasCourse",
       port,
-      apiToken: apiToken || undefined
+      apiToken: apiToken || undefined,
+      courseCode: courseCode || undefined,
+      courseName: courseName || undefined
     });
     if (!response?.ok) {
       throw new Error(response?.message || "Sync failed.");
@@ -95,4 +104,24 @@ async function initializeForm(): Promise<void> {
   }
 
   safeApiTokenInput.value = token;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "detectCourseInfo",
+      apiToken: token || undefined
+    });
+    if (response?.ok) {
+      if (response.courseCode) {
+        safeCourseCodeInput.value = response.courseCode;
+      }
+      if (response.courseName) {
+        safeCourseNameInput.value = response.courseName;
+      }
+      setStatus(`Detected: ${response.courseCode ? `[${response.courseCode}] ` : ""}${response.courseName}`, "ok");
+    } else {
+      setStatus("Open a Canvas course tab to auto-detect course info.", "");
+    }
+  } catch {
+    setStatus("Open a Canvas course tab to auto-detect course info.", "");
+  }
 }

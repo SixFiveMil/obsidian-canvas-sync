@@ -1,7 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, normalizePath } from "obsidian";
-import TurndownService from "turndown";
-import { gfm } from "turndown-plugin-gfm";
+import type TurndownService from "turndown";
+import { createCustomTurndown } from "./table-utils";
+import { formatCourseFolderName } from "./template-utils";
 import type {
   CanvasAssignmentPayload,
   CanvasDiscussionPayload,
@@ -16,12 +17,14 @@ import type {
 interface CanvasSyncSettings {
   listenPort: number;
   rootFolder: string;
+  courseFolderTemplate: string;
   includeRawPayload: boolean;
 }
 
 const DEFAULT_SETTINGS: CanvasSyncSettings = {
   listenPort: 27125,
   rootFolder: "Canvas",
+  courseFolderTemplate: "{{courseCode}} - {{courseName}}",
   includeRawPayload: false
 };
 
@@ -33,9 +36,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   private turndown = this.createTurndown();
 
   private createTurndown(): TurndownService {
-    const service = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
-    service.use(gfm);
-    return service;
+    return createCustomTurndown();
   }
 
   async onload(): Promise<void> {
@@ -240,9 +241,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
   private async syncCourse(envelope: CanvasSyncEnvelope): Promise<void> {
     const { payload } = envelope;
-    const courseFolder = normalizePath(
-      `${this.settings.rootFolder}/${this.sanitizeFileName(payload.courseName)} (${payload.courseId})`
-    );
+    const subfolder = formatCourseFolderName(this.settings.courseFolderTemplate, payload);
+    const courseFolder = normalizePath(`${this.settings.rootFolder}/${subfolder}`);
 
     await this.ensureFolder(courseFolder);
 
@@ -465,7 +465,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const rubricBlocks = rubricTables
       .map((tableHtml, index) => {
         const title = rubricTables.length > 1 ? `### Rubric ${index + 1}` : "### Rubric";
-        return [title, "", tableHtml.trim()].join("\n");
+        const converted = this.turndown.turndown(tableHtml).trim();
+        return [title, "", converted || "No rubric content."].join("\n");
       })
       .join("\n\n");
 
@@ -710,6 +711,18 @@ class CanvasSyncSettingTab extends PluginSettingTab {
           .setValue(this.plugin.getSettings().rootFolder)
           .onChange((value) => {
             void this.plugin.updateSettings({ rootFolder: value.trim() || "Canvas" });
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Course folder template")
+      .setDesc("Folder template for synced courses. Placeholders: {{courseCode}}, {{courseName}}, {{courseId}}. Falls back to '${courseName} (${courseId})' if course code is empty.")
+      .addText((text) =>
+        text
+          .setPlaceholder("{{courseCode}} - {{courseName}}")
+          .setValue(this.plugin.getSettings().courseFolderTemplate)
+          .onChange((value) => {
+            void this.plugin.updateSettings({ courseFolderTemplate: value.trim() || "{{courseCode}} - {{courseName}}" });
           })
       );
 

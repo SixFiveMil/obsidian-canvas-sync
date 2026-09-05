@@ -35,9 +35,11 @@ describe("Obsidian guideline guardrails", () => {
     const source = readText(pluginMainPath);
     expect(source).toContain('.setName("Listen port")');
     expect(source).toContain('.setName("Root folder")');
+    expect(source).toContain('.setName("Course folder template")');
     expect(source).toContain('.setName("Store raw payload")');
     expect(source).not.toContain('.setName("Listen Port")');
     expect(source).not.toContain('.setName("Root Folder")');
+    expect(source).not.toContain('.setName("Course Folder Template")');
     expect(source).not.toContain('.setName("Store Raw Payload")');
   });
 });
