@@ -7,3 +7,4 @@ apps/obsidian-plugin/main.js
 apps/obsidian-plugin/styles.css
 apps/obsidian-plugin/data.json
 Course-Export/
+release/
