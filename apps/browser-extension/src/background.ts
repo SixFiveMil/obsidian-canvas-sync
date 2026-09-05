@@ -19,11 +19,13 @@ interface SyncCanvasCourseMessage {
   apiToken?: string;
   courseCode?: string;
   courseName?: string;
+  tabId?: number;
 }
 
 interface DetectCourseInfoMessage {
   type: "detectCourseInfo";
   apiToken?: string;
+  tabId?: number;
 }
 
 interface CourseModuleIndex {
@@ -38,7 +40,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const detectMessage = message as DetectCourseInfoMessage;
     void (async () => {
       try {
-        const info = await detectCourseFromActiveTab(detectMessage.apiToken);
+        const info = await detectCourseFromActiveTab(detectMessage.apiToken, detectMessage.tabId);
         sendResponse({ ok: true, ...info });
       } catch (error) {
         sendResponse({ ok: false, message: error instanceof Error ? error.message : "Failed to detect course." });
@@ -58,7 +60,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const envelope = await extractFromActiveCanvasTab(
         syncMessage.apiToken,
         syncMessage.courseName,
-        syncMessage.courseCode
+        syncMessage.courseCode,
+        syncMessage.tabId
       );
       const response = await postToLocalBridge(envelope, syncMessage.port ?? DEFAULT_PORT);
       sendResponse({ ok: true, response });
@@ -71,19 +74,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function detectCourseFromActiveTab(
-  apiToken?: string
+  apiToken?: string,
+  targetTabId?: number
 ): Promise<{ courseId: string; courseCode: string; courseName: string }> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !tab.url) {
+  let tabId = targetTabId;
+  let tabUrl: string | undefined;
+
+  if (typeof tabId === "number") {
+    const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+    tabUrl = tab?.url;
+  }
+
+  if (!tabId || !tabUrl) {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    tabId = tab?.id;
+    tabUrl = tab?.url;
+  }
+
+  if (!tabId) {
     throw new Error("No active tab available.");
   }
 
-  if (!isCanvasUrl(tab.url)) {
+  if (tabUrl && !isCanvasUrl(tabUrl)) {
     throw new Error("Open a Canvas course tab first (URL should include /courses/{id}).");
   }
 
   const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
+    target: { tabId },
     func: detectCanvasCourseInPage,
     args: [apiToken ?? null]
   });
@@ -98,19 +115,33 @@ async function detectCourseFromActiveTab(
 async function extractFromActiveCanvasTab(
   apiToken?: string,
   customCourseName?: string,
-  customCourseCode?: string
+  customCourseCode?: string,
+  targetTabId?: number
 ): Promise<CanvasSyncEnvelope> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !tab.url) {
+  let tabId = targetTabId;
+  let tabUrl: string | undefined;
+
+  if (typeof tabId === "number") {
+    const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+    tabUrl = tab?.url;
+  }
+
+  if (!tabId || !tabUrl) {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    tabId = tab?.id;
+    tabUrl = tab?.url;
+  }
+
+  if (!tabId) {
     throw new Error("No active tab available.");
   }
 
-  if (!isCanvasUrl(tab.url)) {
+  if (tabUrl && !isCanvasUrl(tabUrl)) {
     throw new Error("Open a Canvas course tab first (URL should include /courses/{id}).");
   }
 
   const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
+    target: { tabId },
     func: scrapeCanvasFromPage,
     args: [apiToken ?? null, customCourseName ?? null, customCourseCode ?? null]
   });

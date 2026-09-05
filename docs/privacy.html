@@ -215,27 +215,19 @@
       <tbody>
         <tr>
           <td><code>activeTab</code></td>
-          <td>Grants temporary access to the active browser tab only when you click the extension popup to inspect or extract course content from Canvas LMS.</td>
+          <td>Grants temporary access to the active browser tab only when you click the extension popup to inspect or extract course content from Canvas LMS. Requires no broad website access.</td>
         </tr>
         <tr>
           <td><code>scripting</code></td>
           <td>Allows the extension to inject extraction scripts into the active Canvas tab to parse the course DOM, retrieve module items, and format pacing tables.</td>
         </tr>
         <tr>
-          <td><code>tabs</code></td>
-          <td>Verifies that the active tab URL matches an active Canvas course route (<code>/courses/{id}</code>) prior to extraction, preventing unintended execution on unrelated websites.</td>
-        </tr>
-        <tr>
           <td><code>storage</code></td>
           <td>Stores local configuration settings (e.g., bridge port number, folder naming templates) within your browser's private local storage.</td>
         </tr>
         <tr>
-          <td><code>host_permissions</code><br><code>http://127.0.0.1/*</code><br><code>http://localhost/*</code></td>
-          <td>Permits HTTP POST requests across the loopback network to transfer course Markdown to the local Obsidian bridge server running on your device.</td>
-        </tr>
-        <tr>
-          <td><code>host_permissions</code><br><code>https://*.instructure.com/*</code><br><code>https://*.canvaslms.com/*</code></td>
-          <td>Permits API queries and media resource downloads (such as course figures and diagrams) directly from your institution's Canvas LMS instance for offline viewing in Obsidian.</td>
+          <td><code>optional_host_permissions</code><br><code>http://127.0.0.1/*</code><br><code>http://localhost/*</code></td>
+          <td>Requested upon user action ("Test Bridge" or "Sync Active Course") to permit HTTP POST requests across the loopback network to the local Obsidian bridge server running on your device. Zero install-time host warnings.</td>
         </tr>
       </tbody>
     </table>

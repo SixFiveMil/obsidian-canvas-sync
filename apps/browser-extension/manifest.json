@@ -16,12 +16,10 @@
       "32": "icon32.png"
     }
   },
-  "permissions": ["activeTab", "scripting", "tabs", "storage"],
-  "host_permissions": [
+  "permissions": ["activeTab", "scripting", "storage"],
+  "optional_host_permissions": [
     "http://127.0.0.1/*",
-    "http://localhost/*",
-    "https://*.instructure.com/*",
-    "https://*.canvaslms.com/*"
+    "http://localhost/*"
   ],
   "background": {
     "service_worker": "background.js",

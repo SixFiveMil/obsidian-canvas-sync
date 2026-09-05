@@ -28,6 +28,22 @@ function requestStatus(url: string, method: "OPTIONS"): Promise<number> {
   });
 }
 
+async function ensureBridgePermission(): Promise<boolean> {
+  if (!chrome.permissions) {
+    return true;
+  }
+  try {
+    const origins = ["http://127.0.0.1/*", "http://localhost/*"];
+    const has = await chrome.permissions.contains({ origins: ["http://127.0.0.1/*"] });
+    if (has) {
+      return true;
+    }
+    return await chrome.permissions.request({ origins });
+  } catch {
+    return false;
+  }
+}
+
 void initializeForm();
 
 safeApiTokenInput.addEventListener("change", async () => {
@@ -46,17 +62,30 @@ safeSyncBtn.addEventListener("click", async () => {
   safeSyncBtn.disabled = true;
 
   try {
+    const granted = await ensureBridgePermission();
+    if (!granted) {
+      setStatus("Permission to connect to local Obsidian bridge was denied.", "error");
+      return;
+    }
+
     const port = Number.parseInt(safePortInput.value, 10) || 27125;
     const apiToken = safeApiTokenInput.value.trim();
     const courseCode = safeCourseCodeInput.value.trim();
     const courseName = safeCourseNameInput.value.trim();
+
+    let tabId: number | undefined;
+    if (chrome.tabs?.query) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      tabId = activeTab?.id;
+    }
 
     const response = await chrome.runtime.sendMessage({
       type: "syncCanvasCourse",
       port,
       apiToken: apiToken || undefined,
       courseCode: courseCode || undefined,
-      courseName: courseName || undefined
+      courseName: courseName || undefined,
+      tabId
     });
     if (!response?.ok) {
       throw new Error(response?.message || "Sync failed.");
@@ -74,6 +103,12 @@ safeTestBtn.addEventListener("click", async () => {
   safeTestBtn.disabled = true;
 
   try {
+    const granted = await ensureBridgePermission();
+    if (!granted) {
+      setStatus("Permission to connect to local Obsidian bridge was denied.", "error");
+      return;
+    }
+
     const port = Number.parseInt(safePortInput.value, 10) || 27125;
     const status = await requestStatus(`http://127.0.0.1:${port}/canvas-sync`, "OPTIONS");
 
@@ -106,9 +141,16 @@ async function initializeForm(): Promise<void> {
   safeApiTokenInput.value = token;
 
   try {
+    let tabId: number | undefined;
+    if (chrome.tabs?.query) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      tabId = activeTab?.id;
+    }
+
     const response = await chrome.runtime.sendMessage({
       type: "detectCourseInfo",
-      apiToken: token || undefined
+      apiToken: token || undefined,
+      tabId
     });
     if (response?.ok) {
       if (response.courseCode) {

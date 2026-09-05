@@ -25,7 +25,10 @@ if (!permissions.includes("storage")) {
   throw new Error("Expected manifest permissions to include storage");
 }
 
-const hostPermissions = Array.isArray(manifest.host_permissions) ? manifest.host_permissions : [];
+const hostPermissions = [
+  ...(Array.isArray(manifest.host_permissions) ? manifest.host_permissions : []),
+  ...(Array.isArray(manifest.optional_host_permissions) ? manifest.optional_host_permissions : [])
+];
 for (const pattern of hostPermissions) {
   if (!isValidChromeMatchPattern(pattern)) {
     throw new Error(`Invalid Chrome host permission pattern: ${pattern}`);

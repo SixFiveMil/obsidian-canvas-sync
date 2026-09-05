@@ -52,18 +52,18 @@ To maintain full transparency, Canvas to Obsidian Sync explicitly does **NOT**:
 
 ---
 
-## 4. Chrome Extension Permissions & Justifications
+## 4. Chrome Extension Permissions & Technical Justifications
 
-In accordance with Chrome Web Store policies, Canvas to Obsidian Sync requests only the minimum permissions necessary to execute its single purpose:
+Canvas to Obsidian Sync adheres to the principle of least privilege, requiring **zero install-time host permissions** and **zero access to your browsing history**:
 
-| Permission | Purpose & Technical Justification |
-| :--- | :--- |
-| `activeTab` | Grants temporary access to the active browser tab only when you explicitly interact with the extension popup. This is used to extract syllabus, module, and assignment data from the open Canvas course. |
-| `scripting` | Allows the extension to execute the content extraction script in the active Canvas course tab to parse DOM elements and convert coursework HTML into structured Markdown. |
-| `tabs` | Allows the extension to verify that the active tab's URL matches an active Canvas LMS course path (`/courses/{id}`) before initiating extraction, preventing accidental execution on unrelated sites. |
-| `storage` | Enables `chrome.storage.local` to store your local settings (e.g., bridge port number, folder naming format, recent sync metadata) entirely on your local machine. |
-| `host_permissions`<br>`http://127.0.0.1/*`<br>`http://localhost/*` | Grants the extension permission to transmit HTTP POST sync payloads across the local loopback interface to your Obsidian desktop application. |
-| `host_permissions`<br>`https://*.instructure.com/*`<br>`https://*.canvaslms.com/*` | Enables communication with Canvas LMS instances to fetch official course metadata and download authenticated course media (e.g., diagrams, embedded figures) so they can be saved locally for offline reading in Obsidian. |
+| Permission | Category | Purpose & Technical Justification |
+| :--- | :--- | :--- |
+| `activeTab` | Required | Grants temporary access to the active browser tab only when you explicitly interact with the extension popup. This allows the extension to extract syllabus, module, and assignment data from the open Canvas course without needing broad host permissions or background tab monitoring. |
+| `scripting` | Required | Allows the extension to execute content extraction logic within the active Canvas course tab to parse DOM elements and convert coursework HTML into structured Markdown. |
+| `storage` | Required | Enables `chrome.storage.local` to store your local preferences (e.g., bridge port number, folder naming format, recent sync metadata) entirely on your local device. |
+| `optional_host_permissions`<br>`http://127.0.0.1/*`<br>`http://localhost/*` | Optional<br>(User Prompted) | Requested only when you click "Test Bridge" or "Sync Active Course". Grants permission to transmit the local HTTP POST sync payload to your local Obsidian desktop client on the loopback interface. Does not access external websites. |
+
+*Note: The extension explicitly does **not** request the `tabs` permission (it cannot read your browsing history) and does **not** request permanent host permissions for external websites.*
 
 ---
 

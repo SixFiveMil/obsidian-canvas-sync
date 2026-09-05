@@ -84,16 +84,16 @@ REQUIREMENTS:
 ### Single Purpose Statement
 > The sole purpose of Canvas to Obsidian Sync is to extract academic course content (pages, assignments, discussions, syllabus, and pacing tables) from an active Canvas LMS browser session and securely transfer it via a local loopback bridge (127.0.0.1) into the user's personal Obsidian vault as structured Markdown.
 
-### Permission Justifications
+### Permission Justifications (Least-Privilege Architecture — Zero Install Warnings)
 
 | Permission | Justification |
 | :--- | :--- |
-| `activeTab` | Required to access the active tab only when the user explicitly clicks the extension popup to inspect or sync course data from their Canvas LMS tab. |
-| `scripting` | Required to execute content extraction scripts within the active Canvas tab to parse the course DOM, retrieve module items, inline course images, and extract official course metadata. |
-| `tabs` | Required to verify the active tab URL matches an active Canvas course route (`/courses/{id}`) and prevent execution on unrelated websites. |
-| `storage` | Required to store user settings locally in browser storage (e.g. local bridge port and optional user-provided Canvas API access token for schools with restricted page APIs). |
-| `host_permissions`<br>`http://127.0.0.1/*`<br>`http://localhost/*` | Required to send HTTP POST requests containing the course Markdown payload to the local Obsidian bridge server running strictly on the user's loopback interface. |
-| `host_permissions`<br>`https://*.instructure.com/*`<br>`https://*.canvaslms.com/*` | Required to communicate with standard Canvas LMS institutional domains to fetch course module details and download course images for offline embedding. |
+| `activeTab` | Required to access the active tab only when the user explicitly clicks the extension popup to inspect or sync course data from their Canvas LMS tab. Displays 0 install warnings. |
+| `scripting` | Required to execute content extraction scripts within the active Canvas tab to parse the course DOM, retrieve module items, inline course images, and extract official course metadata. Displays 0 install warnings. |
+| `storage` | Required to store user settings locally in browser storage (e.g. local bridge port and optional user-provided Canvas API access token for schools with restricted page APIs). Displays 0 install warnings. |
+| `optional_host_permissions`<br>`http://127.0.0.1/*`<br>`http://localhost/*` | Optional permission requested upon user action ("Test Bridge" or "Sync Active Course") to send HTTP POST requests containing the course Markdown payload to the local Obsidian bridge server running strictly on the user's loopback interface. Does not trigger install-time warnings. |
+
+*Note: The extension explicitly does not request the `tabs` permission (does not monitor browsing history) or permanent broad host permissions.*
 
 ---
 
