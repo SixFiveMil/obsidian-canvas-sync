@@ -347,6 +347,10 @@ async function scrapeCanvasFromPage(
     return typeof value === "object" && value !== null;
   }
 
+  function isUnknownArray(value: unknown): value is unknown[] {
+    return Array.isArray(value);
+  }
+
   // 1. Attempt Canvas API fetch /api/v1/courses/${courseId} to extract official name and course_code
   try {
     const courseDetail = (await api(`/api/v1/courses/${courseId}`)) as Record<string, unknown> | null;
@@ -532,7 +536,7 @@ async function scrapeCanvasFromPage(
   async function getPages(id: string, memberships: Map<string, string[]>): Promise<CanvasPagePayload[]> {
     try {
       const list = await api(`/api/v1/courses/${id}/pages?per_page=100`);
-      if (!Array.isArray(list)) {
+      if (!isUnknownArray(list)) {
         throw new Error("Pages API returned a non-array payload.");
       }
 
@@ -669,7 +673,7 @@ async function scrapeCanvasFromPage(
 
     try {
       const apiModules = await api(`/api/v1/courses/${id}/modules?include[]=items&per_page=100`);
-      if (!Array.isArray(apiModules)) {
+      if (!isUnknownArray(apiModules)) {
         return { modules, pagesBySlug, assignmentsById, discussionsById };
       }
 
@@ -683,7 +687,7 @@ async function scrapeCanvasFromPage(
           typeof module.name === "string" && module.name.trim() !== "" ? module.name.trim() : "Uncategorized Module";
 
         const items: CanvasModuleItemPayload[] = [];
-        if (Array.isArray(module.items)) {
+        if (isUnknownArray(module.items)) {
           for (let itemIndex = 0; itemIndex < module.items.length; itemIndex += 1) {
             const item = module.items[itemIndex];
             if (!isRecord(item)) {
@@ -836,7 +840,7 @@ async function scrapeCanvasFromPage(
   async function getAssignments(id: string, memberships: Map<string, string[]>): Promise<CanvasAssignmentPayload[]> {
     try {
       const list = await api(`/api/v1/courses/${id}/assignments?per_page=100&include[]=rubric`);
-      if (!Array.isArray(list)) {
+      if (!isUnknownArray(list)) {
         return [];
       }
 
@@ -937,7 +941,7 @@ async function scrapeCanvasFromPage(
   async function getDiscussions(id: string, memberships: Map<string, string[]>): Promise<CanvasDiscussionPayload[]> {
     try {
       const list = await api(`/api/v1/courses/${id}/discussion_topics?per_page=100`);
-      if (!Array.isArray(list)) {
+      if (!isUnknownArray(list)) {
         return [];
       }
 
@@ -976,7 +980,7 @@ async function scrapeCanvasFromPage(
   async function getEvents(id: string): Promise<CanvasEventPayload[]> {
     try {
       const list = await api(`/api/v1/calendar_events?context_codes[]=course_${id}&per_page=100`);
-      if (!Array.isArray(list)) {
+      if (!isUnknownArray(list)) {
         return [];
       }
 

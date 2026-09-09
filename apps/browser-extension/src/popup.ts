@@ -94,14 +94,14 @@ safeSyncBtn.addEventListener("click", () => {
         tabId = activeTab?.id;
       }
 
-      const response = (await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage<unknown, SyncResponse | undefined>({
         type: "syncCanvasCourse",
         port,
         apiToken: apiToken || undefined,
         courseCode: courseCode || undefined,
         courseName: courseName || undefined,
         tabId
-      })) as SyncResponse | undefined;
+      });
       if (!response?.ok) {
         throw new Error(response?.message || "Sync failed.");
       }
@@ -150,7 +150,7 @@ function setStatus(message: string, className: "" | "ok" | "error"): void {
 async function initializeForm(): Promise<void> {
   let token = "";
   if (chrome.storage?.local) {
-    const stored = (await chrome.storage.local.get(["canvasApiToken"])) as Record<string, unknown>;
+    const stored = await chrome.storage.local.get<{ canvasApiToken?: unknown }>(["canvasApiToken"]);
     token = typeof stored.canvasApiToken === "string" ? stored.canvasApiToken : "";
   } else {
     token = window.localStorage.getItem("canvasApiToken") ?? "";
@@ -165,11 +165,11 @@ async function initializeForm(): Promise<void> {
       tabId = activeTab?.id;
     }
 
-    const response = (await chrome.runtime.sendMessage({
+    const response = await chrome.runtime.sendMessage<unknown, DetectCourseResponse | undefined>({
       type: "detectCourseInfo",
       apiToken: token || undefined,
       tabId
-    })) as DetectCourseResponse | undefined;
+    });
     if (response?.ok) {
       if (response.courseCode) {
         safeCourseCodeInput.value = response.courseCode;
