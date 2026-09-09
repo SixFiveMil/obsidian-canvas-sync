@@ -1,4 +1,4 @@
-# Obsidian Canvas Sync
+# Canvas Sync Bridge
 
 Sync Canvas LMS course content into Obsidian.
 

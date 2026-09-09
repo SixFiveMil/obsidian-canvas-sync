@@ -46,82 +46,100 @@ async function ensureBridgePermission(): Promise<boolean> {
 
 void initializeForm();
 
-safeApiTokenInput.addEventListener("change", async () => {
-  const nextToken = safeApiTokenInput.value.trim();
-  if (chrome.storage?.local) {
-    await chrome.storage.local.set({ canvasApiToken: nextToken });
-    return;
-  }
+interface SyncResponse {
+  ok?: boolean;
+  message?: string;
+}
 
-  // Fallback for environments where storage API is unavailable.
-  window.localStorage.setItem("canvasApiToken", nextToken);
-});
+interface DetectCourseResponse {
+  ok?: boolean;
+  courseCode?: string;
+  courseName?: string;
+  message?: string;
+}
 
-safeSyncBtn.addEventListener("click", async () => {
-  setStatus("Syncing Canvas course...", "");
-  safeSyncBtn.disabled = true;
-
-  try {
-    const granted = await ensureBridgePermission();
-    if (!granted) {
-      setStatus("Permission to connect to local Obsidian bridge was denied.", "error");
+safeApiTokenInput.addEventListener("change", () => {
+  void (async () => {
+    const nextToken = safeApiTokenInput.value.trim();
+    if (chrome.storage?.local) {
+      await chrome.storage.local.set({ canvasApiToken: nextToken });
       return;
     }
 
-    const port = Number.parseInt(safePortInput.value, 10) || 27125;
-    const apiToken = safeApiTokenInput.value.trim();
-    const courseCode = safeCourseCodeInput.value.trim();
-    const courseName = safeCourseNameInput.value.trim();
-
-    let tabId: number | undefined;
-    if (chrome.tabs?.query) {
-      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      tabId = activeTab?.id;
-    }
-
-    const response = await chrome.runtime.sendMessage({
-      type: "syncCanvasCourse",
-      port,
-      apiToken: apiToken || undefined,
-      courseCode: courseCode || undefined,
-      courseName: courseName || undefined,
-      tabId
-    });
-    if (!response?.ok) {
-      throw new Error(response?.message || "Sync failed.");
-    }
-    setStatus("Sync complete. Check Obsidian for updated files.", "ok");
-  } catch (error) {
-    setStatus(error instanceof Error ? error.message : "Sync failed.", "error");
-  } finally {
-    safeSyncBtn.disabled = false;
-  }
+    // Fallback for environments where storage API is unavailable.
+    window.localStorage.setItem("canvasApiToken", nextToken);
+  })();
 });
 
-safeTestBtn.addEventListener("click", async () => {
-  setStatus("Testing Obsidian bridge connection...", "");
-  safeTestBtn.disabled = true;
+safeSyncBtn.addEventListener("click", () => {
+  void (async () => {
+    setStatus("Syncing Canvas course...", "");
+    safeSyncBtn.disabled = true;
 
-  try {
-    const granted = await ensureBridgePermission();
-    if (!granted) {
-      setStatus("Permission to connect to local Obsidian bridge was denied.", "error");
-      return;
+    try {
+      const granted = await ensureBridgePermission();
+      if (!granted) {
+        setStatus("Permission to connect to local Obsidian bridge was denied.", "error");
+        return;
+      }
+
+      const port = Number.parseInt(safePortInput.value, 10) || 27125;
+      const apiToken = safeApiTokenInput.value.trim();
+      const courseCode = safeCourseCodeInput.value.trim();
+      const courseName = safeCourseNameInput.value.trim();
+
+      let tabId: number | undefined;
+      if (chrome.tabs?.query) {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        tabId = activeTab?.id;
+      }
+
+      const response = (await chrome.runtime.sendMessage({
+        type: "syncCanvasCourse",
+        port,
+        apiToken: apiToken || undefined,
+        courseCode: courseCode || undefined,
+        courseName: courseName || undefined,
+        tabId
+      })) as SyncResponse | undefined;
+      if (!response?.ok) {
+        throw new Error(response?.message || "Sync failed.");
+      }
+      setStatus("Sync complete. Check Obsidian for updated files.", "ok");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Sync failed.", "error");
+    } finally {
+      safeSyncBtn.disabled = false;
     }
+  })();
+});
 
-    const port = Number.parseInt(safePortInput.value, 10) || 27125;
-    const status = await requestStatus(`http://127.0.0.1:${port}/canvas-sync`, "OPTIONS");
+safeTestBtn.addEventListener("click", () => {
+  void (async () => {
+    setStatus("Testing Obsidian bridge connection...", "");
+    safeTestBtn.disabled = true;
 
-    if (status < 200 || (status >= 300 && status !== 204)) {
-      throw new Error(`Bridge returned status ${status}.`);
+    try {
+      const granted = await ensureBridgePermission();
+      if (!granted) {
+        setStatus("Permission to connect to local Obsidian bridge was denied.", "error");
+        return;
+      }
+
+      const port = Number.parseInt(safePortInput.value, 10) || 27125;
+      const status = await requestStatus(`http://127.0.0.1:${port}/canvas-sync`, "OPTIONS");
+
+      if (status < 200 || (status >= 300 && status !== 204)) {
+        throw new Error(`Bridge returned status ${status}.`);
+      }
+
+      setStatus("Bridge reachable on localhost.", "ok");
+    } catch {
+      setStatus("Could not reach bridge. Ensure Obsidian plugin is enabled.", "error");
+    } finally {
+      safeTestBtn.disabled = false;
     }
-
-    setStatus("Bridge reachable on localhost.", "ok");
-  } catch {
-    setStatus("Could not reach bridge. Ensure Obsidian plugin is enabled.", "error");
-  } finally {
-    safeTestBtn.disabled = false;
-  }
+  })();
 });
 
 function setStatus(message: string, className: "" | "ok" | "error"): void {
@@ -132,7 +150,7 @@ function setStatus(message: string, className: "" | "ok" | "error"): void {
 async function initializeForm(): Promise<void> {
   let token = "";
   if (chrome.storage?.local) {
-    const stored = await chrome.storage.local.get(["canvasApiToken"]);
+    const stored = (await chrome.storage.local.get(["canvasApiToken"])) as Record<string, unknown>;
     token = typeof stored.canvasApiToken === "string" ? stored.canvasApiToken : "";
   } else {
     token = window.localStorage.getItem("canvasApiToken") ?? "";
@@ -147,11 +165,11 @@ async function initializeForm(): Promise<void> {
       tabId = activeTab?.id;
     }
 
-    const response = await chrome.runtime.sendMessage({
+    const response = (await chrome.runtime.sendMessage({
       type: "detectCourseInfo",
       apiToken: token || undefined,
       tabId
-    });
+    })) as DetectCourseResponse | undefined;
     if (response?.ok) {
       if (response.courseCode) {
         safeCourseCodeInput.value = response.courseCode;
@@ -159,7 +177,7 @@ async function initializeForm(): Promise<void> {
       if (response.courseName) {
         safeCourseNameInput.value = response.courseName;
       }
-      setStatus(`Detected: ${response.courseCode ? `[${response.courseCode}] ` : ""}${response.courseName}`, "ok");
+      setStatus(`Detected: ${response.courseCode ? `[${response.courseCode}] ` : ""}${response.courseName ?? ""}`, "ok");
     } else {
       setStatus("Open a Canvas course tab to auto-detect course info.", "");
     }

@@ -55,12 +55,17 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     });
   }
 
-  async onunload(): Promise<void> {
-    await this.stopServer();
+  onunload(): void {
+    void this.stopServer();
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = (await this.loadData()) as unknown;
+    this.settings = Object.assign(
+      {},
+      DEFAULT_SETTINGS,
+      typeof data === "object" && data !== null ? (data as Partial<CanvasSyncSettings>) : {}
+    );
   }
 
   async saveSettings(): Promise<void> {
@@ -86,8 +91,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       return;
     }
 
-    this.server = createServer(async (req, res) => {
-      await this.handleRequest(req, res);
+    this.server = createServer((req, res) => {
+      void this.handleRequest(req, res);
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -208,8 +213,15 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     let size = 0;
 
     const limitMb = 25;
-    for await (const chunk of req) {
-      const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    for await (const rawChunk of req) {
+      const chunk: unknown = rawChunk;
+      const part: Buffer = Buffer.isBuffer(chunk)
+        ? chunk
+        : typeof chunk === "string"
+          ? Buffer.from(chunk, "utf-8")
+          : chunk instanceof Uint8Array
+            ? Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+            : Buffer.from(String(chunk), "utf-8");
       size += part.length;
       if (size > limitMb * 1024 * 1024) {
         throw new Error(`Payload too large. Limit is ${limitMb} MB.`);
@@ -680,6 +692,77 @@ class CanvasSyncSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  getSettingDefinitions(): unknown[] {
+    return [
+      {
+        name: "Listen port",
+        desc: "Localhost port that receives data from the browser extension.",
+        control: {
+          type: "number",
+          key: "listenPort",
+          min: 1,
+          max: 65535,
+          placeholder: "27125",
+          validate: (value: number) => {
+            if (!Number.isFinite(value) || value < 1 || value > 65535) {
+              return "Port must be between 1 and 65535";
+            }
+          }
+        }
+      },
+      {
+        name: "Root folder",
+        desc: "Vault folder where course data should be written.",
+        control: {
+          type: "text",
+          key: "rootFolder",
+          placeholder: "Canvas"
+        }
+      },
+      {
+        name: "Course folder template",
+        desc: "Folder template for synced courses. Placeholders: {{courseCode}}, {{courseName}}, {{courseId}}. Falls back to '${courseName} (${courseId})' if course code is empty.",
+        control: {
+          type: "text",
+          key: "courseFolderTemplate",
+          placeholder: "{{courseCode}} - {{courseName}}"
+        }
+      },
+      {
+        name: "Store raw payload",
+        desc: "Save incoming JSON payload for debugging.",
+        control: {
+          type: "toggle",
+          key: "includeRawPayload"
+        }
+      }
+    ];
+  }
+
+  async setControlValue(key: string, value: unknown): Promise<void> {
+    if (key === "listenPort") {
+      const port = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+      if (Number.isFinite(port) && port >= 1 && port <= 65535) {
+        await this.plugin.updateSettings({ listenPort: port });
+        await this.plugin.restartServer();
+      }
+      return;
+    }
+    if (key === "rootFolder" && typeof value === "string") {
+      await this.plugin.updateSettings({ rootFolder: value.trim() || "Canvas" });
+      return;
+    }
+    if (key === "courseFolderTemplate" && typeof value === "string") {
+      await this.plugin.updateSettings({ courseFolderTemplate: value.trim() || "{{courseCode}} - {{courseName}}" });
+      return;
+    }
+    if (key === "includeRawPayload" && typeof value === "boolean") {
+      await this.plugin.updateSettings({ includeRawPayload: value });
+      return;
+    }
+    await this.plugin.saveSettings();
+  }
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
@@ -696,8 +779,8 @@ class CanvasSyncSettingTab extends PluginSettingTab {
             if (!Number.isFinite(next) || next < 1 || next > 65535) {
               return;
             }
-            void this.plugin.updateSettings({ listenPort: next }).then(async () => {
-              await this.plugin.restartServer();
+            void this.plugin.updateSettings({ listenPort: next }).then(() => {
+              void this.plugin.restartServer();
             });
           })
       );

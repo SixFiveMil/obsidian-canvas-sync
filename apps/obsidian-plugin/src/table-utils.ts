@@ -1,4 +1,4 @@
-﻿import TurndownService from "turndown";
+import TurndownService from "turndown";
 import { highlightedCodeBlock, strikethrough, taskListItems } from "turndown-plugin-gfm";
 
 export function canvasTablePlugin(turndownService: TurndownService): void {
@@ -13,7 +13,7 @@ export function canvasTablePlugin(turndownService: TurndownService): void {
   turndownService.addRule("cleanTableCell", {
     filter: ["th", "td"],
     replacement: function (content, node) {
-      const el = node as HTMLElement;
+      const el = node;
       let clean = content
         .replace(/&nbsp;/gi, " ")
         .replace(/(?<!\\)\|/g, "\\|")
@@ -44,7 +44,7 @@ export function canvasTablePlugin(turndownService: TurndownService): void {
   turndownService.addRule("cleanTableRow", {
     filter: "tr",
     replacement: function (content, node) {
-      const tr = node as HTMLElement;
+      const tr = node;
       const parent = tr.parentNode as HTMLElement | null;
       const isThead = parent?.nodeName === "THEAD";
       const isFirstRow = isFirstTableRow(tr);

@@ -35,9 +35,13 @@ interface CourseModuleIndex {
   discussionsById: Map<string, string[]>;
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === "detectCourseInfo") {
-    const detectMessage = message as DetectCourseInfoMessage;
+chrome.runtime.onMessage.addListener((rawMessage: unknown, _sender, sendResponse) => {
+  if (!isRecord(rawMessage)) {
+    return;
+  }
+
+  if (rawMessage.type === "detectCourseInfo") {
+    const detectMessage = rawMessage as unknown as DetectCourseInfoMessage;
     void (async () => {
       try {
         const info = await detectCourseFromActiveTab(detectMessage.apiToken, detectMessage.tabId);
@@ -49,11 +53,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type !== "syncCanvasCourse") {
+  if (rawMessage.type !== "syncCanvasCourse") {
     return;
   }
 
-  const syncMessage = message as SyncCanvasCourseMessage;
+  const syncMessage = rawMessage as unknown as SyncCanvasCourseMessage;
 
   void (async () => {
     try {
@@ -339,6 +343,10 @@ async function scrapeCanvasFromPage(
   let detectedCourseCode = "";
   let detectedCourseName = "";
 
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+  }
+
   // 1. Attempt Canvas API fetch /api/v1/courses/${courseId} to extract official name and course_code
   try {
     const courseDetail = (await api(`/api/v1/courses/${courseId}`)) as Record<string, unknown> | null;
@@ -530,13 +538,15 @@ async function scrapeCanvasFromPage(
 
       const result: CanvasPagePayload[] = [];
       for (const page of list) {
-        if (!page?.url) {
+        if (!isRecord(page) || typeof page.url !== "string" || !page.url.trim()) {
           continue;
         }
 
-        const slug = String(page.url);
+        const slug = page.url.trim();
         const moduleNames = memberships.get(slug);
-        const retrieved = await getPageBySlug(id, slug, page.title || slug, page.updated_at, moduleNames);
+        const title = typeof page.title === "string" && page.title.trim() ? page.title.trim() : slug;
+        const updatedAt = typeof page.updated_at === "string" ? page.updated_at : undefined;
+        const retrieved = await getPageBySlug(id, slug, title, updatedAt, moduleNames);
         if (retrieved) {
           result.push(retrieved);
         }
@@ -665,50 +675,69 @@ async function scrapeCanvasFromPage(
 
       for (let moduleIndex = 0; moduleIndex < apiModules.length; moduleIndex += 1) {
         const module = apiModules[moduleIndex];
+        if (!isRecord(module)) {
+          continue;
+        }
+
         const moduleName =
-          typeof module?.name === "string" && module.name.trim() !== "" ? module.name.trim() : "Uncategorized Module";
+          typeof module.name === "string" && module.name.trim() !== "" ? module.name.trim() : "Uncategorized Module";
 
         const items: CanvasModuleItemPayload[] = [];
-        if (Array.isArray(module?.items)) {
+        if (Array.isArray(module.items)) {
           for (let itemIndex = 0; itemIndex < module.items.length; itemIndex += 1) {
             const item = module.items[itemIndex];
-            const normalizedType = normalizeModuleItemType(item?.type);
+            if (!isRecord(item)) {
+              continue;
+            }
+
+            const rawType = typeof item.type === "string" ? item.type : undefined;
+            const normalizedType = normalizeModuleItemType(rawType);
+            const itemId = item.id != null ? String(item.id) : `${moduleIndex}-${itemIndex}`;
+            const position =
+              typeof item.position === "number" && Number.isFinite(item.position) ? item.position : itemIndex + 1;
+            const title =
+              typeof item.title === "string" && item.title.trim() !== ""
+                ? item.title.trim()
+                : `Untitled Item ${itemIndex + 1}`;
+            const indent =
+              typeof item.indent === "number" && Number.isFinite(item.indent) ? item.indent : undefined;
+
             const normalizedItem: CanvasModuleItemPayload = {
-              id: String(item?.id ?? `${moduleIndex}-${itemIndex}`),
-              position: Number.isFinite(item?.position) ? Number(item.position) : itemIndex + 1,
-              title: String(item?.title || `Untitled Item ${itemIndex + 1}`),
+              id: itemId,
+              position,
+              title,
               type: normalizedType,
-              indent: Number.isFinite(item?.indent) ? Number(item.indent) : undefined
+              indent
             };
 
             if (normalizedType === "WikiPage") {
               const slug =
-                typeof item?.page_url === "string" && item.page_url.trim() !== "" ? item.page_url.trim() : undefined;
+                typeof item.page_url === "string" && item.page_url.trim() !== "" ? item.page_url.trim() : undefined;
               if (slug) {
                 normalizedItem.pageSlug = slug;
                 addModuleMembership(pagesBySlug, slug, moduleName);
               }
             }
 
-            if (normalizedType === "Assignment" && item?.content_id != null) {
+            if (normalizedType === "Assignment" && item.content_id != null) {
               const assignmentId = String(item.content_id);
               normalizedItem.assignmentId = assignmentId;
               addModuleMembership(assignmentsById, assignmentId, moduleName);
             }
 
-            if (normalizedType === "DiscussionTopic" && item?.content_id != null) {
+            if (normalizedType === "DiscussionTopic" && item.content_id != null) {
               const discussionId = String(item.content_id);
               normalizedItem.discussionId = discussionId;
               addModuleMembership(discussionsById, discussionId, moduleName);
             }
 
             if (normalizedType === "ExternalUrl" || normalizedType === "ContextExternalTool") {
-              if (typeof item?.external_url === "string" && item.external_url.trim() !== "") {
-                normalizedItem.externalUrl = item.external_url;
-              } else if (typeof item?.html_url === "string" && item.html_url.trim() !== "") {
-                normalizedItem.externalUrl = item.html_url;
-              } else if (typeof item?.url === "string" && item.url.trim() !== "") {
-                normalizedItem.externalUrl = item.url;
+              if (typeof item.external_url === "string" && item.external_url.trim() !== "") {
+                normalizedItem.externalUrl = item.external_url.trim();
+              } else if (typeof item.html_url === "string" && item.html_url.trim() !== "") {
+                normalizedItem.externalUrl = item.html_url.trim();
+              } else if (typeof item.url === "string" && item.url.trim() !== "") {
+                normalizedItem.externalUrl = item.url.trim();
               }
             }
 
@@ -716,12 +745,15 @@ async function scrapeCanvasFromPage(
           }
         }
 
+        const moduleId = module.id != null ? String(module.id) : String(moduleIndex + 1);
+        const summaryHtml =
+          typeof module.description === "string" && module.description.trim() !== "" ? module.description : undefined;
+
         modules.push({
-          id: String(module?.id ?? moduleIndex + 1),
+          id: moduleId,
           name: moduleName,
           position: moduleIndex + 1,
-          summaryHtml:
-            typeof module?.description === "string" && module.description.trim() !== "" ? module.description : undefined,
+          summaryHtml,
           items: items.sort((a, b) => a.position - b.position)
         });
       }
@@ -808,17 +840,36 @@ async function scrapeCanvasFromPage(
         return [];
       }
 
-      const assignments = list.map((item) => ({
-        id: String(item.id),
-        name: String(item.name || "Untitled assignment"),
-        dueAt: item.due_at || null,
-        pointsPossible: typeof item.points_possible === "number" ? item.points_possible : null,
-        htmlUrl: item.html_url || undefined,
-        descriptionHtml: typeof item.description === "string" ? item.description : undefined,
-        submissionTypes: Array.isArray(item.submission_types) ? item.submission_types : undefined,
-        moduleNames: memberships.get(String(item.id)),
-        rubric: parseRubricCriteria(item)
-      }));
+      const assignments: CanvasAssignmentPayload[] = [];
+      for (const item of list) {
+        if (!isRecord(item)) {
+          continue;
+        }
+
+        const assignmentId = item.id != null ? String(item.id) : "";
+        const name =
+          typeof item.name === "string" && item.name.trim() !== "" ? item.name.trim() : "Untitled assignment";
+        const dueAt = typeof item.due_at === "string" ? item.due_at : null;
+        const pointsPossible = typeof item.points_possible === "number" ? item.points_possible : null;
+        const htmlUrl =
+          typeof item.html_url === "string" && item.html_url.trim() !== "" ? item.html_url.trim() : undefined;
+        const descriptionHtml = typeof item.description === "string" ? item.description : undefined;
+        const submissionTypes = Array.isArray(item.submission_types)
+          ? item.submission_types.filter((s): s is string => typeof s === "string")
+          : undefined;
+
+        assignments.push({
+          id: assignmentId,
+          name,
+          dueAt,
+          pointsPossible,
+          htmlUrl,
+          descriptionHtml,
+          submissionTypes,
+          moduleNames: memberships.get(assignmentId),
+          rubric: parseRubricCriteria(item)
+        });
+      }
 
       const rubricCount = assignments.filter((assignment) => (assignment.rubric?.length ?? 0) > 0).length;
       console.debug("Canvas assignment rubric debug", {
@@ -890,15 +941,33 @@ async function scrapeCanvasFromPage(
         return [];
       }
 
-      return list.map((item) => ({
-        id: String(item.id),
-        title: String(item.title || "Untitled discussion"),
-        htmlUrl: item.html_url || undefined,
-        messageHtml: typeof item.message === "string" ? item.message : undefined,
-        postedAt: item.posted_at || null,
-        updatedAt: item.updated_at || null,
-        moduleNames: memberships.get(String(item.id))
-      }));
+      const discussions: CanvasDiscussionPayload[] = [];
+      for (const item of list) {
+        if (!isRecord(item)) {
+          continue;
+        }
+
+        const discussionId = item.id != null ? String(item.id) : "";
+        const title =
+          typeof item.title === "string" && item.title.trim() !== "" ? item.title.trim() : "Untitled discussion";
+        const htmlUrl =
+          typeof item.html_url === "string" && item.html_url.trim() !== "" ? item.html_url.trim() : undefined;
+        const messageHtml = typeof item.message === "string" ? item.message : undefined;
+        const postedAt = typeof item.posted_at === "string" ? item.posted_at : null;
+        const updatedAt = typeof item.updated_at === "string" ? item.updated_at : null;
+
+        discussions.push({
+          id: discussionId,
+          title,
+          htmlUrl,
+          messageHtml,
+          postedAt,
+          updatedAt,
+          moduleNames: memberships.get(discussionId)
+        });
+      }
+
+      return discussions;
     } catch {
       return [];
     }
@@ -911,14 +980,32 @@ async function scrapeCanvasFromPage(
         return [];
       }
 
-      return list.map((item) => ({
-        id: String(item.id),
-        title: String(item.title || "Untitled event"),
-        startAt: item.start_at || null,
-        endAt: item.end_at || null,
-        htmlUrl: item.html_url || undefined,
-        description: typeof item.description === "string" ? item.description : undefined
-      }));
+      const events: CanvasEventPayload[] = [];
+      for (const item of list) {
+        if (!isRecord(item)) {
+          continue;
+        }
+
+        const eventId = item.id != null ? String(item.id) : "";
+        const title =
+          typeof item.title === "string" && item.title.trim() !== "" ? item.title.trim() : "Untitled event";
+        const startAt = typeof item.start_at === "string" ? item.start_at : null;
+        const endAt = typeof item.end_at === "string" ? item.end_at : null;
+        const htmlUrl =
+          typeof item.html_url === "string" && item.html_url.trim() !== "" ? item.html_url.trim() : undefined;
+        const description = typeof item.description === "string" ? item.description : undefined;
+
+        events.push({
+          id: eventId,
+          title,
+          startAt,
+          endAt,
+          htmlUrl,
+          description
+        });
+      }
+
+      return events;
     } catch {
       return [];
     }
