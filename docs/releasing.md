@@ -1,122 +1,109 @@
-# Release Guide
+# Release & Deployment Guide
 
-This repository ships two separate deliverables:
+This repository ships three deliverables:
 
-- `apps/obsidian-plugin`: Obsidian community plugin
-- `apps/browser-extension`: Chrome-compatible browser extension
+- `apps/obsidian-plugin`: Obsidian community plugin (`manifest.json`, `main.js`)
+- `apps/browser-extension` (Chrome): Chrome Manifest V3 extension (`canvas-to-obsidian-sync-chrome-<version>.zip`)
+- `apps/browser-extension` (Firefox): Firefox Manifest V3 add-on (`canvas-to-obsidian-sync-firefox-<version>.zip`)
 
-## Obsidian Community Plugin
+---
 
-Official submission reference:
+## 1. Local Build & Packaging Commands
 
-- https://docs.obsidian.md/Plugins/Releasing/Submit+your+plugin
+All commands can be run from the monorepo root:
 
-### Recommended repo setup for submission
+| Command | Description |
+|---|---|
+| `npm run build` | Builds Obsidian plugin and both Chrome and Firefox extensions. |
+| `npm run build:extension` | Builds both Chrome and Firefox extension targets in `dist/chrome` and `dist/firefox`. |
+| `npm run build:extension:chrome` | Builds only the Chrome extension output. |
+| `npm run build:extension:firefox` | Builds only the Firefox extension output. |
+| `npm run lint:extension` | Runs Mozilla's official `web-ext lint` on `dist/firefox`. |
+| `npm run validate:extension` | Validates dist files, manifest structure, permissions, and host patterns for both targets. |
+| `npm run package:extension` | Packages both Chrome and Firefox extensions into `release/*.zip` and computes SHA-256 checksums. |
+| `npm run package:extension:chrome` | Packages only the Chrome extension zip. |
+| `npm run package:extension:firefox` | Packages only the Firefox extension zip. |
+| `npm run publish:extension:stores` | Deploys extensions to Chrome Web Store and/or Mozilla AMO (if credentials are set). |
 
-To avoid Obsidian scanner false positives from non-plugin code in this monorepo,
-publish a plugin-only mirror repo from `apps/obsidian-plugin` and submit that
-repo to `obsidianmd/obsidian-releases`.
+---
 
-1. Create a new GitHub repo (example: `SixFiveMil/canvas-sync-bridge-plugin`).
-2. Configure remote once:
-   - `npm run publish:plugin-repo -- --RemoteName obsidian-plugin --RemoteUrl https://github.com/SixFiveMil/canvas-sync-bridge-plugin.git`
-3. Push plugin-only updates whenever needed:
-   - `npm run publish:plugin-repo -- --RemoteName obsidian-plugin`
-4. Push plugin-only updates and matching version tag:
-   - `npm run publish:plugin-repo:tag -- --RemoteName obsidian-plugin`
+## 2. Continuous Integration (CI)
 
-The helper script uses `git subtree split --prefix apps/obsidian-plugin`, so the
-plugin mirror repo has `manifest.json`, `versions.json`, and plugin source at
-its root.
+The CI workflow (`.github/workflows/ci.yml`) runs on every push and pull request to `main`:
 
-### Pre-submit checklist
+1. **Unit Tests**: Runs `npm test` (`vitest`).
+2. **Type Checking**: Runs TypeScript checks (`tsc --noEmit`) for both the extension and Obsidian plugin.
+3. **Build**: Builds Obsidian plugin, Chrome extension, and Firefox extension.
+4. **Linting**: Runs `web-ext lint` on the Firefox output to ensure AMO compliance.
+5. **Validation**: Validates dist files and manifests for Chrome and Firefox.
+6. **Packaging Smoke Test**: Packages both zip files to ensure release artifacts build cleanly.
 
-1. Confirm `apps/obsidian-plugin/manifest.json` has the correct `id`, `name`, `version`, `author`, and `description`.
-2. Confirm `apps/obsidian-plugin/versions.json` maps the plugin version to the correct minimum Obsidian version.
-3. Push a version tag that exactly matches the plugin version.
-   - Example: `git tag 0.1.0`
-   - `git push origin 0.1.0`
-4. The release workflow will build and attach these files automatically:
-   - `manifest.json`
-   - `main.js`
-5. Confirm the GitHub release was created for that tag and includes the generated assets.
-6. Submit your plugin via the official Obsidian Community Directory portal at https://community.obsidian.md.
+---
 
-### Submission via the Community Directory Portal
+## 3. Automated Release Pipeline
 
-Obsidian now handles all community plugin submissions through their official developer portal at **[community.obsidian.md](https://community.obsidian.md)** (manual pull requests on `obsidian-releases` have been deprecated and disabled).
+The Release workflow (`.github/workflows/release.yml`) runs automatically on tag push (e.g. `v0.2.1` or `0.2.1`) or via manual dispatch:
 
-1. Sign in to **[community.obsidian.md](https://community.obsidian.md)** with your Obsidian account.
-2. In your profile settings, link your GitHub account (`SixFiveMil`).
-3. Click **Add a plugin** (or **Submit a plugin**).
-4. Select your plugin repository: `SixFiveMil/canvas-sync-bridge-plugin`.
-5. The portal will automatically inspect `manifest.json` on the `main` branch, verify the release assets (`main.js` and `manifest.json`) on tag `0.2.0`, and run automated validation checks.
-6. Submit for review! Once approved by the Obsidian moderation team, the plugin will appear in the Community Plugins directory inside the app.
+1. Verifies the tag matches `apps/obsidian-plugin/manifest.json`.
+2. Runs all unit tests, typechecks, builds, and linting.
+3. Packages both browser extensions into `release/canvas-to-obsidian-sync-chrome-<tag>.zip` and `release/canvas-to-obsidian-sync-firefox-<tag>.zip`.
+4. Prepares Obsidian plugin assets (`release/obsidian-plugin/main.js`, `manifest.json`).
+5. Generates SHA-256 `release/checksums.txt` for all assets.
+6. Publishes a GitHub Release with all 5 assets attached.
+7. Verifies asset integrity and zip archive structure (ensures root-level `manifest.json`).
+8. **Automated Store Publishing**: Automatically uploads and submits the Chrome extension to Chrome Web Store and signs/submits to Mozilla AMO if repository secrets are configured. If secrets are not present, this step is skipped cleanly with helpful logs.
 
-## Chrome Web Store
+---
 
-Official publishing references:
+## 4. On-Demand Extension Deployment
 
-- https://developer.chrome.com/docs/webstore/register/
-- https://developer.chrome.com/docs/webstore/prepare/
-- https://developer.chrome.com/docs/webstore/publish/
+Use the **Deploy Browser Extensions** workflow (`.github/workflows/deploy-extensions.yml`) in GitHub Actions to publish extensions on demand without cutting a new Git tag:
 
-### Pre-submit checklist
+- Target selection: `all`, `chrome`, or `firefox`
+- Auto-publish toggle: Submit Chrome extension for review or upload as draft
+- AMO channel selection: `listed` (public store) or `unlisted` (self-hosted signed XPI)
 
-1. Register a Chrome Web Store developer account and pay the one-time fee.
-2. Push a release tag after updating the extension version.
-3. Download the generated `canvas-to-obsidian-sync-<version>.zip` asset from the GitHub release.
-4. Verify the ZIP contains a valid `manifest.json` at the root.
-5. Ensure the manifest has current `name`, `version`, `description`, `icons`, `permissions`, and `host_permissions` values.
-6. Load the unpacked extension from `apps/browser-extension/dist` and test the real sync flow.
-7. Create the store listing assets:
-   - icon set
-   - screenshots
-   - promotional artwork if requested by the dashboard
-8. Prepare the Privacy tab answers for Canvas page and course data access, optional token storage in local browser storage, and localhost transfer to Obsidian.
-9. Prepare reviewer instructions explaining how to test sync with Obsidian running locally.
-10. Upload the ZIP in the Chrome Web Store dashboard and complete the Store Listing, Privacy, Distribution, and Test Instructions sections.
+---
 
-## GitHub Automation
+## 5. Setting up Store Publishing Credentials
 
-This repository includes a release workflow in `.github/workflows/release.yml`.
+To enable automated store publishing, configure the following secrets in GitHub (**Settings -> Secrets and variables -> Actions**):
 
-- It runs on pushed tags matching `*.*.*`
-- It can also be started manually for an existing tag with `workflow_dispatch`
-- It verifies the tag matches `apps/obsidian-plugin/manifest.json`
-- It runs tests, type checks, builds, and extension validation
-- It creates a GitHub release automatically
-- It uploads:
-  - Obsidian `manifest.json`
-  - Obsidian `main.js`
-   - Chrome extension ZIP built from `apps/browser-extension/dist/chrome`
-   - Firefox extension ZIP built from `apps/browser-extension/dist/firefox-artifacts`
+### Chrome Web Store (CWS)
 
-This automates GitHub artifact creation, but it does not submit to the Obsidian community directory or the Chrome Web Store. Those steps still require store-side actions.
+| GitHub Secret | Description |
+|---|---|
+| `CHROME_EXTENSION_ID` | The 32-character extension ID from the Chrome Web Store developer dashboard. |
+| `CHROME_CLIENT_ID` | OAuth 2.0 Client ID from Google Cloud Console. |
+| `CHROME_CLIENT_SECRET` | OAuth 2.0 Client Secret from Google Cloud Console. |
+| `CHROME_REFRESH_TOKEN` | OAuth 2.0 Refresh Token authorized for Chrome Web Store API (`https://www.googleapis.com/auth/chromewebstore`). |
 
-### Browser extension packaging
+#### Obtaining Chrome Web Store API Credentials:
+1. Register a developer account in [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole).
+2. Upload the extension once manually to generate the `CHROME_EXTENSION_ID`.
+3. In [Google Cloud Console](https://console.cloud.google.com/), create a project and enable the **Chrome Web Store API**.
+4. Create an **OAuth 2.0 Client ID** (Desktop Application) to get `CHROME_CLIENT_ID` and `CHROME_CLIENT_SECRET`.
+5. Obtain a `CHROME_REFRESH_TOKEN` with authorization scope `https://www.googleapis.com/auth/chromewebstore`.
 
-- `npm run build:extension:chrome` builds the Chrome-compatible extension output in `apps/browser-extension/dist/chrome`.
-- `npm run package:firefox` builds the Firefox-compatible output, runs `web-ext build`, and leaves the signed-for-upload archive under `apps/browser-extension/dist/firefox-artifacts`.
-- The release workflow publishes both browser ZIPs so Firefox testers and Chrome users can install the matching package from the same GitHub tag.
+### Mozilla Add-ons (AMO)
 
-### Reviewer notes to provide
+| GitHub Secret | Description |
+|---|---|
+| `WEB_EXT_API_KEY` | JWT issuer key from [AMO Manage API Keys](https://addons.mozilla.org/developers/addon/api/key/). |
+| `WEB_EXT_API_SECRET` | JWT secret from [AMO Manage API Keys](https://addons.mozilla.org/developers/addon/api/key/). |
 
-- The extension only runs when the user manually opens the popup and triggers sync.
-- Data is sent only to the local Obsidian bridge on `127.0.0.1` or `localhost`.
-- The optional Canvas API token is stored locally in browser storage to improve extraction on institutions with restricted APIs.
+#### Obtaining Mozilla AMO API Credentials:
+1. Sign in to [addons.mozilla.org](https://addons.mozilla.org/).
+2. Go to **Tools -> Manage API Keys**.
+3. Generate new credentials to get the `JWT Issuer` (`WEB_EXT_API_KEY`) and `JWT Secret` (`WEB_EXT_API_SECRET`).
 
-## Phased Execution Plan
+---
 
-1. Architecture split: keep the Obsidian plugin and browser extension separate, with shared behavior only where it is safe to reuse.
-2. Firefox compatibility: package the browser extension with a Firefox-specific manifest and keep the injected Canvas code self-contained.
-3. Build and test pipeline: validate Chrome and Firefox builds separately, lint the Firefox package, and keep the local sync flow reproducible.
-4. Release workflow: publish Obsidian plugin artifacts plus both browser ZIPs from the same GitHub tag.
-5. Verification loop: keep real Canvas testing in place until release, then trim or adjust logging only if it stops being useful.
+## 6. Obsidian Community Plugin Directory
 
-## Versioning Notes
+Obsidian plugin submissions are handled through the developer portal at **[community.obsidian.md](https://community.obsidian.md)**:
 
-- The Obsidian plugin version and release tag must match exactly.
-- The browser extension version in `apps/browser-extension/manifest.json` must increase for each new Chrome Web Store upload.
-- The Firefox package uses the Firefox-specific manifest in `apps/browser-extension/manifest.firefox.json` and is packaged separately from the Chrome build.
-- Keep the plugin and extension versions aligned only if you intend to release them together; the stores do not require them to match.
+1. Maintain the plugin-only mirror repo:
+   - Configure remote: `npm run publish:plugin-repo -- --RemoteName obsidian-plugin --RemoteUrl https://github.com/SixFiveMil/canvas-sync-bridge-plugin.git`
+   - Push updates & tag: `npm run publish:plugin-repo:tag -- --RemoteName obsidian-plugin`
+2. In [community.obsidian.md](https://community.obsidian.md), link your repository and submit for review.

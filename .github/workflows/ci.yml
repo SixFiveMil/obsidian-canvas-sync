@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  build-and-typecheck:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -34,8 +34,14 @@ jobs:
       - name: Type check Obsidian plugin
         run: npx tsc -p apps/obsidian-plugin/tsconfig.json --noEmit
 
-      - name: Build all
+      - name: Build all targets (Obsidian plugin, Chrome & Firefox extensions)
         run: npm run build
 
-      - name: Validate extension dist and manifest
-        run: node apps/browser-extension/scripts/validate-dist.mjs
+      - name: Lint Firefox extension (web-ext)
+        run: npm run lint:extension
+
+      - name: Validate extension outputs and manifests (Chrome & Firefox)
+        run: npm run validate:extension
+
+      - name: Package extension releases (smoke test packaging)
+        run: npm run package:extension

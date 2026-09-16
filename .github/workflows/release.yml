@@ -10,6 +10,11 @@ on:
         description: "Existing tag to package and publish"
         required: true
         type: string
+      publish_to_stores:
+        description: "Publish to Chrome Web Store and Mozilla Add-ons if secrets are set (true/false)"
+        required: false
+        default: "true"
+        type: boolean
 
 permissions:
   contents: write
@@ -22,13 +27,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
-          # For manual runs, always resolve the input as a tag ref.
-          # For tag-push runs, github.ref is already refs/tags/<tag>.
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.ref }}
           fetch-depth: 0
-          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -41,9 +43,9 @@ jobs:
 
       - name: Verify tag matches Obsidian plugin version
         run: |
-          node -e "const fs = require('fs'); const manifest = JSON.parse(fs.readFileSync('apps/obsidian-plugin/manifest.json', 'utf8')); if (manifest.version !== process.env.RELEASE_TAG) { console.error('Tag does not match apps/obsidian-plugin/manifest.json version'); process.exit(1); }"
+          node -e "const fs = require('fs'); const manifest = JSON.parse(fs.readFileSync('apps/obsidian-plugin/manifest.json', 'utf8')); if (manifest.version !== process.env.RELEASE_TAG) { console.error('Tag (' + process.env.RELEASE_TAG + ') does not match apps/obsidian-plugin/manifest.json version (' + manifest.version + ')'); process.exit(1); }"
 
-      - name: Run tests
+      - name: Run unit tests
         run: npm test
 
       - name: Type check browser extension
@@ -52,31 +54,38 @@ jobs:
       - name: Type check Obsidian plugin
         run: npx tsc -p apps/obsidian-plugin/tsconfig.json --noEmit
 
-      - name: Build all
+      - name: Build all targets
         run: npm run build
 
-      - name: Validate Chrome extension dist and manifest
-        run: node apps/browser-extension/scripts/validate-dist.mjs dist/chrome
+      - name: Lint Firefox extension (web-ext)
+        run: npm run lint:extension
 
-      - name: Prepare Chrome release asset
+      - name: Validate extension dist and manifests
+        run: npm run validate:extension
+
+      - name: Package Chrome and Firefox extension archives
+        run: node apps/browser-extension/scripts/package.mjs all --version "${RELEASE_TAG}" --out-dir release
+
+      - name: Prepare Obsidian plugin release assets
         run: |
           mkdir -p release/obsidian-plugin
           cp apps/obsidian-plugin/manifest.json release/obsidian-plugin/manifest.json
           cp apps/obsidian-plugin/main.js release/obsidian-plugin/main.js
 
-          cd apps/browser-extension/dist/chrome
-          zip -r ../../../../release/canvas-to-obsidian-sync-chrome-${RELEASE_TAG}.zip .
-
-      - name: Package Firefox extension
-        run: npm run package:firefox -w apps/browser-extension
-
-      - name: Validate Firefox extension dist and manifest
-        run: node apps/browser-extension/scripts/validate-dist.mjs dist/firefox
-
-      - name: Prepare release assets
-        run: |
-          FIREFOX_ZIP=$(find apps/browser-extension/dist/firefox-artifacts -maxdepth 1 -name '*.zip' | head -n 1)
-          cp "${FIREFOX_ZIP}" ../../../../release/canvas-to-obsidian-sync-firefox-${RELEASE_TAG}.zip
+          # Add Obsidian assets to checksums.txt
+          node -e "
+            const fs = require('fs');
+            const crypto = require('crypto');
+            function getHash(p) { return crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex'); }
+            const mainHash = getHash('release/obsidian-plugin/main.js');
+            const manifestHash = getHash('release/obsidian-plugin/manifest.json');
+            let current = fs.existsSync('release/checksums.txt') ? fs.readFileSync('release/checksums.txt', 'utf8') : '';
+            current += mainHash + '  obsidian-plugin/main.js\n';
+            current += manifestHash + '  obsidian-plugin/manifest.json\n';
+            fs.writeFileSync('release/checksums.txt', current, 'utf8');
+            console.log('Final checksums:');
+            console.log(current);
+          "
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
@@ -88,6 +97,7 @@ jobs:
             release/obsidian-plugin/main.js
             release/canvas-to-obsidian-sync-chrome-${{ env.RELEASE_TAG }}.zip
             release/canvas-to-obsidian-sync-firefox-${{ env.RELEASE_TAG }}.zip
+            release/checksums.txt
 
       - name: Verify uploaded release assets
         env:
@@ -99,18 +109,63 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
             > release.json
 
-          node -e "const fs = require('fs'); const rel = JSON.parse(fs.readFileSync('release.json', 'utf8')); const assets = rel.assets || []; const required = ['manifest.json', 'main.js', 'canvas-to-obsidian-sync-chrome-' + process.env.RELEASE_TAG + '.zip', 'canvas-to-obsidian-sync-firefox-' + process.env.RELEASE_TAG + '.zip']; const byName = new Map(assets.map(a => [a.name, a])); const missing = required.filter(name => !byName.has(name)); if (missing.length > 0) { console.error('Missing release assets: ' + missing.join(', ')); process.exit(1); } const empty = required.filter(name => (byName.get(name)?.size || 0) <= 0); if (empty.length > 0) { console.error('Release assets have zero size: ' + empty.join(', ')); process.exit(1); } console.log('Verified release assets and non-zero sizes: ' + required.join(', '));"
+          node -e "
+            const fs = require('fs');
+            const rel = JSON.parse(fs.readFileSync('release.json', 'utf8'));
+            const assets = rel.assets || [];
+            const required = [
+              'manifest.json',
+              'main.js',
+              'checksums.txt',
+              'canvas-to-obsidian-sync-chrome-' + process.env.RELEASE_TAG + '.zip',
+              'canvas-to-obsidian-sync-firefox-' + process.env.RELEASE_TAG + '.zip'
+            ];
+            const byName = new Map(assets.map(a => [a.name, a]));
+            const missing = required.filter(name => !byName.has(name));
+            if (missing.length > 0) {
+              console.error('Missing release assets: ' + missing.join(', '));
+              process.exit(1);
+            }
+            const empty = required.filter(name => (byName.get(name)?.size || 0) <= 0);
+            if (empty.length > 0) {
+              console.error('Release assets have zero size: ' + empty.join(', '));
+              process.exit(1);
+            }
+            console.log('Verified all required release assets: ' + required.join(', '));
+          "
 
-          MANIFEST_URL=$(node -e "const fs = require('fs'); const rel = JSON.parse(fs.readFileSync('release.json', 'utf8')); const asset = (rel.assets || []).find(a => a.name === 'manifest.json'); if (!asset) process.exit(1); process.stdout.write(asset.browser_download_url);")
-          curl -fsSL "${MANIFEST_URL}" > uploaded-manifest.json
-          node -e "const fs = require('fs'); const manifest = JSON.parse(fs.readFileSync('uploaded-manifest.json', 'utf8')); if (manifest.version !== process.env.RELEASE_TAG) { console.error('Uploaded manifest version does not match release tag.'); process.exit(1); } console.log('Verified uploaded manifest version: ' + manifest.version);"
+          # Verify extension zip structure
+          node -e "
+            import('jszip').then(async (m) => {
+              const fs = require('fs');
+              const JSZip = m.default;
+              for (const target of ['chrome', 'firefox']) {
+                const zipPath = 'release/canvas-to-obsidian-sync-' + target + '-' + process.env.RELEASE_TAG + '.zip';
+                const buf = fs.readFileSync(zipPath);
+                const zip = await JSZip.loadAsync(buf);
+                const files = Object.keys(zip.files);
+                if (!files.includes('manifest.json')) {
+                  console.error(target + ' zip is missing root manifest.json');
+                  process.exit(1);
+                }
+                const hasNestedManifest = files.some(f => /\/.+manifest\.json$/.test(f));
+                if (hasNestedManifest) {
+                  console.error(target + ' zip contains nested manifest.json');
+                  process.exit(1);
+                }
+                console.log('Verified ' + target + ' zip structure: contains root manifest.json and ' + files.length + ' entries.');
+              }
+            });
+          "
 
-          for ASSET_NAME in "canvas-to-obsidian-sync-chrome-${RELEASE_TAG}.zip" "canvas-to-obsidian-sync-firefox-${RELEASE_TAG}.zip"; do
-            ZIP_URL=$(node -e "const fs = require('fs'); const rel = JSON.parse(fs.readFileSync('release.json', 'utf8')); const asset = (rel.assets || []).find(a => a.name === process.argv[1]); if (!asset) process.exit(1); process.stdout.write(asset.browser_download_url);" "${ASSET_NAME}")
-            curl -fsSL "${ZIP_URL}" > uploaded-extension.zip
-            unzip -Z1 uploaded-extension.zip > uploaded-extension-files.txt
-            grep -qx "manifest.json" uploaded-extension-files.txt
-            node -e "const fs = require('fs'); const lines = fs.readFileSync('uploaded-extension-files.txt', 'utf8').split(/\r?\n/).filter(Boolean); const hasNestedManifest = lines.some(line => /\/.+manifest\.json$/.test(line)); if (hasNestedManifest) { console.error('Extension zip contains nested manifest paths; expected root-level manifest.json.'); process.exit(1); } console.log('Verified extension zip root manifest.json: ' + process.argv[1]);" "${ASSET_NAME}"
-          done
-
-          rm -f release.json uploaded-manifest.json uploaded-extension.zip uploaded-extension-files.txt
+      - name: Deploy to extension stores (CWS & AMO)
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish_to_stores != 'false' }}
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
+          CWS_PUBLISH: "true"
+        run: node apps/browser-extension/scripts/publish-stores.mjs all --publish

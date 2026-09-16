@@ -1,28 +1,46 @@
 import { mkdir, copyFile, rm } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import esbuild from "esbuild";
 
-const target = process.argv[2] === "firefox" ? "firefox" : "chrome";
-const outdir = `dist/${target}`;
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-await rm("dist", { recursive: true, force: true });
-await mkdir(outdir, { recursive: true });
+async function buildTarget(target) {
+  const outdir = resolve(__dirname, `dist/${target}`);
+  await rm(outdir, { recursive: true, force: true });
+  await mkdir(outdir, { recursive: true });
 
-await esbuild.build({
-  entryPoints: ["src/background.ts", "src/popup.ts"],
-  outdir,
-  bundle: true,
-  format: "esm",
-  target: "es2022",
-  sourcemap: false,
-  logLevel: "info"
-});
+  await esbuild.build({
+    entryPoints: [
+      resolve(__dirname, "src/background.ts"),
+      resolve(__dirname, "src/popup.ts")
+    ],
+    outdir,
+    bundle: true,
+    format: "esm",
+    target: "es2022",
+    sourcemap: false,
+    logLevel: "info"
+  });
 
-const manifestName = target === "firefox" ? "manifest.firefox.json" : "manifest.chrome.json";
-await copyFile(manifestName, `${outdir}/manifest.json`);
-await copyFile("src/popup.html", `${outdir}/popup.html`);
-await copyFile("assets/icon16.png", `${outdir}/icon16.png`);
-await copyFile("assets/icon32.png", `${outdir}/icon32.png`);
-await copyFile("assets/icon48.png", `${outdir}/icon48.png`);
-await copyFile("assets/icon128.png", `${outdir}/icon128.png`);
+  const manifestName = target === "firefox" ? "manifest.firefox.json" : "manifest.chrome.json";
+  await copyFile(resolve(__dirname, manifestName), resolve(outdir, "manifest.json"));
+  await copyFile(resolve(__dirname, "src/popup.html"), resolve(outdir, "popup.html"));
+  await copyFile(resolve(__dirname, "assets/icon16.png"), resolve(outdir, "icon16.png"));
+  await copyFile(resolve(__dirname, "assets/icon32.png"), resolve(outdir, "icon32.png"));
+  await copyFile(resolve(__dirname, "assets/icon48.png"), resolve(outdir, "icon48.png"));
+  await copyFile(resolve(__dirname, "assets/icon128.png"), resolve(outdir, "icon128.png"));
 
-console.log(`Built extension for ${target} in ${outdir}`);
+  console.log(`Built extension for ${target} in ${outdir}`);
+}
+
+const arg = process.argv[2];
+if (arg === "chrome" || arg === "firefox") {
+  await buildTarget(arg);
+} else if (arg === "all" || !arg) {
+  await buildTarget("chrome");
+  await buildTarget("firefox");
+} else {
+  console.error(`Unknown target: ${arg}. Expected "chrome", "firefox", or "all".`);
+  process.exit(1);
+}

@@ -4,15 +4,28 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "build": "node build.mjs chrome",
+    "build": "node build.mjs all",
+    "build:all": "node build.mjs all",
     "build:chrome": "node build.mjs chrome",
     "build:firefox": "node build.mjs firefox",
-    "package:firefox": "npm run build:firefox && web-ext build --source-dir dist/firefox --artifacts-dir dist/firefox-artifacts --overwrite-dest",
-    "test:firefox": "web-ext lint --source-dir dist/firefox"
+    "package": "node scripts/package.mjs all",
+    "package:all": "node scripts/package.mjs all",
+    "package:chrome": "node scripts/package.mjs chrome",
+    "package:firefox": "node scripts/package.mjs firefox",
+    "validate": "node scripts/validate-dist.mjs all",
+    "validate:chrome": "node scripts/validate-dist.mjs chrome",
+    "validate:firefox": "node scripts/validate-dist.mjs firefox",
+    "lint:firefox": "web-ext lint --source-dir dist/firefox",
+    "lint": "npm run lint:firefox",
+    "test:firefox": "npm run lint:firefox",
+    "publish:stores": "node scripts/publish-stores.mjs all",
+    "publish:cws": "node scripts/publish-stores.mjs chrome",
+    "publish:amo": "node scripts/publish-stores.mjs firefox"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.315",
     "esbuild": "^0.25.1",
+    "jszip": "^3.10.1",
     "typescript": "^5.8.2",
     "web-ext": "^8.10.0"
   }
