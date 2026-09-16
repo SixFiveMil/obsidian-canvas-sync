@@ -4,11 +4,16 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs chrome",
+    "build:chrome": "node build.mjs chrome",
+    "build:firefox": "node build.mjs firefox",
+    "package:firefox": "npm run build:firefox && web-ext build --source-dir dist/firefox --artifacts-dir dist/firefox-artifacts --overwrite-dest",
+    "test:firefox": "web-ext lint --source-dir dist/firefox"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.315",
     "esbuild": "^0.25.1",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "web-ext": "^8.10.0"
   }
 }

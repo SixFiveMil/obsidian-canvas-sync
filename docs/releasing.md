@@ -89,9 +89,16 @@ This repository includes a release workflow in `.github/workflows/release.yml`.
 - It uploads:
   - Obsidian `manifest.json`
   - Obsidian `main.js`
-  - Chrome extension ZIP built from `apps/browser-extension/dist`
+   - Chrome extension ZIP built from `apps/browser-extension/dist/chrome`
+   - Firefox extension ZIP built from `apps/browser-extension/dist/firefox-artifacts`
 
 This automates GitHub artifact creation, but it does not submit to the Obsidian community directory or the Chrome Web Store. Those steps still require store-side actions.
+
+### Browser extension packaging
+
+- `npm run build:extension:chrome` builds the Chrome-compatible extension output in `apps/browser-extension/dist/chrome`.
+- `npm run package:firefox` builds the Firefox-compatible output, runs `web-ext build`, and leaves the signed-for-upload archive under `apps/browser-extension/dist/firefox-artifacts`.
+- The release workflow publishes both browser ZIPs so Firefox testers and Chrome users can install the matching package from the same GitHub tag.
 
 ### Reviewer notes to provide
 
@@ -99,8 +106,17 @@ This automates GitHub artifact creation, but it does not submit to the Obsidian 
 - Data is sent only to the local Obsidian bridge on `127.0.0.1` or `localhost`.
 - The optional Canvas API token is stored locally in browser storage to improve extraction on institutions with restricted APIs.
 
+## Phased Execution Plan
+
+1. Architecture split: keep the Obsidian plugin and browser extension separate, with shared behavior only where it is safe to reuse.
+2. Firefox compatibility: package the browser extension with a Firefox-specific manifest and keep the injected Canvas code self-contained.
+3. Build and test pipeline: validate Chrome and Firefox builds separately, lint the Firefox package, and keep the local sync flow reproducible.
+4. Release workflow: publish Obsidian plugin artifacts plus both browser ZIPs from the same GitHub tag.
+5. Verification loop: keep real Canvas testing in place until release, then trim or adjust logging only if it stops being useful.
+
 ## Versioning Notes
 
 - The Obsidian plugin version and release tag must match exactly.
 - The browser extension version in `apps/browser-extension/manifest.json` must increase for each new Chrome Web Store upload.
+- The Firefox package uses the Firefox-specific manifest in `apps/browser-extension/manifest.firefox.json` and is packaged separately from the Chrome build.
 - Keep the plugin and extension versions aligned only if you intend to release them together; the stores do not require them to match.

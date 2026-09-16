@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const root = resolve(scriptDir, "..", "dist");
+const root = resolve(scriptDir, "..", process.argv[2] ?? "dist/chrome");
 const requiredFiles = ["manifest.json", "background.js", "popup.js", "popup.html"];
 
 for (const file of requiredFiles) {

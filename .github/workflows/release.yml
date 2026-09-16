@@ -55,16 +55,28 @@ jobs:
       - name: Build all
         run: npm run build
 
-      - name: Validate extension dist and manifest
-        run: node apps/browser-extension/scripts/validate-dist.mjs
+      - name: Validate Chrome extension dist and manifest
+        run: node apps/browser-extension/scripts/validate-dist.mjs dist/chrome
 
-      - name: Prepare release assets
+      - name: Prepare Chrome release asset
         run: |
           mkdir -p release/obsidian-plugin
           cp apps/obsidian-plugin/manifest.json release/obsidian-plugin/manifest.json
           cp apps/obsidian-plugin/main.js release/obsidian-plugin/main.js
-          cd apps/browser-extension/dist
-          zip -r ../../../release/canvas-to-obsidian-sync-${RELEASE_TAG}.zip .
+
+          cd apps/browser-extension/dist/chrome
+          zip -r ../../../../release/canvas-to-obsidian-sync-chrome-${RELEASE_TAG}.zip .
+
+      - name: Package Firefox extension
+        run: npm run package:firefox -w apps/browser-extension
+
+      - name: Validate Firefox extension dist and manifest
+        run: node apps/browser-extension/scripts/validate-dist.mjs dist/firefox
+
+      - name: Prepare release assets
+        run: |
+          FIREFOX_ZIP=$(find apps/browser-extension/dist/firefox-artifacts -maxdepth 1 -name '*.zip' | head -n 1)
+          cp "${FIREFOX_ZIP}" ../../../../release/canvas-to-obsidian-sync-firefox-${RELEASE_TAG}.zip
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
@@ -74,7 +86,8 @@ jobs:
           files: |
             release/obsidian-plugin/manifest.json
             release/obsidian-plugin/main.js
-            release/canvas-to-obsidian-sync-${{ env.RELEASE_TAG }}.zip
+            release/canvas-to-obsidian-sync-chrome-${{ env.RELEASE_TAG }}.zip
+            release/canvas-to-obsidian-sync-firefox-${{ env.RELEASE_TAG }}.zip
 
       - name: Verify uploaded release assets
         env:
@@ -86,16 +99,18 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
             > release.json
 
-          node -e "const fs = require('fs'); const rel = JSON.parse(fs.readFileSync('release.json', 'utf8')); const assets = rel.assets || []; const required = ['manifest.json', 'main.js', 'canvas-to-obsidian-sync-' + process.env.RELEASE_TAG + '.zip']; const byName = new Map(assets.map(a => [a.name, a])); const missing = required.filter(name => !byName.has(name)); if (missing.length > 0) { console.error('Missing release assets: ' + missing.join(', ')); process.exit(1); } const empty = required.filter(name => (byName.get(name)?.size || 0) <= 0); if (empty.length > 0) { console.error('Release assets have zero size: ' + empty.join(', ')); process.exit(1); } console.log('Verified release assets and non-zero sizes: ' + required.join(', '));"
+          node -e "const fs = require('fs'); const rel = JSON.parse(fs.readFileSync('release.json', 'utf8')); const assets = rel.assets || []; const required = ['manifest.json', 'main.js', 'canvas-to-obsidian-sync-chrome-' + process.env.RELEASE_TAG + '.zip', 'canvas-to-obsidian-sync-firefox-' + process.env.RELEASE_TAG + '.zip']; const byName = new Map(assets.map(a => [a.name, a])); const missing = required.filter(name => !byName.has(name)); if (missing.length > 0) { console.error('Missing release assets: ' + missing.join(', ')); process.exit(1); } const empty = required.filter(name => (byName.get(name)?.size || 0) <= 0); if (empty.length > 0) { console.error('Release assets have zero size: ' + empty.join(', ')); process.exit(1); } console.log('Verified release assets and non-zero sizes: ' + required.join(', '));"
 
           MANIFEST_URL=$(node -e "const fs = require('fs'); const rel = JSON.parse(fs.readFileSync('release.json', 'utf8')); const asset = (rel.assets || []).find(a => a.name === 'manifest.json'); if (!asset) process.exit(1); process.stdout.write(asset.browser_download_url);")
           curl -fsSL "${MANIFEST_URL}" > uploaded-manifest.json
           node -e "const fs = require('fs'); const manifest = JSON.parse(fs.readFileSync('uploaded-manifest.json', 'utf8')); if (manifest.version !== process.env.RELEASE_TAG) { console.error('Uploaded manifest version does not match release tag.'); process.exit(1); } console.log('Verified uploaded manifest version: ' + manifest.version);"
 
-          ZIP_URL=$(node -e "const fs = require('fs'); const rel = JSON.parse(fs.readFileSync('release.json', 'utf8')); const name = 'canvas-to-obsidian-sync-' + process.env.RELEASE_TAG + '.zip'; const asset = (rel.assets || []).find(a => a.name === name); if (!asset) process.exit(1); process.stdout.write(asset.browser_download_url);")
-          curl -fsSL "${ZIP_URL}" > uploaded-extension.zip
-          unzip -Z1 uploaded-extension.zip > uploaded-extension-files.txt
-          grep -qx "manifest.json" uploaded-extension-files.txt
-          node -e "const fs = require('fs'); const lines = fs.readFileSync('uploaded-extension-files.txt', 'utf8').split(/\r?\n/).filter(Boolean); const hasNestedManifest = lines.some(line => /\/.+manifest\.json$/.test(line)); if (hasNestedManifest) { console.error('Extension zip contains nested manifest paths; expected root-level manifest.json.'); process.exit(1); } console.log('Verified extension zip root manifest.json');"
+          for ASSET_NAME in "canvas-to-obsidian-sync-chrome-${RELEASE_TAG}.zip" "canvas-to-obsidian-sync-firefox-${RELEASE_TAG}.zip"; do
+            ZIP_URL=$(node -e "const fs = require('fs'); const rel = JSON.parse(fs.readFileSync('release.json', 'utf8')); const asset = (rel.assets || []).find(a => a.name === process.argv[1]); if (!asset) process.exit(1); process.stdout.write(asset.browser_download_url);" "${ASSET_NAME}")
+            curl -fsSL "${ZIP_URL}" > uploaded-extension.zip
+            unzip -Z1 uploaded-extension.zip > uploaded-extension-files.txt
+            grep -qx "manifest.json" uploaded-extension-files.txt
+            node -e "const fs = require('fs'); const lines = fs.readFileSync('uploaded-extension-files.txt', 'utf8').split(/\r?\n/).filter(Boolean); const hasNestedManifest = lines.some(line => /\/.+manifest\.json$/.test(line)); if (hasNestedManifest) { console.error('Extension zip contains nested manifest paths; expected root-level manifest.json.'); process.exit(1); } console.log('Verified extension zip root manifest.json: ' + process.argv[1]);" "${ASSET_NAME}"
+          done
 
           rm -f release.json uploaded-manifest.json uploaded-extension.zip uploaded-extension-files.txt

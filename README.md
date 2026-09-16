@@ -28,7 +28,7 @@ Detailed setup and usage docs are in each app folder.
 
 ## Release
 
-Release guidance for the Obsidian community plugin and Chrome Web Store package is in `docs/releasing.md`.
+Release guidance for the Obsidian community plugin plus the Chrome and Firefox browser extension packages is in `docs/releasing.md`.
 Store submission metadata and reviewer instructions are in `docs/CHROME_WEB_STORE_SUBMISSION.md`.
 
 ## Privacy Policy

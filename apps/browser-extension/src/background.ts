@@ -103,14 +103,16 @@ async function detectCourseFromActiveTab(
     throw new Error("Open a Canvas course tab first (URL should include /courses/{id}).");
   }
 
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: detectCanvasCourseInPage,
-    args: [apiToken ?? null]
-  });
+  if (tabUrl) {
+    await ensureCanvasOriginPermission(tabUrl);
+  }
+
+  await probeCanvasScriptExecution(tabId);
+
+  const result = await executeScriptInTab(tabId, detectCanvasCourseInPage, [apiToken ?? null]);
 
   if (!result) {
-    throw new Error("Canvas course detection returned no result.");
+    throw new Error("Canvas course detection returned no result. The page may be blocked from script execution or may not be a valid Canvas course page.");
   }
 
   return result;
@@ -144,17 +146,83 @@ async function extractFromActiveCanvasTab(
     throw new Error("Open a Canvas course tab first (URL should include /courses/{id}).");
   }
 
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: scrapeCanvasFromPage,
-    args: [apiToken ?? null, customCourseName ?? null, customCourseCode ?? null]
-  });
+  if (tabUrl) {
+    await ensureCanvasOriginPermission(tabUrl);
+  }
+
+  await probeCanvasScriptExecution(tabId);
+
+  const result = await executeScriptInTab(tabId, scrapeCanvasFromPage, [
+    apiToken ?? null,
+    customCourseName ?? null,
+    customCourseCode ?? null
+  ]);
 
   if (!result) {
-    throw new Error("Canvas data extraction returned no result.");
+    throw new Error("Canvas data extraction returned no result. Firefox may be blocking script execution on this Canvas page.");
   }
 
   return result;
+}
+
+async function probeCanvasScriptExecution(tabId: number): Promise<void> {
+  const probeResult = await executeScriptInTab(tabId, () => ({
+    ok: true,
+    href: location.href,
+    title: document.title,
+    pathname: location.pathname
+  }), []);
+
+  if (!probeResult || !probeResult.ok) {
+    throw new Error("Firefox did not return a valid script result from the active Canvas tab.");
+  }
+}
+
+async function executeScriptInTab<T>(tabId: number, func: (...args: any[]) => T, args: unknown[]): Promise<T> {
+  const browserApi = (globalThis as Record<string, unknown>).browser as {
+    tabs?: {
+      executeScript?: (tabId: number, details: { code?: string; allFrames?: boolean }) => Promise<unknown[]>;
+    };
+    scripting?: {
+      executeScript?: (options: { target: { tabId: number }; func: (...args: unknown[]) => T; args?: unknown[] }) => Promise<Array<{ result?: T }>>;
+    };
+  } | undefined;
+
+  const scriptingApi = chrome.scripting ?? browserApi?.scripting;
+
+  if (scriptingApi?.executeScript) {
+    try {
+      const results = await scriptingApi.executeScript({
+        target: { tabId },
+        func,
+        args
+      });
+
+      const first = results?.[0];
+      if (typeof first?.result !== "undefined") {
+        return first.result as T;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown Firefox scripting error.";
+      console.warn("chrome.scripting fallback failed:", message);
+    }
+  }
+
+  const browserTabsApi = browserApi?.tabs;
+  if (browserTabsApi?.executeScript) {
+    try {
+      const serialized = `(${func.toString()})(${args.map((arg) => JSON.stringify(arg)).join(", ")})`;
+      const result = await browserTabsApi.executeScript(tabId, { code: serialized, allFrames: false });
+      if (Array.isArray(result) && result.length > 0) {
+        return result[0] as T;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown Firefox tabs.executeScript error.";
+      throw new Error(`Canvas script execution failed: ${message}`);
+    }
+  }
+
+  throw new Error("The Canvas page returned no payload from script execution.");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -318,6 +386,30 @@ async function postToLocalBridge(envelope: CanvasSyncEnvelope, port: number): Pr
   }
 }
 
+async function ensureCanvasOriginPermission(tabUrl: string): Promise<void> {
+  try {
+    const parsed = new URL(tabUrl);
+    const originPattern = `${parsed.origin}/*`;
+    const permissionsApi = chrome.permissions ?? ((globalThis as Record<string, unknown>).browser as { permissions?: { contains?: (p: { origins: string[] }) => Promise<boolean>; request?: (p: { origins: string[] }) => Promise<boolean> } } | undefined)?.permissions;
+
+    if (!permissionsApi) {
+      return;
+    }
+
+    const hasPermission = await permissionsApi.contains?.({ origins: [originPattern] }).catch(() => false);
+    if (hasPermission) {
+      return;
+    }
+
+    const granted = await permissionsApi.request?.({ origins: [originPattern] }).catch(() => false);
+    if (!granted) {
+      throw new Error(`Firefox blocked access to ${parsed.origin}. Please allow access to this Canvas site and reload the page.`);
+    }
+  } catch {
+    // Ignore permission issues for non-standard URLs; the earlier URL check already validates the canonical course route.
+  }
+}
+
 function isCanvasUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -339,6 +431,94 @@ async function scrapeCanvasFromPage(
   }
 
   const courseId = match[1];
+
+  function requestText(
+    url: string,
+    options?: {
+      method?: "GET" | "POST" | "OPTIONS";
+      headers?: Record<string, string>;
+      body?: string;
+      withCredentials?: boolean;
+    }
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(options?.method ?? "GET", url, true);
+      xhr.withCredentials = options?.withCredentials ?? false;
+
+      const headers = options?.headers ?? {};
+      for (const [key, value] of Object.entries(headers)) {
+        xhr.setRequestHeader(key, value);
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(xhr.responseText);
+          return;
+        }
+        reject(new Error(`Request failed: ${xhr.status}`));
+      };
+
+      xhr.onerror = () => {
+        reject(new Error("Network request failed."));
+      };
+
+      xhr.send(options?.body);
+    });
+  }
+
+  function requestBinary(url: string, withCredentials = true): Promise<{ data: ArrayBuffer; contentType: string }> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.withCredentials = withCredentials;
+      xhr.responseType = "arraybuffer";
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const contentType = xhr.getResponseHeader("Content-Type") ?? "application/octet-stream";
+          resolve({ data: xhr.response as ArrayBuffer, contentType });
+          return;
+        }
+        reject(new Error(`Binary request failed: ${xhr.status}`));
+      };
+
+      xhr.onerror = () => {
+        reject(new Error("Binary network request failed."));
+      };
+
+      xhr.send();
+    });
+  }
+
+  function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  async function requestJson(
+    url: string,
+    options?: {
+      method?: "GET" | "POST" | "OPTIONS";
+      headers?: Record<string, string>;
+      body?: string;
+      withCredentials?: boolean;
+    }
+  ): Promise<unknown> {
+    const text = await requestText(url, options);
+    if (!text.trim()) {
+      return {};
+    }
+    return JSON.parse(text) as unknown;
+  }
+
+  async function inlineImages(html: string, origin: string): Promise<string> {
+    return html;
+  }
 
   let detectedCourseCode = "";
   let detectedCourseName = "";

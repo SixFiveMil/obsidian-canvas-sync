@@ -29,16 +29,22 @@ function requestStatus(url: string, method: "OPTIONS"): Promise<number> {
 }
 
 async function ensureBridgePermission(): Promise<boolean> {
-  if (!chrome.permissions) {
+  const origins = ["http://127.0.0.1/*", "http://localhost/*"];
+  const browserPermissions = (globalThis as { browser?: { permissions?: { contains?: (permissions: { origins: string[] }) => Promise<boolean>; request?: (permissions: { origins: string[] }) => Promise<boolean> } } }).browser?.permissions;
+  const permissionsApi = chrome.permissions ?? browserPermissions;
+
+  if (!permissionsApi) {
     return true;
   }
+
   try {
-    const origins = ["http://127.0.0.1/*", "http://localhost/*"];
-    const has = await chrome.permissions.contains({ origins: ["http://127.0.0.1/*"] });
+    const has = await permissionsApi.contains?.({ origins }).catch(() => false);
     if (has) {
       return true;
     }
-    return await chrome.permissions.request({ origins });
+
+    const granted = await permissionsApi.request?.({ origins }).catch(() => false);
+    return !!granted;
   } catch {
     return false;
   }
@@ -79,7 +85,7 @@ safeSyncBtn.addEventListener("click", () => {
     try {
       const granted = await ensureBridgePermission();
       if (!granted) {
-        setStatus("Permission to connect to local Obsidian bridge was denied.", "error");
+        setStatus("Firefox blocked localhost access. Please allow the extension to access http://127.0.0.1 and reload the extension, then try again.", "error");
         return;
       }
 
@@ -122,7 +128,7 @@ safeTestBtn.addEventListener("click", () => {
     try {
       const granted = await ensureBridgePermission();
       if (!granted) {
-        setStatus("Permission to connect to local Obsidian bridge was denied.", "error");
+        setStatus("Firefox blocked localhost access. Please allow the extension to access http://127.0.0.1 and reload the extension, then try again.", "error");
         return;
       }
 
