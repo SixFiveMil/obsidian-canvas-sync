@@ -105,14 +105,12 @@ async function publishFirefox(options = {}) {
 
   console.log(`[AMO] Signing/publishing Firefox extension with channel '${channel}'...`);
 
-  const cmd = `npx web-ext sign --source-dir "${sourceDir}" --artifacts-dir "${artifactsDir}" --api-key="${apiKey}" --api-secret="${apiSecret}" --channel="${channel}" --overwrite-dest`;
   // For listed channel in CI, set approval-timeout to 0 so it submits and exits without hanging for human review
   const timeoutFlag = channel === "listed" ? "--approval-timeout=0" : "";
-  const cmd = `npx web-ext sign --source-dir "${sourceDir}" --artifacts-dir "${artifactsDir}" --api-key="${apiKey}" --api-secret="${apiSecret}" --channel="${channel}" ${timeoutFlag}`.trim();
+  const signCommand = `npx web-ext sign --source-dir "${sourceDir}" --artifacts-dir "${artifactsDir}" --api-key="${apiKey}" --api-secret="${apiSecret}" --channel="${channel}" ${timeoutFlag}`.trim();
   
-  execSync(cmd, { stdio: "inherit", cwd: extensionRoot });
+  execSync(signCommand, { stdio: "inherit", cwd: extensionRoot });
 
-  console.log(`[AMO] Firefox extension signed/published in ${artifactsDir}`);
   console.log(`[AMO] Firefox extension submission complete.`);
   return { skipped: false, success: true };
 }
@@ -141,4 +139,3 @@ main().catch((err) => {
   console.error("[PUBLISH ERROR]", err.message);
   process.exit(1);
 });
-
