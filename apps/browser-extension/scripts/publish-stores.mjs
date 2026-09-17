@@ -128,15 +128,32 @@ async function main() {
 
   // Locate Chrome zip
   const manifest = JSON.parse(readFileSync(resolve(extensionRoot, "manifest.chrome.json"), "utf8"));
-  const version = process.env.RELEASE_TAG || manifest.version || "0.2.1";
+  const version = process.env.RELEASE_TAG || manifest.version || "0.2.2";
   const chromeZipPath = resolve(repoRoot, `release/canvas-to-obsidian-sync-chrome-${version}.zip`);
 
+  const errors = [];
+
   if (target === "chrome" || target === "all") {
-    await publishChrome(chromeZipPath, { publish: publishFlag });
+    try {
+      await publishChrome(chromeZipPath, { publish: publishFlag });
+    } catch (err) {
+      console.error("[CHROME ERROR]", err.message);
+      errors.push({ target: "chrome", error: err });
+    }
   }
 
   if (target === "firefox" || target === "all") {
-    await publishFirefox({ channel: channelArg });
+    try {
+      await publishFirefox({ channel: channelArg });
+    } catch (err) {
+      console.error("[FIREFOX ERROR]", err.message);
+      errors.push({ target: "firefox", error: err });
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error(`[PUBLISH SUMMARY] Failed target(s): ${errors.map(e => e.target).join(", ")}`);
+    process.exit(1);
   }
 }
 
