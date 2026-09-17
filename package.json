@@ -1,6 +1,6 @@
 {
   "name": "obsidian-canvas-sync",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "license": "MIT",
   "description": "Hybrid Canvas LMS integration for Obsidian: direct REST API syncing and zero-token browser session scraper",

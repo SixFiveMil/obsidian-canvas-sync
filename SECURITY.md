@@ -12,9 +12,9 @@ Only the latest release of the Obsidian plugin is actively maintained for securi
 
 | Component | Supported Version | Status |
 | :--- | :--- | :--- |
-| **Obsidian Plugin** (`apps/obsidian-plugin`) | `>= 0.3.0` | :white_check_mark: |
-| **Browser Extension** (`apps/browser-extension`) | `>= 0.3.0` | :white_check_mark: |
-| Versions `< 0.3.0` | `< 0.3.0` | :x: |
+| **Obsidian Plugin** (`apps/obsidian-plugin`) | `>= 0.3.1` | :white_check_mark: |
+| **Browser Extension** (`apps/browser-extension`) | `>= 0.3.1` | :white_check_mark: |
+| Versions `< 0.3.1` | `< 0.3.1` | :x: |
 
 ---
 
