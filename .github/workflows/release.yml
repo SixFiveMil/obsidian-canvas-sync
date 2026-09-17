@@ -108,6 +108,7 @@ jobs:
             release/checksums.txt
 
       - name: Deploy to extension stores (CWS & AMO)
+        continue-on-error: true
         if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish_to_stores != 'false' }}
         env:
           CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
