@@ -138,3 +138,4 @@ All data extraction and communication is strictly local between the browser tab 
 Configure in GitHub Repository Settings &rarr; **Secrets and variables &rarr; Actions**:
 - `WEB_EXT_API_KEY`: JWT issuer key from [AMO Manage API Keys](https://addons.mozilla.org/developers/addon/api/key/)
 - `WEB_EXT_API_SECRET`: JWT secret from [AMO Manage API Keys](https://addons.mozilla.org/developers/addon/api/key/)
+
