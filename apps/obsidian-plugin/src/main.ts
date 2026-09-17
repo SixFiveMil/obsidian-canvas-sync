@@ -1,4 +1,3 @@
-import type { IncomingMessage, ServerResponse, Server } from "node:http";
 import { App, Notice, Platform, Plugin, PluginSettingTab, Setting, TFile, normalizePath } from "obsidian";
 import type TurndownService from "turndown";
 import { CanvasApiClient } from "./canvas-api-client";
@@ -28,6 +27,10 @@ import type {
   CanvasSyncSettings
 } from "./types";
 
+type HttpServer = import("http").Server;
+type HttpIncomingMessage = import("http").IncomingMessage;
+type HttpServerResponse = import("http").ServerResponse;
+
 export const DEFAULT_SETTINGS: CanvasSyncSettings = {
   canvasBaseUrl: "",
   canvasApiToken: "",
@@ -54,7 +57,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   private static readonly TRUSTED_CLIENT_HEADER = "x-canvas-sync-client";
   private settings: CanvasSyncSettings = DEFAULT_SETTINGS;
   private apiClient: CanvasApiClient | null = null;
-  private server: Server | null = null;
+  private server: HttpServer | null = null;
   private turndown: TurndownService = createConfiguredTurndown();
 
   async onload(): Promise<void> {
@@ -141,7 +144,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     }
 
     try {
-      const http = require("http") as typeof import("node:http");
+      const http = await import("http");
       this.server = http.createServer((req, res) => {
         void this.handleBridgeRequest(req, res);
       });
@@ -185,7 +188,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     }
   }
 
-  private async handleBridgeRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  private async handleBridgeRequest(req: HttpIncomingMessage, res: HttpServerResponse): Promise<void> {
     const originHeader = typeof req.headers["origin"] === "string" ? req.headers["origin"] : undefined;
     const allowedOrigin = getAllowedExtensionOrigin(originHeader);
 
@@ -1623,7 +1626,7 @@ class CanvasSyncSettingTab extends PluginSettingTab {
           .setCta()
           .onClick(async () => {
             statusContainer.empty();
-            statusContainer.createEl("span", { text: "Testing connection...", cls: "canvas-status-testing" });
+            statusContainer.createSpan({ text: "Testing connection...", cls: "canvas-status-testing" });
             try {
               const client = this.plugin.getApiClient();
               const user = await client.testConnection();

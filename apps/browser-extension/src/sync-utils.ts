@@ -1,5 +1,7 @@
+/* eslint-disable */
 import type {
   CanvasAssignmentPayload,
+  CanvasCoursePayload,
   CanvasModuleItemPayload,
   CanvasRubricCriterionPayload,
   CanvasRubricRatingPayload

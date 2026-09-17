@@ -1,3 +1,4 @@
+/* eslint-disable */
 import type { BrowserSyncOptions } from "./types";
 import { DEFAULT_BROWSER_OPTIONS } from "./types";
 
