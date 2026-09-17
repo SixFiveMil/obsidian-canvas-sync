@@ -5,6 +5,13 @@ export interface CanvasUserSummary {
   primary_email?: string;
 }
 
+export interface CanvasCourseGrades {
+  currentScore?: number | null;
+  currentGrade?: string | null;
+  finalScore?: number | null;
+  finalGrade?: string | null;
+}
+
 export interface CanvasCourseSummary {
   id: number;
   name: string;
@@ -18,10 +25,17 @@ export interface CanvasCourseSummary {
   start_at?: string | null;
   end_at?: string | null;
   concluded?: boolean;
+  grades?: CanvasCourseGrades;
   enrollments?: Array<{
     type: string;
     role: string;
     enrollment_state: string;
+    grades?: {
+      current_score?: number | null;
+      current_grade?: string | null;
+      final_score?: number | null;
+      final_grade?: string | null;
+    };
   }>;
 }
 
@@ -62,6 +76,45 @@ export interface CanvasModulePayload {
   items: CanvasModuleItemPayload[];
 }
 
+export interface CanvasSubmissionComment {
+  authorName: string;
+  comment: string;
+  createdAt: string;
+}
+
+export interface CanvasSubmissionAttachment {
+  id: string;
+  displayName: string;
+  url: string;
+  size?: number;
+  contentType?: string;
+  downloaded?: boolean;
+  savedRelativePath?: string;
+}
+
+export interface CanvasRubricAssessmentEntry {
+  criterionId: string;
+  points?: number | null;
+  comments?: string | null;
+}
+
+export interface CanvasSubmissionPayload {
+  id?: string;
+  submittedAt?: string | null;
+  workflowState?: "submitted" | "graded" | "unsubmitted" | "pending_review" | string;
+  score?: number | null;
+  grade?: string | null;
+  body?: string | null;
+  url?: string | null;
+  submissionType?: string | null;
+  late?: boolean;
+  missing?: boolean;
+  excused?: boolean;
+  comments?: CanvasSubmissionComment[];
+  rubricAssessment?: Record<string, CanvasRubricAssessmentEntry>;
+  attachments?: CanvasSubmissionAttachment[];
+}
+
 export interface CanvasAssignmentPayload {
   id: string;
   name: string;
@@ -72,6 +125,7 @@ export interface CanvasAssignmentPayload {
   submissionTypes?: string[];
   moduleNames?: string[];
   rubric?: CanvasRubricCriterionPayload[];
+  submission?: CanvasSubmissionPayload;
 }
 
 export interface CanvasRubricRatingPayload {
@@ -88,14 +142,28 @@ export interface CanvasRubricCriterionPayload {
   ratings: CanvasRubricRatingPayload[];
 }
 
+export interface CanvasDiscussionEntryPayload {
+  id: string;
+  userId?: string;
+  userName: string;
+  messageHtml: string;
+  createdAt: string;
+  updatedAt?: string;
+  replies?: CanvasDiscussionEntryPayload[];
+}
+
 export interface CanvasDiscussionPayload {
   id: string;
   title: string;
+  assignmentId?: string;
   htmlUrl?: string;
   messageHtml?: string;
   postedAt?: string | null;
   updatedAt?: string | null;
   moduleNames?: string[];
+  entries?: CanvasDiscussionEntryPayload[];
+  assignment?: CanvasAssignmentPayload;
+  submission?: CanvasSubmissionPayload;
 }
 
 export interface CanvasEventPayload {
@@ -105,6 +173,8 @@ export interface CanvasEventPayload {
   endAt?: string | null;
   htmlUrl?: string;
   description?: string;
+  eventType?: "event" | "assignment" | string;
+  assignmentId?: string;
 }
 
 export interface CanvasFileAssetPayload {
@@ -148,6 +218,7 @@ export interface CanvasCoursePayload {
   courseName: string;
   courseCode?: string;
   fetchedAt: string;
+  grades?: CanvasCourseGrades;
   courseHomePageHtml?: string;
   syllabusHtml?: string;
   modules: CanvasModulePayload[];
@@ -159,16 +230,12 @@ export interface CanvasCoursePayload {
   assetDiagnostics?: AssetSyncDiagnostics;
 }
 
-export interface CanvasSyncEnvelope {
-  source: "canvas-direct-api" | "canvas-browser-extension";
-  version: "1";
-  payload: CanvasCoursePayload;
-}
-
 export interface CanvasSyncSettings {
   canvasBaseUrl: string;
   canvasApiToken: string;
   includeInactiveCourses: boolean;
+  syncDiscussionReplies: boolean;
+  syncStudentSubmissions: boolean;
   rootFolder: string;
   courseFolderTemplate: string;
   includeRawPayload: boolean;

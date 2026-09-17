@@ -44,6 +44,8 @@ describe("Obsidian guideline guardrails", () => {
     expect(source).toContain('.setName("Root folder")');
     expect(source).toContain('.setName("Course folder template")');
     expect(source).toContain('.setName("Include inactive & past courses")');
+    expect(source).toContain('.setName("Sync discussion replies")');
+    expect(source).toContain('.setName("Sync student submissions & grades")');
     expect(source).toContain('.setName("Store raw payload")');
     expect(source).not.toContain('.setName("Canvas Base URL")');
     expect(source).not.toContain('.setName("Canvas API Token")');

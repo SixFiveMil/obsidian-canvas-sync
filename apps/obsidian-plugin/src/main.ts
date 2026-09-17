@@ -30,6 +30,8 @@ export const DEFAULT_SETTINGS: CanvasSyncSettings = {
   canvasBaseUrl: "",
   canvasApiToken: "",
   includeInactiveCourses: true,
+  syncDiscussionReplies: true,
+  syncStudentSubmissions: true,
   rootFolder: "Canvas",
   courseFolderTemplate: "{{courseCode}} - {{courseName}}",
   includeRawPayload: false,
@@ -158,7 +160,10 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     onProgress?: (step: string, current: number, total: number) => void
   ): Promise<void> {
     const client = this.getApiClient();
-    const payload = await client.fetchCompleteCoursePayload(courseId, onProgress);
+    const payload = await client.fetchCompleteCoursePayload(courseId, onProgress, {
+      syncDiscussionReplies: this.settings.syncDiscussionReplies,
+      syncStudentSubmissions: this.settings.syncStudentSubmissions
+    });
     await this.syncCoursePayload(payload, onProgress);
   }
 
@@ -278,45 +283,118 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const pageBySlug = new Map<string, CanvasPagePayload>();
     const pageByTitle = new Map<string, CanvasPagePayload>();
     const pageMap = new Map<string, { relativePath: string; title: string }>();
+    const assignmentMap = new Map<string, { relativePath: string; title: string }>();
+    const discussionMap = new Map<string, { relativePath: string; title: string }>();
+    const moduleMap = new Map<string, { relativePath: string; title: string }>();
+    const moduleByName = new Map<string, { relativePath: string; title: string }>();
 
+    // 1. Map all items organized inside Modules to their exact folder and file names
+    for (const module of payload.modules) {
+      const safeModuleName = this.sanitizeFileName(module.name || `Module ${module.id}`);
+      const moduleFolderName = `${this.padPosition(module.position)} - ${safeModuleName}`;
+      const modObj = { relativePath: `Modules/${moduleFolderName}/00 - Module Overview.md`, title: module.name };
+      moduleMap.set(module.id, modObj);
+      moduleByName.set(module.name.trim().toLowerCase(), modObj);
+
+      for (const item of module.items) {
+        const filePrefix = this.padPosition(item.position);
+        const safeTitle = this.sanitizeFileName(item.title || `${item.type} Item`);
+
+        if (item.type === "WikiPage") {
+          const relPath = `Modules/${moduleFolderName}/${filePrefix} - Page - ${safeTitle}.md`;
+          if (item.pageSlug) {
+            pageMap.set(item.pageSlug, { relativePath: relPath, title: item.title });
+          }
+          const key = item.title.trim().toLowerCase();
+          if (key) {
+            pageMap.set(key, { relativePath: relPath, title: item.title });
+          }
+        } else if (item.type === "Assignment" && item.assignmentId) {
+          const relPath = `Modules/${moduleFolderName}/${filePrefix} - Assignment - ${safeTitle}.md`;
+          assignmentMap.set(item.assignmentId, { relativePath: relPath, title: item.title });
+        } else if (item.type === "DiscussionTopic" && item.discussionId) {
+          const relPath = `Modules/${moduleFolderName}/${filePrefix} - Discussion - ${safeTitle}.md`;
+          discussionMap.set(item.discussionId, { relativePath: relPath, title: item.title });
+        }
+      }
+    }
+
+    // 2. Cross-reference discussions with assignments for graded discussions
+    const assignmentById = new Map<string, CanvasAssignmentPayload>(payload.assignments.map((a) => [a.id, a]));
+    const assignmentByTitle = new Map<string, CanvasAssignmentPayload>(
+      payload.assignments.map((a) => [a.name.trim().toLowerCase(), a])
+    );
+    const discussionById = new Map<string, CanvasDiscussionPayload>(payload.discussions.map((d) => [d.id, d]));
+    const discussionByTitle = new Map<string, CanvasDiscussionPayload>(
+      payload.discussions.map((d) => [d.title.trim().toLowerCase(), d])
+    );
+
+    for (const discussion of payload.discussions) {
+      let matchedAssignment: CanvasAssignmentPayload | undefined = undefined;
+      if (discussion.assignmentId) {
+        matchedAssignment = assignmentById.get(discussion.assignmentId);
+      }
+      if (!matchedAssignment) {
+        matchedAssignment = assignmentByTitle.get(discussion.title.trim().toLowerCase());
+      }
+      if (matchedAssignment) {
+        discussion.assignment = matchedAssignment;
+        if (matchedAssignment.submission) {
+          discussion.submission = matchedAssignment.submission;
+        }
+        if (!discussion.assignmentId) {
+          discussion.assignmentId = matchedAssignment.id;
+        }
+      }
+    }
+
+    // 3. Cross-link assignmentMap and discussionMap so URLs pointing to either ID resolve cleanly to module notes
+    for (const discussion of payload.discussions) {
+      if (discussion.assignmentId) {
+        if (
+          discussionMap.has(discussion.id) &&
+          (!assignmentMap.has(discussion.assignmentId) ||
+            assignmentMap.get(discussion.assignmentId)!.relativePath.startsWith("Tasks.md"))
+        ) {
+          assignmentMap.set(discussion.assignmentId, discussionMap.get(discussion.id)!);
+        }
+        if (
+          assignmentMap.has(discussion.assignmentId) &&
+          (!discussionMap.has(discussion.id) ||
+            discussionMap.get(discussion.id)!.relativePath.startsWith("Discussions.md"))
+        ) {
+          discussionMap.set(discussion.id, assignmentMap.get(discussion.assignmentId)!);
+        }
+      }
+    }
+
+    // 4. Add fallback paths for unparented pages/assignments/discussions
     for (const page of payload.pages) {
       const safeTitle = this.sanitizeFileName(page.title || "Untitled Page");
-      const relativePagePath =
-        page.moduleNames && page.moduleNames.length > 0
-          ? `Modules/${this.sanitizeFileName(page.moduleNames[0])}/Page - ${safeTitle}.md`
-          : `Pages/${safeTitle}.md`;
-
-      if (page.slug) {
-        pageBySlug.set(page.slug, page);
+      const relativePagePath = `Pages/${safeTitle}.md`;
+      if (page.slug && !pageMap.has(page.slug)) {
         pageMap.set(page.slug, { relativePath: relativePagePath, title: page.title });
       }
       const key = page.title.trim().toLowerCase();
-      if (key && !pageByTitle.has(key)) {
-        pageByTitle.set(key, page);
+      if (key && !pageMap.has(key)) {
         pageMap.set(key, { relativePath: relativePagePath, title: page.title });
+      }
+      if (page.slug) pageBySlug.set(page.slug, page);
+      if (key && !pageByTitle.has(key)) pageByTitle.set(key, page);
+    }
+
+    for (const assignment of payload.assignments) {
+      if (!assignmentMap.has(assignment.id)) {
+        const safeTitle = this.sanitizeFileName(assignment.name || "Untitled Assignment");
+        assignmentMap.set(assignment.id, { relativePath: `Tasks.md#${safeTitle}`, title: assignment.name });
       }
     }
 
-    const assignmentById = new Map<string, CanvasAssignmentPayload>(payload.assignments.map((a) => [a.id, a]));
-    const assignmentMap = new Map<string, { relativePath: string; title: string }>();
-    for (const assignment of payload.assignments) {
-      const safeTitle = this.sanitizeFileName(assignment.name || "Untitled Assignment");
-      const relativeAssignmentPath =
-        assignment.moduleNames && assignment.moduleNames.length > 0
-          ? `Modules/${this.sanitizeFileName(assignment.moduleNames[0])}/Assignment - ${safeTitle}.md`
-          : `Tasks.md#${safeTitle}`;
-      assignmentMap.set(assignment.id, { relativePath: relativeAssignmentPath, title: assignment.name });
-    }
-
-    const discussionById = new Map<string, CanvasDiscussionPayload>(payload.discussions.map((d) => [d.id, d]));
-    const discussionMap = new Map<string, { relativePath: string; title: string }>();
     for (const discussion of payload.discussions) {
-      const safeTitle = this.sanitizeFileName(discussion.title || "Untitled Discussion");
-      const relativeDiscussionPath =
-        discussion.moduleNames && discussion.moduleNames.length > 0
-          ? `Modules/${this.sanitizeFileName(discussion.moduleNames[0])}/Discussion - ${safeTitle}.md`
-          : `Discussions.md#${safeTitle}`;
-      discussionMap.set(discussion.id, { relativePath: relativeDiscussionPath, title: discussion.title });
+      if (!discussionMap.has(discussion.id)) {
+        const safeTitle = this.sanitizeFileName(discussion.title || "Untitled Discussion");
+        discussionMap.set(discussion.id, { relativePath: `Discussions.md#${safeTitle}`, title: discussion.title });
+      }
     }
 
     const fileById = new Map<string, CanvasFileAssetPayload>();
@@ -337,16 +415,9 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       }
     }
 
-    const moduleMap = new Map<string, { relativePath: string; title: string }>();
-    for (const module of payload.modules) {
-      const safeModuleName = this.sanitizeFileName(module.name || `Module ${module.id}`);
-      const moduleFolderName = `${this.padPosition(module.position)} - ${safeModuleName}`;
-      const relativeModulePath = `Modules/${moduleFolderName}/00 - Module Overview.md`;
-      moduleMap.set(module.id, { relativePath: relativeModulePath, title: module.name });
-    }
-
     const specialRouteMap = new Map<string, { relativePath: string; title: string }>([
       ["syllabus", { relativePath: "Syllabus.md", title: "Syllabus" }],
+      ["grades", { relativePath: "Grades.md", title: "Grades" }],
       ["assignments", { relativePath: "Tasks.md", title: "Assignments" }],
       ["discussions", { relativePath: "Discussions.md", title: "Discussions" }],
       ["calendar", { relativePath: "Calendar.md", title: "Calendar" }],
@@ -388,18 +459,23 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         pageByTitle,
         assignmentById,
         discussionById,
-        fileById
+        fileById,
+        fileMap,
+        moduleByName
       );
     }
 
     const tasksPath = normalizePath(`${courseFolder}/Tasks.md`);
-    await this.upsertFile(tasksPath, this.renderAssignments(payload.assignments));
+    await this.upsertFile(tasksPath, this.renderAssignments(payload.assignments, assignmentMap, moduleByName, fileMap));
+
+    const gradesPath = normalizePath(`${courseFolder}/Grades.md`);
+    await this.upsertFile(gradesPath, this.renderGradesPage(payload, assignmentMap, moduleByName));
 
     const discussionsPath = normalizePath(`${courseFolder}/Discussions.md`);
-    await this.upsertFile(discussionsPath, this.renderDiscussions(payload.discussions));
+    await this.upsertFile(discussionsPath, this.renderDiscussions(payload.discussions, discussionMap, moduleByName));
 
     const eventsPath = normalizePath(`${courseFolder}/Calendar.md`);
-    await this.upsertFile(eventsPath, this.renderEvents(payload.events));
+    await this.upsertFile(eventsPath, this.renderEvents(payload.events, assignmentMap));
 
     const courseIndexPath = normalizePath(`${courseFolder}/Course.md`);
     const indexDoc = this.renderCourseIndex(payload);
@@ -423,11 +499,26 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       "- Module-ordered content is in ./Modules",
       "- Course home page is in ./Home.md (if available)",
       "- Syllabus is in ./Syllabus.md (if available)",
+      "- Overall grade report & gradebook is in ./Grades.md",
       "- Assignment checklist is in ./Tasks.md",
       "- Discussion summary is in ./Discussions.md",
       "- Events are in ./Calendar.md",
       `- Downloaded static documents are in ./${this.settings.documentsSubfolder || "Files"}`
     ];
+
+    if (payload.grades && (payload.grades.currentScore != null || payload.grades.currentGrade != null || payload.grades.finalScore != null || payload.grades.finalGrade != null)) {
+      lines.push("", "## Course Grades", "");
+      const g = payload.grades;
+      const currentScoreText = g.currentScore != null ? `${g.currentScore}%` : "No score recorded";
+      const currentGradeText = g.currentGrade ? ` (Grade: ${g.currentGrade})` : "";
+      lines.push(`> [!INFO] **Current Course Grade**: ${currentScoreText}${currentGradeText}`);
+
+      if (g.finalScore != null || g.finalGrade != null) {
+        const finalScoreText = g.finalScore != null ? `${g.finalScore}%` : "No score recorded";
+        const finalGradeText = g.finalGrade ? ` (Grade: ${g.finalGrade})` : "";
+        lines.push(`> - **Final Calculated Grade**: ${finalScoreText}${finalGradeText}`);
+      }
+    }
 
     if (payload.assetDiagnostics || (payload.files && payload.files.length > 0)) {
       lines.push("", "## Asset Sync Diagnostics", "");
@@ -480,7 +571,9 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     pageByTitle: Map<string, CanvasPagePayload>,
     assignmentById: Map<string, CanvasAssignmentPayload>,
     discussionById: Map<string, CanvasDiscussionPayload>,
-    fileById: Map<string, CanvasFileAssetPayload>
+    fileById: Map<string, CanvasFileAssetPayload>,
+    fileMap: Map<string, { relativePath: string; displayName: string }>,
+    moduleByName?: Map<string, { relativePath: string; title: string }>
   ): Promise<void> {
     const moduleFolder = normalizePath(
       `${modulesFolder}/${this.padPosition(module.position)} - ${this.sanitizeFileName(module.name)}`
@@ -529,21 +622,21 @@ export default class CanvasSyncBridgePlugin extends Plugin {
           (item.pageSlug ? pageBySlug.get(item.pageSlug) : undefined) ||
           pageByTitle.get(item.title.trim().toLowerCase());
         const pagePath = normalizePath(`${moduleFolder}/${filePrefix} - Page - ${safeTitle}.md`);
-        await this.upsertFile(pagePath, this.renderModulePageDoc(item, page));
+        await this.upsertFile(pagePath, this.renderModulePageDoc(item, page, moduleByName));
         continue;
       }
 
       if (item.type === "Assignment") {
         const assignment = item.assignmentId ? assignmentById.get(item.assignmentId) : undefined;
         const assignmentPath = normalizePath(`${moduleFolder}/${filePrefix} - Assignment - ${safeTitle}.md`);
-        await this.upsertFile(assignmentPath, this.renderModuleAssignmentDoc(item, assignment));
+        await this.upsertFile(assignmentPath, this.renderModuleAssignmentDoc(item, assignment, moduleByName, fileMap));
         continue;
       }
 
       if (item.type === "DiscussionTopic") {
         const discussion = item.discussionId ? discussionById.get(item.discussionId) : undefined;
         const discussionPath = normalizePath(`${moduleFolder}/${filePrefix} - Discussion - ${safeTitle}.md`);
-        await this.upsertFile(discussionPath, this.renderModuleDiscussionDoc(item, discussion));
+        await this.upsertFile(discussionPath, this.renderModuleDiscussionDoc(item, discussion, moduleByName, fileMap));
         continue;
       }
 
@@ -573,7 +666,25 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     return [`# ${title}`, "", markdown || "No content available."].join("\n");
   }
 
-  private renderModulePageDoc(item: CanvasModuleItemPayload, page?: CanvasPagePayload): string {
+  private formatModuleLinks(
+    moduleNames?: string[],
+    moduleByName?: Map<string, { relativePath: string; title: string }>,
+    inTable = false
+  ): string[] {
+    if (!moduleNames || moduleNames.length === 0) return [];
+    const pipe = inTable ? "\\|" : "|";
+    return moduleNames.map((mName) => {
+      const modInfo = moduleByName?.get(mName.trim().toLowerCase());
+      const cleanName = mName.replace(/\|/g, "\\|");
+      return modInfo ? `[[${modInfo.relativePath}${pipe}${cleanName}]]` : cleanName;
+    });
+  }
+
+  private renderModulePageDoc(
+    item: CanvasModuleItemPayload,
+    page?: CanvasPagePayload,
+    moduleByName?: Map<string, { relativePath: string; title: string }>
+  ): string {
     if (!page) {
       return [
         `# ${item.title}`,
@@ -589,12 +700,13 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     }
 
     const pageBody = this.turndown.turndown(page.html).trim();
+    const modLinks = this.formatModuleLinks(page.moduleNames, moduleByName);
     return [
       `# ${page.title}`,
       "",
       `Source: ${page.url}`,
       page.updatedAt ? `Updated: ${page.updatedAt}` : null,
-      page.moduleNames && page.moduleNames.length > 0 ? `Modules: ${page.moduleNames.join(", ")}` : null,
+      modLinks.length > 0 ? `Modules: ${modLinks.join(", ")}` : null,
       "",
       pageBody || "No page body available."
     ]
@@ -623,7 +735,12 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     return lines.join("\n") + "\n";
   }
 
-  private renderModuleAssignmentDoc(item: CanvasModuleItemPayload, assignment?: CanvasAssignmentPayload): string {
+  private renderModuleAssignmentDoc(
+    item: CanvasModuleItemPayload,
+    assignment?: CanvasAssignmentPayload,
+    moduleByName?: Map<string, { relativePath: string; title: string }>,
+    fileMap?: Map<string, { relativePath: string; displayName: string }>
+  ): string {
     if (!assignment) {
       return [
         `# ${item.title}`,
@@ -641,10 +758,12 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const due = assignment.dueAt ? new Date(assignment.dueAt).toISOString() : "No due date";
     const points = assignment.pointsPossible ?? "?";
     const description = this.renderAssignmentDescription(assignment.descriptionHtml);
-    const structuredRubric = this.renderStructuredRubric(assignment.rubric);
+    const submissionBlock = this.renderAssignmentSubmission(assignment.submission, fileMap);
+    const structuredRubric = this.renderStructuredRubric(assignment.rubric, assignment.submission?.rubricAssessment);
     const hasRubricTableInHtml =
       typeof assignment.descriptionHtml === "string" &&
       /class=["'][^"']*\brubric_table\b/.test(assignment.descriptionHtml);
+    const modLinks = this.formatModuleLinks(assignment.moduleNames, moduleByName);
 
     return [
       `# ${assignment.name}`,
@@ -652,12 +771,12 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       `Assignment ID: ${assignment.id}`,
       `Due: ${due}`,
       `Points: ${points}`,
-      assignment.moduleNames && assignment.moduleNames.length > 0
-        ? `Modules: ${assignment.moduleNames.join(", ")}`
-        : null,
+      modLinks.length > 0 ? `Modules: ${modLinks.join(", ")}` : null,
       assignment.htmlUrl ? `Source: ${assignment.htmlUrl}` : null,
       "",
-      "## Description",
+      submissionBlock ? submissionBlock : null,
+      submissionBlock ? "" : null,
+      "## Instructions & Description",
       "",
       description || "No assignment description available.",
       structuredRubric ? "" : null,
@@ -669,6 +788,71 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       .filter((line): line is string => line !== null)
       .join("\n")
       .trim() + "\n";
+  }
+
+  private renderAssignmentSubmission(
+    submission?: CanvasAssignmentPayload["submission"],
+    fileMap?: Map<string, { relativePath: string; displayName: string }>
+  ): string | null {
+    if (!submission) return null;
+
+    const lines: string[] = ["## Student Submission & Feedback", ""];
+    const state = submission.workflowState || "unsubmitted";
+    const scoreStr = submission.score != null ? `${submission.score}` : "Not graded";
+    const gradeStr = submission.grade ? ` (Grade: ${submission.grade})` : "";
+    const submittedDate = submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : "N/A";
+
+    const calloutType = state === "graded" ? "SUCCESS" : state === "submitted" ? "INFO" : "WARNING";
+    lines.push(`> [!${calloutType}] **Status: ${state.toUpperCase()}**`);
+    lines.push(`> - **Score**: ${scoreStr}${gradeStr}`);
+    lines.push(`> - **Submitted**: ${submittedDate}`);
+    if (submission.late) lines.push(`> - ⚠️ **Late Submission**`);
+    if (submission.missing) lines.push(`> - ⚠️ **Marked Missing**`);
+    if (submission.excused) lines.push(`> - ℹ️ **Excused**`);
+
+    lines.push("");
+
+    if (submission.body) {
+      lines.push("### Submitted Text Content", "");
+      lines.push(this.turndown.turndown(submission.body).trim());
+      lines.push("");
+    }
+
+    if (submission.url) {
+      lines.push("### Submitted URL", "");
+      lines.push(`[${submission.url}](${submission.url})`);
+      lines.push("");
+    }
+
+    if (submission.attachments && submission.attachments.length > 0) {
+      lines.push("### Submitted Attachments", "");
+      for (const att of submission.attachments) {
+        const fileInfo = att.id ? fileMap?.get(att.id) : undefined;
+        const relativePath = fileInfo?.relativePath || att.savedRelativePath;
+        const displayName = fileInfo?.displayName || att.displayName;
+        if (relativePath) {
+          lines.push(`- [[${relativePath}|${displayName}]]`);
+        } else {
+          lines.push(`- [${displayName}](${att.url})`);
+        }
+      }
+      lines.push("");
+    }
+
+    if (submission.comments && submission.comments.length > 0) {
+      lines.push("### Instructor & Peer Comments", "");
+      for (const c of submission.comments) {
+        const cDate = c.createdAt ? new Date(c.createdAt).toLocaleString() : "";
+        lines.push(`> [!QUOTE] **${c.authorName}** ${cDate ? `_(${cDate})_` : ""}`);
+        lines.push(`>`);
+        const commentMarkdown = this.turndown.turndown(c.comment || "").trim();
+        const commentLines = commentMarkdown.split("\n").map((l) => `> ${l}`).join("\n");
+        lines.push(commentLines);
+        lines.push("");
+      }
+    }
+
+    return lines.join("\n").trim();
   }
 
   private renderAssignmentDescription(descriptionHtml?: string): string {
@@ -704,16 +888,27 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     return html.replace(/<table\b[^>]*class=["'][^"']*\brubric_table\b[^"']*["'][^>]*>[\s\S]*?<\/table>/gi, "");
   }
 
-  private renderStructuredRubric(rubric?: CanvasRubricCriterionPayload[]): string {
+  private renderStructuredRubric(
+    rubric?: CanvasRubricCriterionPayload[],
+    assessment?: Record<string, { points?: number | null; comments?: string | null }>
+  ): string {
     if (!rubric || rubric.length === 0) {
       return "";
     }
 
     const lines: string[] = ["## Rubric (Structured API)", ""];
     for (const criterion of rubric) {
-      lines.push(`### ${criterion.description}`);
+      const assessed = assessment ? assessment[criterion.id] : undefined;
+      const scoreBadge = assessed?.points != null ? ` [Score: ${assessed.points} / ${criterion.points} pts]` : "";
+      lines.push(`### ${criterion.description}${scoreBadge}`);
       lines.push("");
       lines.push(`- Criterion Points: ${criterion.points}`);
+      if (assessed?.points != null) {
+        lines.push(`- **Assessed Score**: ${assessed.points} / ${criterion.points}`);
+      }
+      if (assessed?.comments) {
+        lines.push(`- **Evaluator Feedback**: ${assessed.comments}`);
+      }
       if (criterion.longDescription) {
         lines.push(`- Notes: ${criterion.longDescription}`);
       }
@@ -733,7 +928,49 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     return lines.join("\n").trim();
   }
 
-  private renderModuleDiscussionDoc(item: CanvasModuleItemPayload, discussion?: CanvasDiscussionPayload): string {
+  private countDiscussionReplies(entries: CanvasDiscussionPayload["entries"]): number {
+    if (!Array.isArray(entries)) return 0;
+    let count = entries.length;
+    for (const e of entries) {
+      if (e.replies) count += this.countDiscussionReplies(e.replies);
+    }
+    return count;
+  }
+
+  private renderDiscussionEntries(entries?: CanvasDiscussionPayload["entries"], depth = 0): string {
+    if (!Array.isArray(entries) || entries.length === 0) return "";
+    const indent = "> ".repeat(depth + 1);
+    const blocks: string[] = [];
+
+    for (const entry of entries) {
+      const author = entry.userName || "Participant";
+      const date = entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "";
+      const header = `${indent}[!NOTE] **${author}** ${date ? `_(${date})_` : ""}`;
+
+      const messageMarkdown = this.turndown.turndown(entry.messageHtml || "").trim();
+      const indentedMessage = messageMarkdown
+        ? messageMarkdown.split("\n").map((l) => `${indent}${l}`).join("\n")
+        : `${indent}_(No content)_`;
+
+      let block = `${header}\n${indent}\n${indentedMessage}`;
+
+      if (entry.replies && entry.replies.length > 0) {
+        const nestedReplies = this.renderDiscussionEntries(entry.replies, depth + 1);
+        block += `\n${indent}\n${nestedReplies}`;
+      }
+
+      blocks.push(block);
+    }
+
+    return blocks.join("\n\n");
+  }
+
+  private renderModuleDiscussionDoc(
+    item: CanvasModuleItemPayload,
+    discussion?: CanvasDiscussionPayload,
+    moduleByName?: Map<string, { relativePath: string; title: string }>,
+    fileMap?: Map<string, { relativePath: string; displayName: string }>
+  ): string {
     if (!discussion) {
       return [
         `# ${item.title}`,
@@ -748,22 +985,47 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         .trim() + "\n";
     }
 
+    const assignment = discussion.assignment;
+    const submission = discussion.submission ?? assignment?.submission;
+    const due = assignment?.dueAt ? new Date(assignment.dueAt).toISOString() : null;
+    const points = assignment?.pointsPossible != null ? `${assignment.pointsPossible}` : null;
+
     const discussionBody = discussion.messageHtml ? this.turndown.turndown(discussion.messageHtml).trim() : "";
+    const replyCount = this.countDiscussionReplies(discussion.entries);
+    const repliesBlock =
+      discussion.entries && discussion.entries.length > 0
+        ? this.renderDiscussionEntries(discussion.entries)
+        : null;
+
+    const submissionBlock = this.renderAssignmentSubmission(submission, fileMap);
+    const structuredRubric = assignment?.rubric
+      ? this.renderStructuredRubric(assignment.rubric, submission?.rubricAssessment)
+      : null;
+    const modLinks = this.formatModuleLinks(discussion.moduleNames, moduleByName);
 
     return [
       `# ${discussion.title}`,
       "",
       `Discussion ID: ${discussion.id}`,
+      discussion.assignmentId ? `Assignment ID: ${discussion.assignmentId}` : null,
+      due ? `Due: ${due}` : null,
+      points ? `Points: ${points}` : null,
       discussion.postedAt ? `Posted: ${discussion.postedAt}` : null,
       discussion.updatedAt ? `Updated: ${discussion.updatedAt}` : null,
-      discussion.moduleNames && discussion.moduleNames.length > 0
-        ? `Modules: ${discussion.moduleNames.join(", ")}`
-        : null,
+      modLinks.length > 0 ? `Modules: ${modLinks.join(", ")}` : null,
       discussion.htmlUrl ? `Source: ${discussion.htmlUrl}` : null,
       "",
-      "## Body",
+      submissionBlock ? submissionBlock : null,
+      submissionBlock ? "" : null,
+      "## Prompt & Instructions",
       "",
-      discussionBody || "No discussion body available."
+      discussionBody || "No discussion prompt available.",
+      structuredRubric ? "" : null,
+      structuredRubric || null,
+      repliesBlock ? "" : null,
+      repliesBlock ? `## Discussion Board Replies (${replyCount})` : null,
+      repliesBlock ? "" : null,
+      repliesBlock || null
     ]
       .filter((line): line is string => line !== null)
       .join("\n")
@@ -783,8 +1045,13 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     return [`# ${item.title}`, "", "Module section header."].join("\n") + "\n";
   }
 
-  private renderAssignments(assignments: CanvasAssignmentPayload[]): string {
-    const lines: string[] = ["# Tasks", ""];
+  private renderAssignments(
+    assignments: CanvasAssignmentPayload[],
+    assignmentMap?: Map<string, { relativePath: string; title: string }>,
+    moduleByName?: Map<string, { relativePath: string; title: string }>,
+    fileMap?: Map<string, { relativePath: string; displayName: string }>
+  ): string {
+    const lines: string[] = ["# Tasks & Assignments", ""];
 
     if (assignments.length === 0) {
       lines.push("No assignments were found in this sync.", "");
@@ -795,12 +1062,42 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     for (const assignment of sorted) {
       const due = assignment.dueAt ? new Date(assignment.dueAt).toISOString().slice(0, 10) : "No due date";
       const points = assignment.pointsPossible ?? "?";
-      lines.push(`- [ ] ${assignment.name} (due: ${due}, points: ${points})`);
-      if (assignment.moduleNames && assignment.moduleNames.length > 0) {
-        lines.push(`  - Modules: ${assignment.moduleNames.join(", ")}`);
+      const sub = assignment.submission;
+      const isDone = sub?.workflowState === "graded" || sub?.workflowState === "submitted";
+      const check = isDone ? "x" : " ";
+      let scoreInfo = "";
+      if (sub?.score != null) {
+        scoreInfo = `, score: ${sub.score}/${points}`;
+      } else {
+        scoreInfo = `, points: ${points}`;
       }
-      if (assignment.htmlUrl) {
-        lines.push(`  - Link: ${assignment.htmlUrl}`);
+      if (sub?.grade) {
+        scoreInfo += ` [Grade: ${sub.grade}]`;
+      }
+
+      const assignInfo = assignmentMap?.get(assignment.id);
+      const titleDisplay =
+        assignInfo?.relativePath && !assignInfo.relativePath.startsWith("Tasks.md")
+          ? `[[${assignInfo.relativePath}|${assignment.name}]]`
+          : assignment.name;
+
+      lines.push(`- [${check}] ${titleDisplay} (due: ${due}${scoreInfo})`);
+      
+      const modLinks = this.formatModuleLinks(assignment.moduleNames, moduleByName);
+      if (modLinks.length > 0) {
+        lines.push(`  - Modules: ${modLinks.join(", ")}`);
+      }
+      if (sub?.attachments && sub.attachments.length > 0) {
+        for (const att of sub.attachments) {
+          const fileInfo = att.id ? fileMap?.get(att.id) : undefined;
+          const relativePath = fileInfo?.relativePath || att.savedRelativePath;
+          if (relativePath) {
+            lines.push(`  - Submitted File: [[${relativePath}|${fileInfo?.displayName || att.displayName}]]`);
+          }
+        }
+      }
+      if (assignInfo?.relativePath && !assignInfo.relativePath.startsWith("Tasks.md")) {
+        lines.push(`  - Note: [[${assignInfo.relativePath}|Open Assignment Note]]`);
       }
       lines.push("");
     }
@@ -808,7 +1105,121 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     return lines.join("\n");
   }
 
-  private renderDiscussions(discussions: CanvasDiscussionPayload[]): string {
+  private renderGradesPage(
+    payload: CanvasCoursePayload,
+    assignmentMap?: Map<string, { relativePath: string; title: string }>,
+    moduleByName?: Map<string, { relativePath: string; title: string }>
+  ): string {
+    const lines: string[] = [`# Grades - ${payload.courseName}`, ""];
+
+    // 1. Overall Grade Banner
+    const g = payload.grades;
+    const currentScoreText = g?.currentScore != null ? `${g.currentScore}%` : "N/A";
+    const currentGradeText = g?.currentGrade ? ` (${g.currentGrade})` : "";
+    const finalScoreText = g?.finalScore != null ? `${g.finalScore}%` : "N/A";
+    const finalGradeText = g?.finalGrade ? ` (${g.finalGrade})` : "";
+
+    lines.push(`> [!INFO] **Overall Course Grade**`);
+    lines.push(`> - **Current Score**: ${currentScoreText}${currentGradeText}`);
+    lines.push(`> - **Final Calculated Score**: ${finalScoreText}${finalGradeText}`);
+    lines.push("");
+
+    // 2. Metrics & Summary
+    const assignments = payload.assignments || [];
+    let totalPointsPossible = 0;
+    let totalPointsEarned = 0;
+    let gradedCount = 0;
+    let submittedCount = 0;
+    let missingCount = 0;
+
+    for (const a of assignments) {
+      if (typeof a.pointsPossible === "number") {
+        totalPointsPossible += a.pointsPossible;
+      }
+      const sub = a.submission;
+      if (sub?.workflowState === "graded" && typeof sub.score === "number") {
+        totalPointsEarned += sub.score;
+        gradedCount++;
+      } else if (sub?.workflowState === "submitted") {
+        submittedCount++;
+      }
+      if (sub?.missing) {
+        missingCount++;
+      }
+    }
+
+    lines.push("## Summary Statistics", "");
+    lines.push(`- **Graded Coursework**: ${gradedCount} / ${assignments.length}`);
+    if (submittedCount > 0) {
+      lines.push(`- **Pending Review**: ${submittedCount}`);
+    }
+    if (missingCount > 0) {
+      lines.push(`- **Missing Assignments**: ⚠️ ${missingCount}`);
+    }
+    if (gradedCount > 0 && totalPointsPossible > 0) {
+      lines.push(`- **Total Points Earned (Graded)**: ${totalPointsEarned.toFixed(1)} / ${totalPointsPossible.toFixed(1)} pts`);
+    }
+    lines.push("- **Quick Links**: [[Tasks.md|Tasks & Assignments]] | [[Discussions.md|Discussions]] | [[Calendar.md|Calendar]]");
+    lines.push("");
+
+    // 3. Assignment Gradebook Table
+    lines.push("## Assignment Gradebook", "");
+    lines.push("| Assignment | Module | Due Date | Status | Score | Grade | Submitted | Feedback |");
+    lines.push("| :--- | :--- | :--- | :--- | :---: | :---: | :--- | :--- |");
+
+    if (assignments.length === 0) {
+      lines.push("| _No assignments found_ | - | - | - | - | - | - | - |");
+    } else {
+      const sorted = [...assignments].sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""));
+      for (const a of sorted) {
+        const assignInfo = assignmentMap?.get(a.id);
+        const rawName = a.name.replace(/\|/g, "\\|");
+        const nameLink = assignInfo?.relativePath
+          ? `[[${assignInfo.relativePath}\\|${rawName}]]`
+          : rawName;
+        
+        const modLinks = this.formatModuleLinks(a.moduleNames, moduleByName, true);
+        const moduleCol = modLinks.length > 0 ? modLinks.join(", ") : "-";
+
+        const dueDate = a.dueAt ? new Date(a.dueAt).toISOString().slice(0, 10) : "-";
+        const sub = a.submission;
+
+        let statusStr = "⚪ Unsubmitted";
+        if (sub?.workflowState === "graded") {
+          statusStr = sub.late ? "🟡 Graded (Late)" : "🟢 Graded";
+        } else if (sub?.workflowState === "submitted") {
+          statusStr = "🔵 Submitted";
+        } else if (sub?.missing) {
+          statusStr = "🔴 Missing";
+        } else if (sub?.excused) {
+          statusStr = "🟣 Excused";
+        }
+
+        const maxPoints = a.pointsPossible != null ? `${a.pointsPossible}` : "?";
+        const earnedPoints = sub?.score != null ? `${sub.score}` : "-";
+        const scoreCol = `${earnedPoints} / ${maxPoints}`;
+        const gradeCol = sub?.grade ? sub.grade.replace(/\|/g, "\\|") : "-";
+        const submittedDate = sub?.submittedAt ? new Date(sub.submittedAt).toISOString().slice(0, 10) : "-";
+
+        let feedbackSnippet = "-";
+        if (sub?.comments && sub.comments.length > 0) {
+          const firstComment = sub.comments[0].comment.replace(/\r?\n+/g, " ").replace(/\|/g, "\\|").trim();
+          feedbackSnippet = firstComment.length > 80 ? `${firstComment.slice(0, 77)}...` : firstComment;
+        }
+
+        lines.push(`| ${nameLink} | ${moduleCol} | ${dueDate} | ${statusStr} | ${scoreCol} | ${gradeCol} | ${submittedDate} | ${feedbackSnippet} |`);
+      }
+    }
+
+    lines.push("");
+    return lines.join("\n");
+  }
+
+  private renderDiscussions(
+    discussions: CanvasDiscussionPayload[],
+    discussionMap?: Map<string, { relativePath: string; title: string }>,
+    moduleByName?: Map<string, { relativePath: string; title: string }>
+  ): string {
     const lines: string[] = ["# Discussions", ""];
 
     if (discussions.length === 0) {
@@ -818,12 +1229,23 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
     const sorted = [...discussions].sort((a, b) => a.title.localeCompare(b.title));
     for (const discussion of sorted) {
-      lines.push(`- ${discussion.title}`);
-      if (discussion.moduleNames && discussion.moduleNames.length > 0) {
-        lines.push(`  - Modules: ${discussion.moduleNames.join(", ")}`);
+      const replyCount = this.countDiscussionReplies(discussion.entries);
+      const replyBadge = replyCount > 0 ? ` (${replyCount} replies)` : "";
+      const discInfo = discussionMap?.get(discussion.id);
+
+      const titleDisplay =
+        discInfo?.relativePath && !discInfo.relativePath.startsWith("Discussions.md")
+          ? `[[${discInfo.relativePath}|${discussion.title}]]`
+          : discussion.title;
+
+      lines.push(`- ${titleDisplay}${replyBadge}`);
+
+      const modLinks = this.formatModuleLinks(discussion.moduleNames, moduleByName);
+      if (modLinks.length > 0) {
+        lines.push(`  - Modules: ${modLinks.join(", ")}`);
       }
-      if (discussion.htmlUrl) {
-        lines.push(`  - Link: ${discussion.htmlUrl}`);
+      if (discInfo?.relativePath && !discInfo.relativePath.startsWith("Discussions.md")) {
+        lines.push(`  - Note: [[${discInfo.relativePath}|Open Discussion Note]]`);
       }
       lines.push("");
     }
@@ -831,27 +1253,51 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     return lines.join("\n");
   }
 
-  private renderEvents(events: CanvasEventPayload[]): string {
-    const lines: string[] = ["# Events", ""];
-
+  private renderEvents(
+    events: CanvasEventPayload[],
+    assignmentMap?: Map<string, { relativePath: string; title: string }>
+  ): string {
     if (events.length === 0) {
-      lines.push("No events were found in this sync.", "");
-      return lines.join("\n");
+      return ["# Calendar & Milestones", "", "No events or milestones were found in this sync.", ""].join("\n");
     }
+
+    const lines: string[] = [
+      "# Calendar & Milestones",
+      "",
+      "| Date | Type | Event / Milestone | Details | Link |",
+      "| :--- | :--- | :--- | :--- | :--- |"
+    ];
 
     const sorted = [...events].sort((a, b) => (a.startAt ?? "").localeCompare(b.startAt ?? ""));
     for (const event of sorted) {
-      const start = event.startAt ? new Date(event.startAt).toISOString() : "Unknown start";
-      const end = event.endAt ? new Date(event.endAt).toISOString() : "Unknown end";
-      lines.push(`- ${event.title}`);
-      lines.push(`  - Start: ${start}`);
-      lines.push(`  - End: ${end}`);
-      if (event.htmlUrl) {
-        lines.push(`  - Link: ${event.htmlUrl}`);
+      const dateStr = event.startAt ? new Date(event.startAt).toISOString().slice(0, 10) : "N/A";
+      const typeStr = event.eventType === "assignment" ? "📝 Assignment" : "📅 Event";
+      const assignInfo = event.assignmentId ? assignmentMap?.get(event.assignmentId) : undefined;
+
+      const cleanEventTitle = event.title.replace(/\|/g, "\\|");
+      let titleStr = cleanEventTitle;
+      let linkStr = "-";
+
+      if (assignInfo?.relativePath && !assignInfo.relativePath.startsWith("Tasks.md")) {
+        titleStr = `[[${assignInfo.relativePath}\\|${cleanEventTitle}]]`;
+        linkStr = `[[${assignInfo.relativePath}\\|View Note]]`;
+      } else if (assignInfo?.relativePath) {
+        titleStr = `[[${assignInfo.relativePath}\\|${cleanEventTitle}]]`;
+        linkStr = `[[${assignInfo.relativePath}\\|View Task]]`;
+      } else if (event.htmlUrl) {
+        linkStr = `[Canvas Link](${event.htmlUrl})`;
       }
-      lines.push("");
+
+      const descStr =
+        (event.description
+          ? this.turndown.turndown(event.description).replace(/\|/g, "\\|").replace(/\n+/g, " ")
+          : ""
+        ).trim() || "-";
+
+      lines.push(`| ${dateStr} | ${typeStr} | ${titleStr} | ${descStr} | ${linkStr} |`);
     }
 
+    lines.push("");
     return lines.join("\n");
   }
 
@@ -956,6 +1402,24 @@ class CanvasSyncSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.getSettings().includeInactiveCourses).onChange((value) => {
           void this.plugin.updateSettings({ includeInactiveCourses: value });
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Sync discussion replies")
+      .setDesc("Fetch threaded student and instructor replies for course discussion topics.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().syncDiscussionReplies).onChange((value) => {
+          void this.plugin.updateSettings({ syncDiscussionReplies: value });
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Sync student submissions & grades")
+      .setDesc("Fetch submitted assignments, scores, feedback comments, and rubric grading details.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().syncStudentSubmissions).onChange((value) => {
+          void this.plugin.updateSettings({ syncStudentSubmissions: value });
         })
       );
 

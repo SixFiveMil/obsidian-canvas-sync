@@ -3,7 +3,24 @@ import { highlightedCodeBlock, strikethrough, taskListItems } from "turndown-plu
 import { canvasTablePlugin } from "./table-utils";
 import type { AssetSyncFilterConfig } from "./types";
 
-export const DOCUMENT_EXTENSIONS = ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv", "rtf", "odt"];
+export const DOCUMENT_EXTENSIONS = [
+  "pdf",
+  "doc",
+  "docx",
+  "ppt",
+  "pptx",
+  "xls",
+  "xlsx",
+  "txt",
+  "csv",
+  "tsv",
+  "rtf",
+  "odt",
+  "pages",
+  "key",
+  "numbers",
+  "epub"
+];
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"];
 export const ARCHIVE_CODE_EXTENSIONS = [
   "zip",
@@ -184,12 +201,15 @@ export function extractCanvasDiscussionId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-export function extractCanvasSpecialRoute(url: string): "syllabus" | "assignments" | "discussions" | "calendar" | "home" | "modules" | null {
+export function extractCanvasSpecialRoute(url: string): "syllabus" | "assignments" | "discussions" | "calendar" | "home" | "modules" | "grades" | null {
   if (!url || typeof url !== "string") {
     return null;
   }
   if (/\/courses\/\d+\/(?:assignments\/syllabus|syllabus)\b/i.test(url)) {
     return "syllabus";
+  }
+  if (/\/courses\/\d+\/grades(?:\/|\?|#|$)/i.test(url)) {
+    return "grades";
   }
   if (/\/courses\/\d+\/assignments(?:\/|\?|#|$)/i.test(url) && !/\/courses\/\d+\/assignments\/\d+/i.test(url)) {
     return "assignments";
@@ -239,8 +259,32 @@ export function canvasLinkRewritePlugin(context?: LinkRewriteContext): (service:
           return trimmedContent;
         }
 
-        // Helper to format wikilink preserving outer bold/italic formatting
+        // Helper to format wikilink preserving outer bold/italic formatting and extracting image embeds
         const formatWikiLink = (relativePath: string, defaultTitle: string) => {
+          const imageEmbedRegex = /!\[\[[^\]]+\]\]|!\[[^\]]*\]\([^)]+\)/g;
+          const imageEmbeds = trimmedContent.match(imageEmbedRegex);
+          const textOnly = trimmedContent.replace(imageEmbedRegex, "").trim();
+
+          let linkPart = "";
+          if (textOnly) {
+            const boldMatch = textOnly.match(/^\*\*(.+)\*\*$/);
+            if (boldMatch) {
+              linkPart = `**[[${relativePath}|${boldMatch[1]}]]**`;
+            } else {
+              const italicMatch = textOnly.match(/^\*(.+)\*$/) || textOnly.match(/^_(.+)_$/);
+              if (italicMatch) {
+                linkPart = `*[[${relativePath}|${italicMatch[1]}]]*`;
+              } else {
+                linkPart = `[[${relativePath}|${textOnly}]]`;
+              }
+            }
+          }
+
+          if (imageEmbeds && imageEmbeds.length > 0) {
+            const imagesStr = imageEmbeds.join(" ");
+            return linkPart ? `${imagesStr} ${linkPart}` : imagesStr;
+          }
+
           const rawLabel = trimmedContent || defaultTitle;
           const boldMatch = rawLabel.match(/^\*\*(.+)\*\*$/);
           if (boldMatch) {
@@ -297,14 +341,19 @@ export function canvasLinkRewritePlugin(context?: LinkRewriteContext): (service:
 
         // 7. Check for Canvas blueprint/mastercourse template reference tokens ($CANVAS_OBJECT_REFERENCE$, $CANVAS_COURSE_REFERENCE$)
         if (href.includes("$CANVAS_OBJECT_REFERENCE$") || href.includes("$CANVAS_COURSE_REFERENCE$")) {
-          // If the link wraps an image embed or markdown wikilink, unwrap it cleanly
-          if (trimmedContent.startsWith("![[") || trimmedContent.startsWith("![") || trimmedContent.startsWith("[[")) {
-            return trimmedContent;
-          }
           return trimmedContent;
         }
 
-        // Fallback to standard Markdown link
+        // Fallback to standard Markdown link (also handling any wrapped image embeds)
+        const imageEmbedRegex = /!\[\[[^\]]+\]\]|!\[[^\]]*\]\([^)]+\)/g;
+        const imageEmbeds = trimmedContent.match(imageEmbedRegex);
+        const textOnly = trimmedContent.replace(imageEmbedRegex, "").trim();
+
+        if (imageEmbeds && imageEmbeds.length > 0) {
+          const imagesStr = imageEmbeds.join(" ");
+          return textOnly ? `${imagesStr} [${textOnly}](${href})` : imagesStr;
+        }
+
         const label = trimmedContent || href;
         return `[${label}](${href})`;
       }

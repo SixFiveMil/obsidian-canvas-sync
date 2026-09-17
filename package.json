@@ -3,7 +3,7 @@
   "version": "0.2.5",
   "private": true,
   "license": "MIT",
-  "description": "Bridge Canvas LMS content into Obsidian as Markdown",
+  "description": "Sync Canvas LMS courses, modules, assignments, grades, discussions, files, and calendars directly into Obsidian as Markdown",
   "author": "Joshua A. Wortz <security@codeandcypher.com> (https://github.com/SixFiveMil)",
   "repository": {
     "type": "git",
@@ -17,39 +17,24 @@
     "obsidian",
     "obsidian-plugin",
     "canvas-lms",
-    "browser-extension",
-    "chrome-extension",
-    "firefox-addon",
+    "canvas-api",
     "markdown",
-    "local-first"
+    "local-first",
+    "education"
   ],
   "workspaces": [
-    "apps/obsidian-plugin",
-    "apps/browser-extension"
+    "apps/obsidian-plugin"
   ],
   "scripts": {
-    "build": "npm run build -w apps/obsidian-plugin && npm run build -w apps/browser-extension && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js')\"",
-    "dev:plugin": "npm run dev -w apps/obsidian-plugin",
+    "build": "npm run build -w apps/obsidian-plugin && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js')\"",
+    "dev": "npm run dev -w apps/obsidian-plugin",
     "build:plugin": "npm run build -w apps/obsidian-plugin && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js')\"",
-    "build:extension": "npm run build -w apps/browser-extension",
-    "build:extension:chrome": "npm run build:chrome -w apps/browser-extension",
-    "build:extension:firefox": "npm run build:firefox -w apps/browser-extension",
-    "package:extension": "npm run package -w apps/browser-extension",
-    "package:extension:chrome": "npm run package:chrome -w apps/browser-extension",
-    "package:extension:firefox": "npm run package:firefox -w apps/browser-extension",
-    "validate:extension": "npm run validate -w apps/browser-extension",
-    "lint:extension": "npm run lint -w apps/browser-extension",
-    "publish:extension:stores": "npm run publish:stores -w apps/browser-extension",
-    "publish:extension:cws": "npm run publish:cws -w apps/browser-extension",
-    "publish:extension:amo": "npm run publish:amo -w apps/browser-extension",
-    "package:firefox": "npm run package:firefox -w apps/browser-extension",
-    "test:firefox": "npm run test:firefox -w apps/browser-extension",
-    "publish:plugin-repo": "powershell -ExecutionPolicy Bypass -File scripts/publish-plugin-repo.ps1",
-    "publish:plugin-repo:tag": "powershell -ExecutionPolicy Bypass -File scripts/publish-plugin-repo.ps1 -Tag $env:npm_package_version",
+    "typecheck": "tsc -p apps/obsidian-plugin/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "typescript": "^5.8.2",
     "vitest": "^3.2.4"
   }
 }

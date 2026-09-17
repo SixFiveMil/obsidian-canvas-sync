@@ -28,20 +28,8 @@ jobs:
       - name: Run unit tests
         run: npm test
 
-      - name: Type check browser extension
-        run: npx tsc -p apps/browser-extension/tsconfig.json --noEmit
-
       - name: Type check Obsidian plugin
-        run: npx tsc -p apps/obsidian-plugin/tsconfig.json --noEmit
+        run: npm run typecheck
 
-      - name: Build all targets (Obsidian plugin, Chrome & Firefox extensions)
+      - name: Build Obsidian plugin
         run: npm run build
-
-      - name: Lint Firefox extension (web-ext)
-        run: npm run lint:extension
-
-      - name: Validate extension outputs and manifests (Chrome & Firefox)
-        run: npm run validate:extension
-
-      - name: Package extension releases (smoke test packaging)
-        run: npm run package:extension

@@ -1,6 +1,8 @@
-# Canvas Sync Bridge (Obsidian Plugin)
+# Canvas Sync (Obsidian Plugin)
 
-This plugin runs a local loopback HTTP bridge server (`127.0.0.1:27125`) inside Obsidian Desktop and writes incoming Canvas course data (modules, syllabi, assignments, calendars) into formatted Markdown vault notes.
+Directly synchronize Canvas LMS coursework, modules, assignments, student submissions, rubrics, grades, discussions, calendars, and files into your Obsidian vault as clean, interconnected Markdown notes.
+
+---
 
 ## Installation
 
@@ -9,20 +11,15 @@ This plugin runs a local loopback HTTP bridge server (`127.0.0.1:27125`) inside 
 2. Search for **Canvas Sync Bridge**.
 3. Click **Install**, then click **Enable**.
 
-### Method 2: Manual Installation (GitHub Releases)
+### Method 2: Obsidian BRAT (Beta)
+1. Install the [BRAT Plugin](https://github.com/TfTHacker/obsidian42-brat) in Obsidian.
+2. Add `https://github.com/SixFiveMil/obsidian-canvas-sync`.
+
+### Method 3: Manual Installation (GitHub Releases)
 1. Download `manifest.json` and `main.js` from the [Latest GitHub Release](https://github.com/SixFiveMil/obsidian-canvas-sync/releases/latest).
-2. In your Obsidian vault, navigate to `.obsidian/plugins/canvas-sync-bridge/` (create this folder if it does not exist).
+2. In your vault, navigate to `.obsidian/plugins/canvas-sync-bridge/` (create this folder if it does not exist).
 3. Place `manifest.json` and `main.js` into this folder.
 4. Reload Obsidian plugins and enable **Canvas Sync Bridge**.
-
----
-
-## Companion Browser Extension
-
-This plugin receives data from the companion browser extension:
-- **Chrome / Edge / Brave / Arc / Opera**: [Chrome Web Store](https://chromewebstore.google.com/detail/canvas-to-obsidian-sync/oiakmbihplldnhabhnihnekjddenbiom?authuser=0&hl=en)
-- **Firefox**: [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/canvas-to-obsidian-sync/) *(pending review)*
-- **Pre-built ZIP**: [GitHub Releases](https://github.com/SixFiveMil/obsidian-canvas-sync/releases/latest)
 
 ---
 
@@ -30,10 +27,18 @@ This plugin receives data from the companion browser extension:
 
 | Setting | Default | Description |
 | :--- | :--- | :--- |
-| **Listen Port** | `27125` | Local TCP port for the loopback HTTP bridge listener (`127.0.0.1`). |
-| **Root Folder** | `Canvas` | Destination folder path within the Obsidian vault for synced course notes. |
-| **Course Folder Template** | `{{courseCode}} - {{courseName}}` | Formatting template for course directories. Supports `{{courseCode}}`, `{{courseName}}`, and `{{courseId}}`. |
-| **Store Raw Payload** | `false` | When enabled, writes raw unparsed JSON payload to `_raw_payload.json` for debugging. |
+| **Canvas Base URL** | *Required* | Institutional Canvas URL (e.g. `https://canvas.instructure.com` or `https://sandiego.instructure.com`). |
+| **Canvas API Token** | *Required* | Personal access token generated in Canvas LMS (`Account > Settings > Approved Integrations > + New Access Token`). |
+| **Include Inactive Courses** | `true` | When enabled, includes concluded and past courses in the course picker modal. |
+| **Sync Discussion Replies** | `true` | Downloads complete multi-tier reply threads for discussion boards. |
+| **Sync Student Submissions** | `true` | Downloads student submission files, assignment scores, and teacher comments. |
+| **Root Folder** | `Canvas` | Destination folder path within the Obsidian vault. |
+| **Course Folder Template** | `{{courseCode}} - {{courseName}}` | Formatting template for course directories. |
+| **Download Assets & Documents** | `true` | Automatically downloads linked course files and embedded media. |
+| **Allowed File Extensions** | `pdf, docx, pptx, xlsx, png, jpg, jpeg, svg, zip` | Comma-separated list of permitted file extensions. |
+| **Max Asset Size (MB)** | `50` | Maximum file size threshold for document downloads. |
+| **Documents Subfolder** | `Files` | Subfolder within each course directory for document downloads. |
+| **Attachments Subfolder** | `Attachments` | Subfolder within each course directory for embedded images and diagrams. |
 
 ---
 
@@ -41,33 +46,34 @@ This plugin receives data from the companion browser extension:
 
 For each synced course:
 
-```
-Canvas/<Course Name> (<Course ID>)/
+```text
+Canvas/<Course Folder>/
 ├── Course.md         # Master index note with metadata and quick links
-├── Home.md           # Course home page content (if available)
+├── Home.md           # Course home page content and banner
 ├── Syllabus.md       # Complete syllabus text and course policies
-├── Tasks.md          # Assignments, due dates, point values, and rubrics
-├── Discussions.md    # Discussion board topics and prompts
+├── Tasks.md          # Assignments, due dates, point values, and submissions
+├── Grades.md         # Gradebook table with scores, percentages, and status
+├── Discussions.md    # Discussion board topics and student replies
 ├── Calendar.md       # Course events, exam dates, and milestones
-└── Modules/
-    └── <NN - Module Name>/
-        └── <NN - Type - Title>.md
+├── Modules/
+│   └── <NN - Module Name>/
+│       ├── 00 - Module Overview.md
+│       └── <NN - Type - Title>.md
+├── Files/            # Downloaded course documents (PDF, DOCX, XLSX, etc.)
+└── Attachments/      # Embedded images, course banners, and diagrams
 ```
-
-Assignments preserve descriptions, GFM tables, and rubric details when Canvas exposes them.
 
 ---
 
 ## Development & Building from Source
 
 ```bash
+# Install dependencies
 npm install
+
+# Run unit tests
+npm test
+
+# Build production bundle
 npm run build:plugin
 ```
-
----
-
-## Security
-
-- The bridge listener binds strictly to `127.0.0.1` (localhost only).
-- It only accepts inbound requests originating from browser extension schemes (`chrome-extension://` or `moz-extension://`) and requires the `X-Canvas-Sync-Client: canvas-browser-extension` header.

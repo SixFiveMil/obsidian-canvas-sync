@@ -219,6 +219,26 @@ describe("link-utils", () => {
 
       expect(markdown).toBe("![[Attachments/architecture.png]]");
     });
+
+    it("correctly unwraps images inside links without generating broken nested wikilinks", () => {
+      const context: LinkRewriteContext = {
+        moduleMap: new Map([
+          ["149661", { relativePath: "Modules/01 - Welcome! Start Here/00 - Module Overview.md", title: "Welcome! Start Here" }]
+        ]),
+        imageMap: new Map([
+          ["3573151", { relativePath: "Attachments/Getting Started.png" }]
+        ])
+      };
+
+      const turndown = createConfiguredTurndown(context);
+      const iconOnlyHtml = `<a href="https://sandiego.instructure.com/courses/23211/modules/149661"><img src="https://sandiego.instructure.com/courses/23211/files/3573151/download" alt="" /></a>`;
+      expect(turndown.turndown(iconOnlyHtml)).toBe("![[Attachments/Getting Started.png]]");
+
+      const iconAndTextHtml = `<a href="https://sandiego.instructure.com/courses/23211/modules/149661"><img src="https://sandiego.instructure.com/courses/23211/files/3573151/download" alt="" /><strong>Start Here</strong></a>`;
+      expect(turndown.turndown(iconAndTextHtml)).toBe(
+        "![[Attachments/Getting Started.png]] **[[Modules/01 - Welcome! Start Here/00 - Module Overview.md|Start Here]]**"
+      );
+    });
   });
 });
 

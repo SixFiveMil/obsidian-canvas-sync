@@ -3,8 +3,8 @@
   "name": "Canvas Sync Bridge",
   "version": "0.2.5",
   "minAppVersion": "1.5.0",
-  "description": "Receives Canvas data from a browser extension and syncs it into your vault.",
+  "description": "Sync Canvas LMS courses, modules, assignments, grades, discussions, files, and calendars directly into your vault as clean Markdown.",
   "author": "SixFiveMil",
   "authorUrl": "https://github.com/SixFiveMil",
-  "isDesktopOnly": true
+  "isDesktopOnly": false
 }

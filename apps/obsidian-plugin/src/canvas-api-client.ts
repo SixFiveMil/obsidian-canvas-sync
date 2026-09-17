@@ -1,16 +1,22 @@
 import { requestUrl, type RequestUrlParam, type RequestUrlResponse } from "obsidian";
 import type {
   CanvasAssignmentPayload,
+  CanvasCourseGrades,
   CanvasCoursePayload,
   CanvasCourseSummary,
+  CanvasDiscussionEntryPayload,
   CanvasDiscussionPayload,
   CanvasEventPayload,
   CanvasFileAssetPayload,
   CanvasModuleItemPayload,
   CanvasModulePayload,
   CanvasPagePayload,
+  CanvasRubricAssessmentEntry,
   CanvasRubricCriterionPayload,
   CanvasRubricRatingPayload,
+  CanvasSubmissionAttachment,
+  CanvasSubmissionComment,
+  CanvasSubmissionPayload,
   CanvasUserSummary
 } from "./types";
 
@@ -145,9 +151,29 @@ export class CanvasApiClient {
   }
 
   public async getCourseSummary(courseId: string | number): Promise<CanvasCourseSummary & { syllabus_body?: string }> {
-    return await this.request<CanvasCourseSummary & { syllabus_body?: string }>(
-      `/api/v1/courses/${courseId}?include[]=syllabus_body&include[]=term`
+    const raw = await this.request<Record<string, unknown>>(
+      `/api/v1/courses/${courseId}?include[]=syllabus_body&include[]=term&include[]=total_scores`
     );
+
+    let parsedGrades = undefined;
+    const enrollments = Array.isArray(raw.enrollments) ? (raw.enrollments as Array<Record<string, any>>) : [];
+    const firstEnrollment = enrollments[0];
+    const rawGrades = (firstEnrollment && typeof firstEnrollment.grades === "object" ? firstEnrollment.grades : raw.grades) as Record<string, any> | undefined;
+
+    if (rawGrades && typeof rawGrades === "object") {
+      parsedGrades = {
+        currentScore: typeof rawGrades.current_score === "number" ? rawGrades.current_score : null,
+        currentGrade: typeof rawGrades.current_grade === "string" ? rawGrades.current_grade : null,
+        finalScore: typeof rawGrades.final_score === "number" ? rawGrades.final_score : null,
+        finalGrade: typeof rawGrades.final_grade === "string" ? rawGrades.final_grade : null
+      };
+    }
+
+    return {
+      ...(raw as unknown as CanvasCourseSummary),
+      grades: parsedGrades,
+      syllabus_body: typeof raw.syllabus_body === "string" ? raw.syllabus_body : undefined
+    };
   }
 
   public async getCourseFrontPage(courseId: string | number): Promise<string> {
@@ -338,12 +364,19 @@ export class CanvasApiClient {
     return pages;
   }
 
-  public async getAssignments(courseId: string | number, memberships: Map<string, string[]>): Promise<CanvasAssignmentPayload[]> {
+  public async getAssignments(
+    courseId: string | number,
+    memberships: Map<string, string[]>,
+    options?: { syncSubmissions?: boolean }
+  ): Promise<CanvasAssignmentPayload[]> {
     const assignments: CanvasAssignmentPayload[] = [];
+    const syncSubmissions = options?.syncSubmissions ?? true;
     try {
-      const list = await this.requestPaged<Record<string, unknown>>(
-        `/api/v1/courses/${courseId}/assignments?include[]=rubric_criteria&per_page=100`
-      );
+      const endpoint = syncSubmissions
+        ? `/api/v1/courses/${courseId}/assignments?include[]=rubric_criteria&include[]=submission&include[]=submission_comments&include[]=rubric_assessment&per_page=100`
+        : `/api/v1/courses/${courseId}/assignments?include[]=rubric_criteria&per_page=100`;
+
+      const list = await this.requestPaged<Record<string, unknown>>(endpoint);
 
       for (const item of list) {
         if (!item || item.id == null) continue;
@@ -356,6 +389,70 @@ export class CanvasApiClient {
         const submissionTypes = Array.isArray(item.submission_types) ? (item.submission_types as string[]) : undefined;
         const rubric = this.parseRubric(item.rubric);
 
+        let submission: CanvasSubmissionPayload | undefined = undefined;
+        if (syncSubmissions && item.submission && typeof item.submission === "object") {
+          const sub = item.submission as Record<string, unknown>;
+
+          let comments: CanvasSubmissionComment[] | undefined = undefined;
+          if (Array.isArray(sub.submission_comments)) {
+            comments = (sub.submission_comments as Array<Record<string, unknown>>)
+              .map((c) => ({
+                authorName: typeof c.author_name === "string" && c.author_name.trim() ? c.author_name.trim() : "Instructor / Peer",
+                comment: typeof c.comment === "string" ? c.comment : "",
+                createdAt: typeof c.created_at === "string" ? c.created_at : ""
+              }))
+              .filter((c) => c.comment.trim() !== "");
+          }
+
+          let rubricAssessment: Record<string, CanvasRubricAssessmentEntry> | undefined = undefined;
+          if (sub.rubric_assessment && typeof sub.rubric_assessment === "object") {
+            rubricAssessment = {};
+            for (const [critId, val] of Object.entries(sub.rubric_assessment as Record<string, unknown>)) {
+              if (val && typeof val === "object") {
+                const rVal = val as Record<string, unknown>;
+                rubricAssessment[critId] = {
+                  criterionId: critId,
+                  points: typeof rVal.points === "number" ? rVal.points : null,
+                  comments: typeof rVal.comments === "string" && rVal.comments.trim() ? rVal.comments.trim() : null
+                };
+              }
+            }
+          }
+
+          let attachments: CanvasSubmissionAttachment[] | undefined = undefined;
+          if (Array.isArray(sub.attachments)) {
+            attachments = (sub.attachments as Array<Record<string, unknown>>).map((att) => ({
+              id: String(att.id ?? ""),
+              displayName:
+                typeof att.display_name === "string" && att.display_name.trim()
+                  ? att.display_name.trim()
+                  : typeof att.filename === "string" && att.filename.trim()
+                    ? att.filename.trim()
+                    : `submission_attachment_${att.id}`,
+              url: typeof att.url === "string" ? att.url : `${this.baseUrl}/files/${att.id}/download`,
+              size: typeof att.size === "number" ? att.size : undefined,
+              contentType: typeof att["content-type"] === "string" ? att["content-type"] : undefined
+            }));
+          }
+
+          submission = {
+            id: sub.id != null ? String(sub.id) : undefined,
+            submittedAt: typeof sub.submitted_at === "string" ? sub.submitted_at : null,
+            workflowState: typeof sub.workflow_state === "string" ? sub.workflow_state : undefined,
+            score: typeof sub.score === "number" ? sub.score : null,
+            grade: sub.grade != null ? String(sub.grade) : null,
+            body: typeof sub.body === "string" ? sub.body : null,
+            url: typeof sub.url === "string" ? sub.url : null,
+            submissionType: typeof sub.submission_type === "string" ? sub.submission_type : null,
+            late: typeof sub.late === "boolean" ? sub.late : undefined,
+            missing: typeof sub.missing === "boolean" ? sub.missing : undefined,
+            excused: typeof sub.excused === "boolean" ? sub.excused : undefined,
+            comments: comments && comments.length > 0 ? comments : undefined,
+            rubricAssessment: rubricAssessment && Object.keys(rubricAssessment).length > 0 ? rubricAssessment : undefined,
+            attachments: attachments && attachments.length > 0 ? attachments : undefined
+          };
+        }
+
         assignments.push({
           id,
           name,
@@ -365,7 +462,8 @@ export class CanvasApiClient {
           descriptionHtml,
           submissionTypes,
           moduleNames: memberships.get(id),
-          rubric
+          rubric,
+          submission
         });
       }
     } catch {
@@ -375,8 +473,70 @@ export class CanvasApiClient {
     return assignments;
   }
 
-  public async getDiscussions(courseId: string | number, memberships: Map<string, string[]>): Promise<CanvasDiscussionPayload[]> {
+  public async getDiscussionEntries(
+    courseId: string | number,
+    topicId: string | number
+  ): Promise<CanvasDiscussionEntryPayload[]> {
+    try {
+      const viewData = await this.request<{
+        participants?: Array<{ id: number; display_name?: string }>;
+        view?: Array<Record<string, unknown>>;
+      }>(`/api/v1/courses/${courseId}/discussion_topics/${topicId}/view`);
+
+      const participantMap = new Map<number, string>();
+      if (Array.isArray(viewData?.participants)) {
+        for (const p of viewData.participants) {
+          if (p && typeof p.id === "number" && typeof p.display_name === "string") {
+            participantMap.set(p.id, p.display_name.trim());
+          }
+        }
+      }
+
+      const parseEntryList = (entries?: Array<Record<string, unknown>>): CanvasDiscussionEntryPayload[] => {
+        if (!Array.isArray(entries)) return [];
+        const result: CanvasDiscussionEntryPayload[] = [];
+        for (const entry of entries) {
+          if (!entry || entry.id == null) continue;
+          const id = String(entry.id);
+          const userId = entry.user_id != null ? String(entry.user_id) : undefined;
+          const numUserId = entry.user_id != null ? Number(entry.user_id) : undefined;
+          const userName =
+            (numUserId != null && participantMap.get(numUserId)) ||
+            (typeof entry.user_name === "string" && entry.user_name.trim()) ||
+            (userId ? `User ${userId}` : "Participant");
+          const messageHtml = typeof entry.message === "string" ? entry.message : "";
+          const createdAt = typeof entry.created_at === "string" ? entry.created_at : new Date().toISOString();
+          const updatedAt = typeof entry.updated_at === "string" ? entry.updated_at : undefined;
+          const replies = Array.isArray(entry.replies) && entry.replies.length > 0
+            ? parseEntryList(entry.replies as Array<Record<string, unknown>>)
+            : undefined;
+
+          result.push({
+            id,
+            userId,
+            userName,
+            messageHtml,
+            createdAt,
+            updatedAt,
+            replies
+          });
+        }
+        return result;
+      };
+
+      return parseEntryList(viewData?.view);
+    } catch {
+      return [];
+    }
+  }
+
+  public async getDiscussions(
+    courseId: string | number,
+    memberships: Map<string, string[]>,
+    options?: { syncReplies?: boolean }
+  ): Promise<CanvasDiscussionPayload[]> {
     const discussions: CanvasDiscussionPayload[] = [];
+    const syncReplies = options?.syncReplies ?? true;
     try {
       const list = await this.requestPaged<Record<string, unknown>>(
         `/api/v1/courses/${courseId}/discussion_topics?per_page=100`
@@ -390,15 +550,35 @@ export class CanvasApiClient {
         const messageHtml = typeof item.message === "string" ? item.message : undefined;
         const postedAt = typeof item.posted_at === "string" ? item.posted_at : null;
         const updatedAt = typeof item.updated_at === "string" ? item.updated_at : null;
+        const rawAssignmentId =
+          item.assignment_id != null
+            ? String(item.assignment_id)
+            : item.assignment && typeof item.assignment === "object" && (item.assignment as Record<string, unknown>).id != null
+              ? String((item.assignment as Record<string, unknown>).id)
+              : undefined;
+
+        let entries: CanvasDiscussionEntryPayload[] | undefined = undefined;
+        if (syncReplies) {
+          try {
+            const fetchedEntries = await this.getDiscussionEntries(courseId, id);
+            if (fetchedEntries.length > 0) {
+              entries = fetchedEntries;
+            }
+          } catch {
+            // Ignore entries fetch error for individual topic
+          }
+        }
 
         discussions.push({
           id,
           title,
+          assignmentId: rawAssignmentId,
           htmlUrl,
           messageHtml,
           postedAt,
           updatedAt,
-          moduleNames: memberships.get(id)
+          moduleNames: memberships.get(id),
+          entries
         });
       }
     } catch {
@@ -408,8 +588,13 @@ export class CanvasApiClient {
     return discussions;
   }
 
-  public async getCalendarEvents(courseId: string | number): Promise<CanvasEventPayload[]> {
+  public async getCalendarEvents(
+    courseId: string | number,
+    assignments?: CanvasAssignmentPayload[]
+  ): Promise<CanvasEventPayload[]> {
     const events: CanvasEventPayload[] = [];
+    const seenEventKeys = new Set<string>();
+
     try {
       const list = await this.requestPaged<Record<string, unknown>>(
         `/api/v1/calendar_events?context_codes[]=course_${courseId}&all_events=true&per_page=100`
@@ -423,6 +608,11 @@ export class CanvasApiClient {
         const endAt = typeof item.end_at === "string" ? item.end_at : null;
         const htmlUrl = typeof item.html_url === "string" ? item.html_url : undefined;
         const description = typeof item.description === "string" ? item.description : undefined;
+        const assignmentId = item.assignment_id != null ? String(item.assignment_id) : undefined;
+        const eventType = assignmentId ? "assignment" : "event";
+
+        const key = assignmentId ? `assign-${assignmentId}` : `event-${id}-${startAt ?? ""}`;
+        seenEventKeys.add(key);
 
         events.push({
           id,
@@ -430,12 +620,38 @@ export class CanvasApiClient {
           startAt,
           endAt,
           htmlUrl,
-          description
+          description,
+          eventType,
+          assignmentId
         });
       }
     } catch {
       // Calendar endpoint may be restricted
     }
+
+    // Auto-synthesize milestone events for assignments with due dates if not already present
+    if (Array.isArray(assignments)) {
+      for (const assignment of assignments) {
+        if (!assignment.dueAt) continue;
+        const key = `assign-${assignment.id}`;
+        if (!seenEventKeys.has(key)) {
+          seenEventKeys.add(key);
+          events.push({
+            id: `assignment-${assignment.id}`,
+            title: `Due: ${assignment.name}`,
+            startAt: assignment.dueAt,
+            endAt: assignment.dueAt,
+            htmlUrl: assignment.htmlUrl,
+            description: `Assignment due date for ${assignment.name} (${assignment.pointsPossible ?? "?"} points)`,
+            eventType: "assignment",
+            assignmentId: assignment.id
+          });
+        }
+      }
+    }
+
+    // Sort chronologically
+    events.sort((a, b) => (a.startAt ?? "").localeCompare(b.startAt ?? ""));
 
     return events;
   }
@@ -509,15 +725,19 @@ export class CanvasApiClient {
 
   public async fetchCompleteCoursePayload(
     courseId: string | number,
-    onProgress?: (step: string, current: number, total: number) => void
+    onProgress?: (step: string, current: number, total: number) => void,
+    options?: { syncDiscussionReplies?: boolean; syncStudentSubmissions?: boolean }
   ): Promise<CanvasCoursePayload> {
     const cId = String(courseId);
+    const syncDiscussionReplies = options?.syncDiscussionReplies ?? true;
+    const syncStudentSubmissions = options?.syncStudentSubmissions ?? true;
 
-    onProgress?.("Fetching course details...", 1, 8);
+    onProgress?.("Fetching course details & grades...", 1, 8);
     const details = await this.getCourseSummary(cId);
     const courseName = details.name || `Course ${cId}`;
     const courseCode = details.course_code || undefined;
     const syllabusHtml = details.syllabus_body || undefined;
+    const grades = details.grades;
 
     onProgress?.("Fetching home page...", 2, 8);
     const courseHomePageHtml = (await this.getCourseFrontPage(cId)) || undefined;
@@ -528,16 +748,20 @@ export class CanvasApiClient {
     onProgress?.("Fetching pages...", 4, 8);
     const pages = await this.getPages(cId, moduleIndex.pagesBySlug);
 
-    onProgress?.("Fetching assignments & rubrics...", 5, 8);
-    const assignments = await this.getAssignments(cId, moduleIndex.assignmentsById);
+    onProgress?.("Fetching assignments, submissions & rubrics...", 5, 8);
+    const assignments = await this.getAssignments(cId, moduleIndex.assignmentsById, {
+      syncSubmissions: syncStudentSubmissions
+    });
 
-    onProgress?.("Fetching discussions...", 6, 8);
-    const discussions = await this.getDiscussions(cId, moduleIndex.discussionsById);
+    onProgress?.("Fetching discussions & replies...", 6, 8);
+    const discussions = await this.getDiscussions(cId, moduleIndex.discussionsById, {
+      syncReplies: syncDiscussionReplies
+    });
 
-    onProgress?.("Fetching calendar events...", 7, 8);
-    const events = await this.getCalendarEvents(cId);
+    onProgress?.("Fetching calendar events & milestones...", 7, 8);
+    const events = await this.getCalendarEvents(cId, assignments);
 
-    onProgress?.("Discovering course files...", 8, 8);
+    onProgress?.("Discovering course files & attachments...", 8, 8);
     const filesResult = await this.getFiles(cId);
 
     // Merge discovered files from modules and API files endpoint
@@ -558,6 +782,23 @@ export class CanvasApiClient {
           url: `${this.baseUrl}/courses/${cId}/files/${fId}/download`,
           moduleNames: modNames
         });
+      }
+    }
+
+    // Also include submission attachments if available
+    for (const assignment of assignments) {
+      if (assignment.submission?.attachments) {
+        for (const att of assignment.submission.attachments) {
+          if (att.id && !fileMapById.has(att.id)) {
+            fileMapById.set(att.id, {
+              id: att.id,
+              displayName: att.displayName,
+              url: att.url,
+              size: att.size,
+              contentType: att.contentType
+            });
+          }
+        }
       }
     }
 
@@ -623,6 +864,7 @@ export class CanvasApiClient {
       courseName,
       courseCode,
       fetchedAt: new Date().toISOString(),
+      grades,
       courseHomePageHtml,
       syllabusHtml,
       modules: moduleIndex.modules,
