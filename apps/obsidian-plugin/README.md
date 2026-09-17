@@ -1,57 +1,73 @@
 # Canvas Sync Bridge (Obsidian Plugin)
 
-This plugin runs a localhost HTTP server and writes incoming Canvas course data to Markdown files in your vault.
+This plugin runs a local loopback HTTP bridge server (`127.0.0.1:27125`) inside Obsidian Desktop and writes incoming Canvas course data (modules, syllabi, assignments, calendars) into formatted Markdown vault notes.
 
-## Build
+## Installation
 
-From repo root:
+### Method 1: Obsidian Community Plugins (Recommended)
+1. In Obsidian, go to **Settings** > **Community Plugins**.
+2. Search for **Canvas Sync Bridge**.
+3. Click **Install**, then click **Enable**.
 
-- `npm install`
-- `npm run build:plugin`
+### Method 2: Manual Installation (GitHub Releases)
+1. Download `manifest.json` and `main.js` from the [Latest GitHub Release](https://github.com/SixFiveMil/obsidian-canvas-sync/releases/latest).
+2. In your Obsidian vault, navigate to `.obsidian/plugins/canvas-sync-bridge/` (create this folder if it does not exist).
+3. Place `manifest.json` and `main.js` into this folder.
+4. Reload Obsidian plugins and enable **Canvas Sync Bridge**.
 
-## Install in Obsidian
+---
 
-1. Open your vault folder.
-2. Create plugin folder:
-   - `.obsidian/plugins/canvas-sync-bridge`
-3. Build the plugin with `npm run build:plugin`.
-4. Copy these files from `apps/obsidian-plugin`:
-   - `manifest.json`
-   - `main.js`
-5. Enable **Canvas Sync Bridge** in Obsidian Community Plugins.
+## Companion Browser Extension
 
-## Configure
+This plugin receives data from the companion browser extension:
+- **Chrome / Edge / Brave / Arc / Opera**: [Chrome Web Store](https://chromewebstore.google.com/detail/canvas-to-obsidian-sync/oiakmbihplldnhabhnihnekjddenbiom?authuser=0&hl=en)
+- **Firefox**: [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/canvas-to-obsidian-sync/) *(pending review)*
+- **Pre-built ZIP**: [GitHub Releases](https://github.com/SixFiveMil/obsidian-canvas-sync/releases/latest)
 
-Plugin settings:
+---
 
-- Listen Port: default `27125`
-- Root Folder: default `Canvas`
-- Store Raw Payload: optional debug JSON dump
+## Configuration
+
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| **Listen Port** | `27125` | Local TCP port for the loopback HTTP bridge listener (`127.0.0.1`). |
+| **Root Folder** | `Canvas` | Destination folder path within the Obsidian vault for synced course notes. |
+| **Course Folder Template** | `{{courseCode}} - {{courseName}}` | Formatting template for course directories. Supports `{{courseCode}}`, `{{courseName}}`, and `{{courseId}}`. |
+| **Store Raw Payload** | `false` | When enabled, writes raw unparsed JSON payload to `_raw_payload.json` for debugging. |
+
+---
 
 ## Output Layout
 
-For each course:
+For each synced course:
 
-- `Canvas/<Course Name> (<Course ID>)/Course.md`
-- `Canvas/<Course Name> (<Course ID>)/Home.md` when course home content is available
-- `Canvas/<Course Name> (<Course ID>)/Syllabus.md` when syllabus content is available
-- `Canvas/<Course Name> (<Course ID>)/Modules/<NN - Module Name>/<NN - Type - Title>.md`
-- `Canvas/<Course Name> (<Course ID>)/Tasks.md`
-- `Canvas/<Course Name> (<Course ID>)/Discussions.md`
-- `Canvas/<Course Name> (<Course ID>)/Calendar.md`
+```
+Canvas/<Course Name> (<Course ID>)/
+├── Course.md         # Master index note with metadata and quick links
+├── Home.md           # Course home page content (if available)
+├── Syllabus.md       # Complete syllabus text and course policies
+├── Tasks.md          # Assignments, due dates, point values, and rubrics
+├── Discussions.md    # Discussion board topics and prompts
+├── Calendar.md       # Course events, exam dates, and milestones
+└── Modules/
+    └── <NN - Module Name>/
+        └── <NN - Type - Title>.md
+```
 
-Assignments preserve descriptions, tables, and rubric details when Canvas exposes them.
+Assignments preserve descriptions, GFM tables, and rubric details when Canvas exposes them.
 
-## Release Files
+---
 
-For an Obsidian community release, the GitHub release must include:
+## Development & Building from Source
 
-- `manifest.json`
-- `main.js`
+```bash
+npm install
+npm run build:plugin
+```
 
-The GitHub release tag must match the version in `manifest.json` exactly, for example `0.1.0`.
+---
 
-## Security Note
+## Security
 
-The listener binds to `127.0.0.1` only, not your network interface.
-The bridge only accepts requests from browser extension origins (`chrome-extension://` or `moz-extension://`) and requires the `X-Canvas-Sync-Client: canvas-browser-extension` request header.
+- The bridge listener binds strictly to `127.0.0.1` (localhost only).
+- It only accepts inbound requests originating from browser extension schemes (`chrome-extension://` or `moz-extension://`) and requires the `X-Canvas-Sync-Client: canvas-browser-extension` header.
