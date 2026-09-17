@@ -1,10 +1,10 @@
 {
   "name": "obsidian-canvas-sync",
   "version": "0.3.1",
-  "private": true,
-  "license": "MIT",
-  "description": "Hybrid Canvas LMS integration for Obsidian: direct REST API syncing and zero-token browser session scraper",
+  "main": "main.js",
+  "description": "Sync Canvas LMS courses, modules, assignments, grades, discussions, files, and calendars directly into your vault as clean Markdown.",
   "author": "Joshua A. Wortz <security@codeandcypher.com> (https://github.com/SixFiveMil)",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/SixFiveMil/obsidian-canvas-sync.git"
@@ -18,37 +18,26 @@
     "obsidian-plugin",
     "canvas-lms",
     "canvas-api",
-    "browser-extension",
-    "chrome-extension",
-    "firefox-addon",
     "markdown",
     "local-first",
     "education"
   ],
-  "workspaces": [
-    "apps/obsidian-plugin",
-    "apps/browser-extension"
-  ],
   "scripts": {
-    "build": "npm run build -w apps/obsidian-plugin && npm run build -w apps/browser-extension && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js'); if (require('fs').existsSync('apps/obsidian-plugin/styles.css')) require('fs').copyFileSync('apps/obsidian-plugin/styles.css', 'styles.css')\"",
-    "dev:plugin": "npm run dev -w apps/obsidian-plugin",
-    "build:plugin": "npm run build -w apps/obsidian-plugin && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js'); if (require('fs').existsSync('apps/obsidian-plugin/styles.css')) require('fs').copyFileSync('apps/obsidian-plugin/styles.css', 'styles.css')\"",
-    "build:extension": "npm run build -w apps/browser-extension",
-    "build:extension:chrome": "npm run build:chrome -w apps/browser-extension",
-    "build:extension:firefox": "npm run build:firefox -w apps/browser-extension",
-    "package:extension": "npm run package -w apps/browser-extension",
-    "package:extension:chrome": "npm run package:chrome -w apps/browser-extension",
-    "package:extension:firefox": "npm run package:firefox -w apps/browser-extension",
-    "validate:extension": "npm run validate -w apps/browser-extension",
-    "lint:extension": "npm run lint -w apps/browser-extension",
-    "publish:extension:stores": "npm run publish:stores -w apps/browser-extension",
-    "publish:extension:cws": "npm run publish:cws -w apps/browser-extension",
-    "publish:extension:amo": "npm run publish:amo -w apps/browser-extension",
-    "typecheck": "tsc -p apps/obsidian-plugin/tsconfig.json --noEmit && tsc -p apps/browser-extension/tsconfig.json --noEmit",
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "dependencies": {
+    "obsidian": "latest",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
+  },
   "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/turndown": "^5.0.5",
+    "esbuild": "^0.25.1",
     "typescript": "^5.8.2",
     "vitest": "^3.2.4"
   }

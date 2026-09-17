@@ -122,7 +122,7 @@ Canvas/
 
 ---
 
-## 🛠️ Building from Source & Contributing
+## 🛠️ Building from Source
 
 ```bash
 # Clone repository
@@ -132,18 +132,24 @@ cd obsidian-canvas-sync
 # Install dependencies (Node.js 20+ required)
 npm install
 
-# Run unit tests across all workspaces
+# Run unit tests
 npm test
 
 # Type-check TypeScript files
 npm run typecheck
 
-# Build all targets (Obsidian plugin + Chrome + Firefox extension)
+# Build Obsidian plugin
 npm run build
-
-# Validate extension dist and manifests
-npm run validate:extension
 ```
+
+---
+
+## 🌐 Companion Browser Extension
+
+The browser extension source code, build system, and store deployment pipelines are maintained in a dedicated repository:
+* **Repository**: [SixFiveMil/canvas-to-obsidian-extension](https://github.com/SixFiveMil/canvas-to-obsidian-extension)
+* **Chrome Web Store**: [Canvas to Obsidian Sync](https://chromewebstore.google.com/detail/canvas-to-obsidian-sync/oiakmbihplldnhabhnihnekjddenbiom)
+* **Firefox Add-ons**: [Canvas to Obsidian Sync](https://addons.mozilla.org/en-US/firefox/addon/canvas-to-obsidian-sync/)
 
 ---
 

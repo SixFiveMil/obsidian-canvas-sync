@@ -7,13 +7,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      obsidian: path.resolve(here, "apps/obsidian-plugin/tests/__mocks__/obsidian.ts")
+      obsidian: path.resolve(here, "tests/__mocks__/obsidian.ts")
     }
   },
   test: {
     include: [
-      "apps/browser-extension/tests/**/*.test.ts",
-      "apps/obsidian-plugin/tests/**/*.test.ts"
+      "tests/**/*.test.ts"
     ],
     environment: "node"
   }
