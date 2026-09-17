@@ -68,3 +68,19 @@ jobs:
             manifest.json
             main.js
             styles.css
+
+      - name: Prune non-standard release assets
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = process.env.RELEASE_TAG;
+            const release = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            const allowed = new Set(['main.js', 'manifest.json', 'styles.css']);
+            for (const asset of release.data.assets) {
+              if (!allowed.has(asset.name)) {
+                console.log(`Deleting extra release asset: ${asset.name} (id: ${asset.id})`);
+                await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: asset.id });
+              }
+            }
