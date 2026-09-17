@@ -11,11 +11,19 @@ export interface CanvasModuleItemPayload {
   id: string;
   position: number;
   title: string;
-  type: "WikiPage" | "Assignment" | "DiscussionTopic" | "ExternalUrl" | "ContextModuleSubHeader" | "ContextExternalTool";
+  type:
+    | "WikiPage"
+    | "Assignment"
+    | "DiscussionTopic"
+    | "ExternalUrl"
+    | "ContextModuleSubHeader"
+    | "ContextExternalTool"
+    | "File";
   indent?: number;
   pageSlug?: string;
   assignmentId?: string;
   discussionId?: string;
+  fileId?: string;
   externalUrl?: string;
 }
 
@@ -72,6 +80,42 @@ export interface CanvasEventPayload {
   description?: string;
 }
 
+export interface CanvasFileAssetPayload {
+  id: string;
+  displayName: string;
+  url: string;
+  size?: number;
+  contentType?: string;
+  folderPath?: string;
+  moduleNames?: string[];
+  downloaded?: boolean;
+  savedRelativePath?: string;
+}
+
+export interface AssetSyncDiagnostics {
+  apiRestricted: boolean;
+  totalDiscovered: number;
+  totalDownloaded: number;
+  totalSkippedSize: number;
+  totalFilteredExtension: number;
+  skippedFiles: Array<{
+    name: string;
+    reason: "size_limit" | "extension_filtered" | "auth_restricted" | "error";
+    size?: number;
+    message?: string;
+  }>;
+}
+
+export interface AssetSyncFilterConfig {
+  downloadAssets: boolean;
+  downloadDocuments: boolean;
+  downloadImages: boolean;
+  downloadArchivesAndCode: boolean;
+  downloadMedia: boolean;
+  allowedExtensions: string;
+  maxAssetSizeMb: number;
+}
+
 export interface CanvasCoursePayload {
   courseId: string;
   courseName: string;
@@ -84,6 +128,8 @@ export interface CanvasCoursePayload {
   assignments: CanvasAssignmentPayload[];
   discussions: CanvasDiscussionPayload[];
   events: CanvasEventPayload[];
+  files?: CanvasFileAssetPayload[];
+  assetDiagnostics?: AssetSyncDiagnostics;
 }
 
 export interface CanvasSyncEnvelope {

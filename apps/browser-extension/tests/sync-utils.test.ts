@@ -2,12 +2,24 @@ import { describe, expect, it } from "vitest";
 
 import {
   cleanCourseName,
+  extractCanvasAssignmentId,
+  extractCanvasDiscussionId,
+  extractCanvasFileId,
+  extractCanvasModuleId,
+  extractCanvasPageSlug,
+  extractCanvasSpecialRoute,
   extractCourseCode,
+  extractFileExtension,
   isCanvasUrl,
   isDashboardTitle,
+  mimeToExtension,
   normalizeModuleItemType,
+  parseAllowedExtensions,
+  parseContentDispositionFilename,
   parseCourseInfo,
-  parseRubricCriteria
+  parseModulesFromHtml,
+  parseRubricCriteria,
+  shouldDownloadAsset
 } from "../src/sync-utils";
 
 describe("isCanvasUrl", () => {
@@ -29,6 +41,8 @@ describe("normalizeModuleItemType", () => {
     expect(normalizeModuleItemType("Page")).toBe("WikiPage");
     expect(normalizeModuleItemType("discussion")).toBe("DiscussionTopic");
     expect(normalizeModuleItemType("subheader")).toBe("ContextModuleSubHeader");
+    expect(normalizeModuleItemType("file")).toBe("File");
+    expect(normalizeModuleItemType("attachment")).toBe("File");
   });
 
   it("falls back safely for unknown types", () => {
@@ -155,6 +169,120 @@ describe("parseCourseInfo", () => {
     });
     expect(result.courseCode).toBe("");
     expect(result.courseName).toBe("Course 888");
+  });
+});
+
+describe("asset utilities", () => {
+  it("extracts file extensions correctly", () => {
+    expect(extractFileExtension("Homework1.pdf")).toBe("pdf");
+    expect(extractFileExtension("diagram.PNG")).toBe("png");
+    expect(extractFileExtension("archive.tar.gz")).toBe("gz");
+    expect(extractFileExtension("README")).toBe("");
+  });
+
+  it("parses allowed extensions and checks permissions", () => {
+    const allowed = parseAllowedExtensions({
+      downloadDocuments: true,
+      downloadImages: false,
+      allowedExtensions: "zip, ipynb"
+    });
+
+    expect(allowed.has("pdf")).toBe(true);
+    expect(allowed.has("zip")).toBe(true);
+    expect(allowed.has("ipynb")).toBe(true);
+    expect(allowed.has("png")).toBe(false);
+
+    const check = shouldDownloadAsset("project.zip", 1024, {
+      downloadAssets: true,
+      downloadDocuments: true,
+      downloadImages: false,
+      allowedExtensions: "zip"
+    });
+    expect(check.allowed).toBe(true);
+
+    const checkDisallowed = shouldDownloadAsset("pic.jpg", 1024, {
+      downloadAssets: true,
+      downloadDocuments: true,
+      downloadImages: false,
+      allowedExtensions: "zip"
+    });
+    expect(checkDisallowed.allowed).toBe(false);
+    expect(checkDisallowed.reason).toBe("extension_filtered");
+  });
+
+  it("extracts Canvas IDs and special routes from URLs", () => {
+    expect(extractCanvasFileId("https://canvas.edu/courses/100/files/200/download")).toBe("200");
+    expect(extractCanvasPageSlug("https://canvas.edu/courses/100/pages/syllabus-overview")).toBe("syllabus-overview");
+    expect(extractCanvasModuleId("https://canvas.edu/courses/100/modules/12345")).toBe("12345");
+    expect(extractCanvasAssignmentId("https://canvas.edu/courses/100/assignments/555")).toBe("555");
+    expect(extractCanvasDiscussionId("https://canvas.edu/courses/100/discussion_topics/777")).toBe("777");
+    expect(extractCanvasSpecialRoute("https://canvas.edu/courses/100/assignments/syllabus")).toBe("syllabus");
+    expect(extractCanvasSpecialRoute("https://canvas.edu/courses/100/calendar")).toBe("calendar");
+  });
+
+  it("maps MIME types to file extensions", () => {
+    expect(mimeToExtension("image/png")).toBe("png");
+    expect(mimeToExtension("image/jpeg; charset=utf-8")).toBe("jpg");
+    expect(mimeToExtension("application/pdf")).toBe("pdf");
+    expect(mimeToExtension("application/vnd.openxmlformats-officedocument.wordprocessingml.document")).toBe("docx");
+    expect(mimeToExtension("unknown/format")).toBe("");
+  });
+
+  it("parses filenames from Content-Disposition headers", () => {
+    expect(parseContentDispositionFilename('attachment; filename="lecture01.pptx"')).toBe("lecture01.pptx");
+    expect(parseContentDispositionFilename("attachment; filename*=UTF-8''my%20notes.pdf")).toBe("my notes.pdf");
+    expect(parseContentDispositionFilename("inline; filename=document.pdf")).toBe("document.pdf");
+    expect(parseContentDispositionFilename("inline")).toBeNull();
+  });
+});
+
+describe("parseModulesFromHtml", () => {
+  it("extracts modules and items from Canvas HTML DOM structure", () => {
+    const mockHtml = `
+      <div class="context_module" data-module-id="101">
+        <div class="header">
+          <span class="name">Week 1: Introduction</span>
+        </div>
+        <div class="content">
+          <ul class="context_module_items">
+            <li class="context_module_item WikiPage" data-item-id="1">
+              <div class="ig-row">
+                <a class="ig-title" href="/courses/123/pages/getting-started" title="Getting Started">Getting Started</a>
+              </div>
+            </li>
+            <li class="context_module_item Attachment" data-item-id="2">
+              <div class="ig-row">
+                <a class="ig-title" href="/courses/123/files/555/download" title="Syllabus.pdf">Syllabus.pdf</a>
+              </div>
+            </li>
+            <li class="context_module_item Assignment" data-item-id="3">
+              <div class="ig-row">
+                <a class="ig-title" href="/courses/123/assignments/777" title="Lab 1">Lab 1</a>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    `;
+
+    const result = parseModulesFromHtml(mockHtml, "123");
+    expect(result.modules).toHaveLength(1);
+    expect(result.modules[0].name).toBe("Week 1: Introduction");
+    expect(result.modules[0].items).toHaveLength(3);
+
+    expect(result.modules[0].items[0].type).toBe("WikiPage");
+    expect(result.modules[0].items[0].pageSlug).toBe("getting-started");
+    expect(result.pagesBySlug.get("getting-started")).toEqual(["Week 1: Introduction"]);
+
+    expect(result.modules[0].items[1].type).toBe("File");
+    expect(result.modules[0].items[1].fileId).toBe("555");
+    expect(result.filesById.get("555")).toEqual(["Week 1: Introduction"]);
+    expect(result.discoveredFiles).toHaveLength(1);
+    expect(result.discoveredFiles[0].id).toBe("555");
+
+    expect(result.modules[0].items[2].type).toBe("Assignment");
+    expect(result.modules[0].items[2].assignmentId).toBe("777");
+    expect(result.assignmentsById.get("777")).toEqual(["Week 1: Introduction"]);
   });
 });
 

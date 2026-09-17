@@ -29,6 +29,41 @@ export const ARCHIVE_CODE_EXTENSIONS = [
 ];
 export const MEDIA_EXTENSIONS = ["mp4", "mov", "webm", "mkv", "avi", "mp3", "m4a", "wav", "aac", "ogg", "flac"];
 
+export function cleanFileName(input: string): string {
+  return input.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim() || "file";
+}
+
+export function parseContentDispositionFilename(header: string): string | null {
+  if (!header) return null;
+  const match = header.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+  return match ? decodeURIComponent(match[1].trim()) : null;
+}
+
+export function mimeToExtension(mime: string): string {
+  const cleanMime = mime.toLowerCase().split(";")[0].trim();
+  const map: Record<string, string> = {
+    "application/pdf": "pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/vnd.ms-powerpoint": "ppt",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-excel": "xls",
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/gif": "gif",
+    "image/svg+xml": "svg",
+    "image/webp": "webp",
+    "application/zip": "zip",
+    "application/x-zip-compressed": "zip",
+    "text/plain": "txt",
+    "text/csv": "csv",
+    "text/markdown": "md",
+    "application/json": "json"
+  };
+  return map[cleanMime] || "";
+}
+
 export function extractFileExtension(filename: string): string {
   if (!filename || typeof filename !== "string") {
     return "";
@@ -260,6 +295,15 @@ export function canvasLinkRewritePlugin(context?: LinkRewriteContext): (service:
           return formatWikiLink(routeInfo.relativePath, routeInfo.title);
         }
 
+        // 7. Check for Canvas blueprint/mastercourse template reference tokens ($CANVAS_OBJECT_REFERENCE$, $CANVAS_COURSE_REFERENCE$)
+        if (href.includes("$CANVAS_OBJECT_REFERENCE$") || href.includes("$CANVAS_COURSE_REFERENCE$")) {
+          // If the link wraps an image embed or markdown wikilink, unwrap it cleanly
+          if (trimmedContent.startsWith("![[") || trimmedContent.startsWith("![") || trimmedContent.startsWith("[[")) {
+            return trimmedContent;
+          }
+          return trimmedContent;
+        }
+
         // Fallback to standard Markdown link
         const label = trimmedContent || href;
         return `[${label}](${href})`;
@@ -279,7 +323,10 @@ export function canvasLinkRewritePlugin(context?: LinkRewriteContext): (service:
 
         // Check if image is in imageMap (by full src or by fileId)
         const fileId = extractCanvasFileId(src);
-        const imageInfo = (fileId ? context?.imageMap?.get(fileId) : undefined) || context?.imageMap?.get(src);
+        const imageInfo =
+          (fileId ? context?.imageMap?.get(fileId) : undefined) ||
+          context?.imageMap?.get(src) ||
+          context?.imageMap?.get(src.split("?")[0]);
 
         if (imageInfo) {
           return `![[${imageInfo.relativePath}]]`;

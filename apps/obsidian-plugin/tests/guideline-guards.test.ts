@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pluginMainPath = path.resolve(here, "../src/main.ts");
-const extensionBackgroundPath = path.resolve(here, "../../browser-extension/src/background.ts");
+const apiClientPath = path.resolve(here, "../src/canvas-api-client.ts");
 
 function readText(filePath: string): string {
   return readFileSync(filePath, "utf8");
@@ -31,37 +31,26 @@ describe("Obsidian guideline guardrails", () => {
     expect(source).not.toMatch(/vault\.modify\(/);
   });
 
+  it("uses Obsidian native requestUrl for mobile and CORS compatibility", () => {
+    const apiSource = readText(apiClientPath);
+    expect(apiSource).toContain('requestUrl');
+  });
+
   it("keeps setting labels in sentence case", () => {
     const source = readText(pluginMainPath);
-    expect(source).toContain('.setName("Listen port")');
+    expect(source).toContain('.setName("Canvas base URL")');
+    expect(source).toContain('.setName("Canvas API token")');
+    expect(source).toContain('.setName("Test connection")');
     expect(source).toContain('.setName("Root folder")');
     expect(source).toContain('.setName("Course folder template")');
+    expect(source).toContain('.setName("Include inactive & past courses")');
     expect(source).toContain('.setName("Store raw payload")');
-    expect(source).not.toContain('.setName("Listen Port")');
+    expect(source).not.toContain('.setName("Canvas Base URL")');
+    expect(source).not.toContain('.setName("Canvas API Token")');
+    expect(source).not.toContain('.setName("Include Inactive & Past Courses")');
+    expect(source).not.toContain('.setName("Test Connection")');
     expect(source).not.toContain('.setName("Root Folder")');
     expect(source).not.toContain('.setName("Course Folder Template")');
     expect(source).not.toContain('.setName("Store Raw Payload")');
-  });
-});
-
-describe("Bridge request hardening", () => {
-  it("restricts plugin acceptance to extension origins", () => {
-    const source = readText(pluginMainPath);
-    expect(source).toContain('origin.startsWith("chrome-extension://")');
-    expect(source).toContain('origin.startsWith("moz-extension://")');
-  });
-
-  it("requires and sends a trusted client header", () => {
-    const pluginSource = readText(pluginMainPath);
-    const extensionSource = readText(extensionBackgroundPath);
-
-    expect(pluginSource).toContain('TRUSTED_CLIENT_HEADER = "x-canvas-sync-client"');
-    expect(pluginSource).toContain('TRUSTED_CLIENT_VALUE = "canvas-browser-extension"');
-    expect(extensionSource).toContain('"X-Canvas-Sync-Client": "canvas-browser-extension"');
-  });
-
-  it("does not use wildcard CORS for bridge responses", () => {
-    const source = readText(pluginMainPath);
-    expect(source).not.toContain('"Access-Control-Allow-Origin": "*"');
   });
 });

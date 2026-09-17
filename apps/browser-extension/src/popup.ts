@@ -56,6 +56,24 @@ async function ensureBridgePermission(): Promise<boolean> {
   }
 }
 
+interface SyncProgressMessage {
+  type: "syncProgress";
+  current: number;
+  total: number;
+  filename: string;
+}
+
+chrome.runtime.onMessage.addListener((rawMessage: unknown) => {
+  if (
+    typeof rawMessage === "object" &&
+    rawMessage !== null &&
+    (rawMessage as { type?: string }).type === "syncProgress"
+  ) {
+    const msg = rawMessage as SyncProgressMessage;
+    setStatus(`Downloading asset ${msg.current}/${msg.total}: ${msg.filename}`, "");
+  }
+});
+
 void initializeForm();
 
 interface SyncResponse {
