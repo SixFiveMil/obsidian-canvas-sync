@@ -48,3 +48,4 @@ describe("CanvasSyncEnvelope bridge protocol v1 compatibility", () => {
     expect(sampleEnvelope.payload.assignments).toHaveLength(1);
   });
 });
+
