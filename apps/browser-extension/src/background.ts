@@ -234,7 +234,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function requestText(
+async function requestText(
   url: string,
   options?: {
     method?: "GET" | "POST" | "OPTIONS";
@@ -243,30 +243,18 @@ function requestText(
     withCredentials?: boolean;
   }
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open(options?.method ?? "GET", url, true);
-    xhr.withCredentials = options?.withCredentials ?? false;
-
-    const headers = options?.headers ?? {};
-    for (const [key, value] of Object.entries(headers)) {
-      xhr.setRequestHeader(key, value);
-    }
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(xhr.responseText);
-        return;
-      }
-      reject(new Error(`Request failed: ${xhr.status}`));
-    };
-
-    xhr.onerror = () => {
-      reject(new Error("Network request failed."));
-    };
-
-    xhr.send(options?.body);
+  const response = await fetch(url, {
+    method: options?.method ?? "GET",
+    headers: options?.headers,
+    body: options?.body,
+    credentials: options?.withCredentials ? "include" : "omit"
   });
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  return await response.text();
 }
 
 async function requestJson(

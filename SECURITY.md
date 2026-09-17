@@ -12,9 +12,9 @@ Only the latest release of each component is actively maintained for security pa
 
 | Component | Supported Version |
 | :--- | :--- |
-| **Obsidian Plugin** (`apps/obsidian-plugin`) | `>= 0.2.4` |
-| **Chrome Extension** (`apps/browser-extension`) | `>= 0.2.4` |
-| **Firefox Add-on** (`apps/browser-extension`) | `>= 0.2.4` |
+| **Obsidian Plugin** (`apps/obsidian-plugin`) | `>= 0.2.5` |
+| **Chrome Extension** (`apps/browser-extension`) | `>= 0.2.5` |
+| **Firefox Add-on** (`apps/browser-extension`) | `>= 0.2.5` |
 
 ---
 

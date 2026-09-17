@@ -1,6 +1,6 @@
 {
   "name": "canvas-browser-bridge-extension",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "license": "MIT",
   "description": "Browser extension that extracts Canvas LMS course content from an active session and forwards to Obsidian.",

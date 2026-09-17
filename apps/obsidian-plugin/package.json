@@ -1,6 +1,6 @@
 {
   "name": "obsidian-canvas-bridge-plugin",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "license": "MIT",
   "description": "Obsidian desktop plugin that accepts Canvas sync payloads and writes Markdown files.",

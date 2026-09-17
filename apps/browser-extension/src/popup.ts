@@ -25,14 +25,13 @@ const safeApiTokenInput = apiTokenInput;
 const safeCourseCodeInput = courseCodeInput;
 const safeCourseNameInput = courseNameInput;
 
-function requestStatus(url: string, method: "OPTIONS"): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open(method, url, true);
-    xhr.onload = () => resolve(xhr.status);
-    xhr.onerror = () => reject(new Error("Network request failed."));
-    xhr.send();
-  });
+async function requestStatus(url: string, method: "OPTIONS"): Promise<number> {
+  try {
+    const response = await fetch(url, { method });
+    return response.status;
+  } catch {
+    throw new Error("Network request failed.");
+  }
 }
 
 async function ensureBridgePermission(): Promise<boolean> {
