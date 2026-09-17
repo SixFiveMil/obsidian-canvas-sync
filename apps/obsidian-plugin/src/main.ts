@@ -1,3 +1,4 @@
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, normalizePath } from "obsidian";
 import type TurndownService from "turndown";
 import { CanvasApiClient } from "./canvas-api-client";
@@ -11,6 +12,7 @@ import {
   shouldDownloadAsset,
   type LinkRewriteContext
 } from "./link-utils";
+import { getAllowedExtensionOrigin, validateEnvelopeShape } from "./security-utils";
 import { formatCourseFolderName } from "./template-utils";
 import type {
   AssetSyncDiagnostics,
@@ -23,6 +25,7 @@ import type {
   CanvasModulePayload,
   CanvasPagePayload,
   CanvasRubricCriterionPayload,
+  CanvasSyncEnvelope,
   CanvasSyncSettings
 } from "./types";
 
@@ -32,6 +35,8 @@ export const DEFAULT_SETTINGS: CanvasSyncSettings = {
   includeInactiveCourses: true,
   syncDiscussionReplies: true,
   syncStudentSubmissions: true,
+  enableBridgeServer: false,
+  listenPort: 27125,
   rootFolder: "Canvas",
   courseFolderTemplate: "{{courseCode}} - {{courseName}}",
   includeRawPayload: false,
@@ -47,13 +52,19 @@ export const DEFAULT_SETTINGS: CanvasSyncSettings = {
 };
 
 export default class CanvasSyncBridgePlugin extends Plugin {
+  private static readonly TRUSTED_CLIENT_HEADER = "x-canvas-sync-client";
   private settings: CanvasSyncSettings = DEFAULT_SETTINGS;
   private apiClient: CanvasApiClient | null = null;
+  private server: ReturnType<typeof createServer> | null = null;
   private turndown: TurndownService = createConfiguredTurndown();
 
   async onload(): Promise<void> {
     await this.loadSettings();
     this.initApiClient();
+
+    if (this.settings.enableBridgeServer) {
+      await this.startServer();
+    }
 
     this.addSettingTab(new CanvasSyncSettingTab(this.app, this));
 
@@ -78,10 +89,25 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         void this.syncAllCourses();
       }
     });
+
+    this.addCommand({
+      id: "canvas-sync-restart-bridge-server",
+      name: "Restart browser bridge listener",
+      callback: () => {
+        void this.restartServer().then(() => {
+          if (this.settings.enableBridgeServer) {
+            new Notice(`Canvas Sync Bridge listening on localhost:${this.settings.listenPort}`);
+          } else {
+            new Notice("Canvas Sync Bridge is currently disabled in settings.");
+          }
+        });
+      }
+    });
   }
 
   onunload(): void {
     this.apiClient = null;
+    void this.stopServer();
   }
 
   async loadSettings(): Promise<void> {
@@ -105,6 +131,132 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   async updateSettings(patch: Partial<CanvasSyncSettings>): Promise<void> {
     this.settings = { ...this.settings, ...patch };
     await this.saveSettings();
+  }
+
+  public async startServer(): Promise<void> {
+    if (this.server) {
+      return;
+    }
+
+    this.server = createServer((req, res) => {
+      void this.handleBridgeRequest(req, res);
+    });
+
+    return new Promise<void>((resolve) => {
+      this.server?.once("error", (err) => {
+        console.error("Canvas Sync Bridge server error:", err);
+        new Notice(`Canvas Sync Bridge: Failed to bind port ${this.settings.listenPort}: ${err.message}`);
+        this.server = null;
+        resolve();
+      });
+      this.server?.listen(this.settings.listenPort, "127.0.0.1", () => {
+        console.log(`Canvas Sync Bridge listening on 127.0.0.1:${this.settings.listenPort}`);
+        resolve();
+      });
+    });
+  }
+
+  public async stopServer(): Promise<void> {
+    if (!this.server) {
+      return;
+    }
+
+    const current = this.server;
+    this.server = null;
+
+    return new Promise<void>((resolve) => {
+      current.close(() => {
+        resolve();
+      });
+    });
+  }
+
+  public async restartServer(): Promise<void> {
+    await this.stopServer();
+    if (this.settings.enableBridgeServer) {
+      await this.startServer();
+    }
+  }
+
+  private async handleBridgeRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const originHeader = req.headers["origin"] as string | undefined;
+    const allowedOrigin = getAllowedExtensionOrigin(originHeader);
+
+    if (req.method === "OPTIONS") {
+      if (!allowedOrigin) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, message: "Origin not allowed." }));
+        return;
+      }
+
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": allowedOrigin,
+        "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+        "Access-Control-Allow-Headers": "Content-Type, X-Canvas-Sync-Client",
+        "Vary": "Origin"
+      });
+      res.end();
+      return;
+    }
+
+    if (req.method === "GET" && (req.url === "/health" || req.url === "/status")) {
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": allowedOrigin || "*"
+      });
+      res.end(JSON.stringify({ ok: true, status: "healthy", plugin: "canvas-sync-bridge" }));
+      return;
+    }
+
+    if (req.method !== "POST" || (req.url !== "/canvas-sync" && req.url !== "/sync")) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, message: "Not found" }));
+      return;
+    }
+
+    const clientHeader = (req.headers[CanvasSyncBridgePlugin.TRUSTED_CLIENT_HEADER] as string | undefined)?.toLowerCase();
+    if (clientHeader !== "canvas-browser-extension" && clientHeader !== "canvas-to-obsidian-sync") {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, message: "Untrusted client header." }));
+      return;
+    }
+
+    if (!allowedOrigin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, message: "Origin not allowed." }));
+      return;
+    }
+
+    let raw = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk: string) => {
+      raw += chunk;
+      if (raw.length > 50 * 1024 * 1024) {
+        req.destroy();
+      }
+    });
+
+    req.on("end", async () => {
+      try {
+        const envelope = JSON.parse(raw);
+        validateEnvelopeShape(envelope);
+        await this.syncCoursePayload(envelope.payload);
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": allowedOrigin
+        });
+        res.end(JSON.stringify({ ok: true, message: `Synced course: ${envelope.payload.courseName}` }));
+        new Notice(`Canvas Sync: Synced "${envelope.payload.courseName}" from browser extension!`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        res.writeHead(400, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": allowedOrigin
+        });
+        res.end(JSON.stringify({ ok: false, message: msg }));
+        new Notice(`Canvas Sync error: ${msg}`);
+      }
+    });
   }
 
   public initApiClient(): void {
@@ -473,6 +625,37 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
     const discussionsPath = normalizePath(`${courseFolder}/Discussions.md`);
     await this.upsertFile(discussionsPath, this.renderDiscussions(payload.discussions, discussionMap, moduleByName));
+
+    // Ensure events include synthesized milestones from assignments if not already present
+    const finalEvents = Array.isArray(payload.events) ? [...payload.events] : [];
+    const seenEventKeys = new Set<string>();
+    for (const ev of finalEvents) {
+      if (ev.assignmentId) {
+        seenEventKeys.add(`assign-${ev.assignmentId}`);
+      } else {
+        seenEventKeys.add(`event-${ev.id}-${ev.startAt ?? ""}`);
+      }
+    }
+    if (Array.isArray(payload.assignments)) {
+      for (const assignment of payload.assignments) {
+        if (!assignment.dueAt) continue;
+        const key = `assign-${assignment.id}`;
+        if (!seenEventKeys.has(key)) {
+          seenEventKeys.add(key);
+          finalEvents.push({
+            id: `assignment-${assignment.id}`,
+            title: `Due: ${assignment.name}`,
+            startAt: assignment.dueAt,
+            endAt: assignment.dueAt,
+            htmlUrl: assignment.htmlUrl,
+            description: `Assignment due date for ${assignment.name} (${assignment.pointsPossible ?? "?"} points)`,
+            eventType: "assignment",
+            assignmentId: assignment.id
+          });
+        }
+      }
+    }
+    payload.events = finalEvents;
 
     const eventsPath = normalizePath(`${courseFolder}/Calendar.md`);
     await this.upsertFile(eventsPath, this.renderEvents(payload.events, assignmentMap));
@@ -1449,6 +1632,41 @@ class CanvasSyncSettingTab extends PluginSettingTab {
               const errorEl = statusContainer.createEl("div");
               errorEl.style.color = "var(--text-error)";
               errorEl.setText(`❌ Connection failed: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          })
+      );
+
+    containerEl.createEl("h2", { text: "Browser Extension Bridge (Optional)" });
+
+    new Setting(containerEl)
+      .setName("Enable browser bridge listener")
+      .setDesc("Open a local listener on 127.0.0.1 to receive course data from the companion browser extension (required for session-based sync).")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().enableBridgeServer).onChange(async (value) => {
+          await this.plugin.updateSettings({ enableBridgeServer: value });
+          if (value) {
+            await this.plugin.startServer();
+          } else {
+            await this.plugin.stopServer();
+          }
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Bridge listen port")
+      .setDesc("Localhost port that receives data from the browser extension.")
+      .addText((text) =>
+        text
+          .setPlaceholder("27125")
+          .setValue(String(this.plugin.getSettings().listenPort))
+          .onChange(async (value) => {
+            const next = Number.parseInt(value, 10);
+            if (!Number.isFinite(next) || next < 1 || next > 65535) {
+              return;
+            }
+            await this.plugin.updateSettings({ listenPort: next });
+            if (this.plugin.getSettings().enableBridgeServer) {
+              await this.plugin.restartServer();
             }
           })
       );

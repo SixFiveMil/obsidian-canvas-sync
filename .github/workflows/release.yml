@@ -10,6 +10,11 @@ on:
         description: "Existing tag to package and publish"
         required: true
         type: string
+      publish_to_stores:
+        description: "Publish to Chrome Web Store and Mozilla Add-ons if secrets are set (true/false)"
+        required: false
+        default: "true"
+        type: boolean
 
 permissions:
   contents: write
@@ -45,11 +50,17 @@ jobs:
       - name: Run unit tests
         run: npm test
 
-      - name: Type check Obsidian plugin
+      - name: Type check all workspaces
         run: npm run typecheck
 
-      - name: Build Obsidian plugin
+      - name: Build all targets
         run: npm run build
+
+      - name: Validate extension dist and manifests
+        run: npm run validate:extension
+
+      - name: Package Chrome and Firefox extension archives
+        run: node apps/browser-extension/scripts/package.mjs all --version "${RELEASE_TAG}" --out-dir release
 
       - name: Prepare release assets
         run: |
@@ -74,6 +85,8 @@ jobs:
           subject-path: |
             release/main.js
             release/manifest.json
+            release/canvas-to-obsidian-sync-chrome-${{ env.RELEASE_TAG }}.zip
+            release/canvas-to-obsidian-sync-firefox-${{ env.RELEASE_TAG }}.zip
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
@@ -83,33 +96,18 @@ jobs:
           files: |
             release/manifest.json
             release/main.js
+            release/canvas-to-obsidian-sync-chrome-${{ env.RELEASE_TAG }}.zip
+            release/canvas-to-obsidian-sync-firefox-${{ env.RELEASE_TAG }}.zip
             release/checksums.txt
 
-      - name: Verify uploaded release assets
+      - name: Deploy to extension stores (CWS & AMO)
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish_to_stores != 'false' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
-            > release.json
-
-          node -e "
-            const fs = require('fs');
-            const rel = JSON.parse(fs.readFileSync('release.json', 'utf8'));
-            const assets = rel.assets || [];
-            const required = ['manifest.json', 'main.js', 'checksums.txt'];
-            const byName = new Map(assets.map(a => [a.name, a]));
-            const missing = required.filter(name => !byName.has(name));
-            if (missing.length > 0) {
-              console.error('Missing release assets: ' + missing.join(', '));
-              process.exit(1);
-            }
-            const empty = required.filter(name => (byName.get(name)?.size || 0) <= 0);
-            if (empty.length > 0) {
-              console.error('Release assets have zero size: ' + empty.join(', '));
-              process.exit(1);
-            }
-            console.log('Verified all required release assets: ' + required.join(', '));
-          "
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
+          CWS_PUBLISH: "true"
+        run: node apps/browser-extension/scripts/publish-stores.mjs all --publish

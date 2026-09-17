@@ -18,18 +18,33 @@
     "obsidian-plugin",
     "canvas-lms",
     "canvas-api",
+    "browser-extension",
+    "chrome-extension",
+    "firefox-addon",
     "markdown",
     "local-first",
     "education"
   ],
   "workspaces": [
-    "apps/obsidian-plugin"
+    "apps/obsidian-plugin",
+    "apps/browser-extension"
   ],
   "scripts": {
-    "build": "npm run build -w apps/obsidian-plugin && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js')\"",
-    "dev": "npm run dev -w apps/obsidian-plugin",
+    "build": "npm run build -w apps/obsidian-plugin && npm run build -w apps/browser-extension && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js')\"",
+    "dev:plugin": "npm run dev -w apps/obsidian-plugin",
     "build:plugin": "npm run build -w apps/obsidian-plugin && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js')\"",
-    "typecheck": "tsc -p apps/obsidian-plugin/tsconfig.json --noEmit",
+    "build:extension": "npm run build -w apps/browser-extension",
+    "build:extension:chrome": "npm run build:chrome -w apps/browser-extension",
+    "build:extension:firefox": "npm run build:firefox -w apps/browser-extension",
+    "package:extension": "npm run package -w apps/browser-extension",
+    "package:extension:chrome": "npm run package:chrome -w apps/browser-extension",
+    "package:extension:firefox": "npm run package:firefox -w apps/browser-extension",
+    "validate:extension": "npm run validate -w apps/browser-extension",
+    "lint:extension": "npm run lint -w apps/browser-extension",
+    "publish:extension:stores": "npm run publish:stores -w apps/browser-extension",
+    "publish:extension:cws": "npm run publish:cws -w apps/browser-extension",
+    "publish:extension:amo": "npm run publish:amo -w apps/browser-extension",
+    "typecheck": "tsc -p apps/obsidian-plugin/tsconfig.json --noEmit && tsc -p apps/browser-extension/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -2,108 +2,145 @@
 
 ## 1. Architectural Overview
 
-**Canvas to Obsidian Sync** bridges institutional Canvas LMS courses into an Obsidian knowledge vault as clean, structured, and cross-linked Markdown notes.
+**Canvas to Obsidian Sync** operates as a **hybrid, local-first ecosystem** designed to bridge institutional Canvas LMS courses into an Obsidian knowledge vault as clean, structured, and cross-linked Markdown notes.
 
-The system uses a **direct, local-first architecture** running entirely within the Obsidian runtime. It uses Obsidian's native `requestUrl` API to interact with the Canvas LMS REST API over secure HTTPS, completely eliminating the need for companion browser extensions, local loopback servers, or middleman cloud services.
+It supports two distinct ingestion pathways that converge into a single unified note generator and asset manager:
+
+1. **Mode A: Direct REST API Client** (Native within Obsidian, works on Desktop and Mobile).
+2. **Mode B: Browser Extension Bridge** (Zero-token session extractor running in Chrome/Firefox for users at institutions where student API keys are disabled).
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                             CANVAS LMS CLOUD                                │
-│                                                                             │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │  Canvas LMS REST API (https://<canvas-domain>/api/v1/...)             │  │
-│  │  - Courses & Terms                                                    │  │
-│  │  - Modules & Module Items                                             │  │
-│  │  - Pages, Syllabus & Announcements                                    │  │
-│  │  - Assignments, Rubrics & Student Submissions                         │  │
-│  │  - Discussions & Student Reply Trees                                  │  │
-│  │  - Calendar Events & Due Date Milestones                              │  │
-│  │  - Course Files & Attachment Downloads                                │  │
-│  └───────────────────────────────────┬───────────────────────────────────┘  │
-└──────────────────────────────────────┼──────────────────────────────────────┘
-                                       │ HTTPS (Obsidian requestUrl)
-                                       │ Bearer <Canvas-API-Token>
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        OBSIDIAN DESKTOP / MOBILE                            │
-│                                                                             │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │  Canvas Sync Plugin (apps/obsidian-plugin)                            │  │
-│  │                                                                       │  │
-│  │  ┌────────────────────────┐    ┌──────────────────────────────────┐   │  │
-│  │  │  Course Selector Modal │───>│ CanvasApiClient (API Extraction) │   │  │
-│  │  │  (Ribbon / Command)    │    │ - Pagination & Rate Limiting     │   │  │
-│  │  └────────────────────────┘    │ - Student Submissions & Grades   │   │  │
-│  │                                └─────────────────┬────────────────┘   │  │
-│  │                                                  │                    │  │
-│  │                                                  ▼                    │  │
-│  │  ┌────────────────────────┐    ┌──────────────────────────────────┐   │  │
-│  │  │  Asset & File Manager  │<───│ Link & HTML Rewriter             │   │  │
-│  │  │  - Document Downloads  │    │ - Turndown GFM Converter         │   │  │
-│  │  │  - Image Downloader    │    │ - Obsidian Wikilink Rewriter     │   │  │
-│  │  │  - Attachment Inliner  │    │ - Markdown Table Pipe Escaping   │   │  │
-│  │  └───────────┬────────────┘    └─────────────────┬────────────────┘   │  │
-│  │              │                                   │                    │  │
-│  │              ▼                                   ▼                    │  │
-│  │  ┌────────────────────────────────────────────────────────────────┐   │  │
-│  │  │  Vault Note & Asset Generator (main.ts)                        │   │  │
-│  │  │  - Path Traversal Sanitization (security-utils.ts)             │   │  │
-│  │  │  - Course Index, Home, Syllabus, Tasks, Grades, Calendar       │   │  │
-│  │  │  - Hierarchical Module Notes & Overview Links                  │   │  │
-│  │  └────────────────────────────────┬───────────────────────────────┘   │  │
-│  └───────────────────────────────────┼───────────────────────────────────┘  │
-│                                      ▼                                      │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │  Obsidian Vault Storage                                               │  │
-│  │  └── Canvas/CS101 - Intro to CS/                                      │  │
-│  │      ├── Course.md, Home.md, Syllabus.md, Grades.md                   │  │
-│  │      ├── Tasks.md, Discussions.md, Calendar.md                        │  │
-│  │      ├── Modules/01 - Week 1/01 - Page - Welcome.md                   │  │
-│  │      ├── Files/ (PDF, DOCX, XLSX, etc.)                               │  │
-│  │      └── Attachments/ (Images, Banners)                               │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   CANVAS LMS CLOUD                                     │
+│                                                                                        │
+│   ┌────────────────────────────────────────────────────────────────────────────────┐   │
+│   │  Canvas REST API (/api/v1/...)                                                 │   │
+│   │  - Courses, Modules, Pages, Syllabus                                           │   │
+│   │  - Assignments, Rubrics & Student Submissions                                  │   │
+│   │  - Discussions & Complete Nested Reply Trees                                   │   │
+│   │  - Calendar Events & Due Date Milestones                                       │   │
+│   │  - Course Files & Static Asset Downloads                                       │   │
+│   └────────────────────────┬───────────────────────────────┬───────────────────────┘   │
+└────────────────────────────┼───────────────────────────────┼───────────────────────────┘
+                             │                               │
+        Mode A: Direct API   │ HTTPS                         │ Mode B: Session-Based
+      (Obsidian requestUrl)  │ (Bearer Token)                │ (Browser Session Cookies)
+                             │                               ▼
+                             │                 ┌───────────────────────────┐
+                             │                 │ Companion Web Extension   │
+                             │                 │ (Chrome / Firefox)        │
+                             │                 │ - Session Extractor       │
+                             │                 │ - Extraction Toggles      │
+                             │                 └─────────────┬─────────────┘
+                             │                               │ Loopback POST (127.0.0.1:27125)
+                             │                               │ (Only active if enabled)
+                             ▼                               ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                              OBSIDIAN PLUGIN RUNTIME                                   │
+│                                                                                        │
+│  ┌─────────────────────────┐                     ┌──────────────────────────────────┐  │
+│  │ CanvasApiClient         │                     │ Loopback Bridge Server           │  │
+│  │ (Direct API Connection) │                     │ (conditionally active)           │  │
+│  └────────────┬────────────┘                     └────────────────┬─────────────────┘  │
+│               │                                                   │                    │
+│               └─────────────────────┬─────────────────────────────┘                    │
+│                                     │                                                  │
+│                                     ▼                                                  │
+│                       ┌───────────────────────────┐                                    │
+│                       │   Canonical Course Payload│                                    │
+│                       │   (CanvasCoursePayload)   │                                    │
+│                       └─────────────┬─────────────┘                                    │
+│                                     │                                                  │
+│                                     ▼                                                  │
+│                       ┌───────────────────────────┐                                    │
+│                       │ Markdown & Link Engine    │                                    │
+│                       │ - GFM Converter (Turndown)│                                    │
+│                       │ - Wikilink Transformer    │                                    │
+│                       │ - Table Pipe Escaper      │                                    │
+│                       └─────────────┬─────────────┘                                    │
+│                                     │                                                  │
+│                                     ▼                                                  │
+│                       ┌───────────────────────────┐                                    │
+│                       │ Asset & File Downloader   │                                    │
+│                       │ - Binary Streamer         │                                    │
+│                       │ - Size/Extension Filters  │                                    │
+│                       └─────────────┬─────────────┘                                    │
+│                                     │                                                  │
+│                                     ▼                                                  │
+│                       ┌───────────────────────────┐                                    │
+│                       │ Vault Note Generator      │                                    │
+│                       │ - Path Sanitization       │                                    │
+│                       │ - Templated Course Vault  │                                    │
+│                       └─────────────┬─────────────┘                                    │
+└─────────────────────────────────────┼──────────────────────────────────────────────────┘
+                                      ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                              OBSIDIAN VAULT STORAGE                                    │
+│  └── Canvas/CS101 - Intro to CS/                                                       │
+│      ├── Course.md, Home.md, Syllabus.md, Grades.md                                    │
+│      ├── Tasks.md, Discussions.md, Calendar.md                                         │
+│      ├── Modules/01 - Week 1/01 - Page - Lecture.md                                    │
+│      ├── Files/ (PDF, DOCX, XLSX, etc.)                                                │
+│      └── Attachments/ (Images, Banners)                                                │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 2. Core Components
 
-### 2.1 Canvas API Client (`apps/obsidian-plugin/src/canvas-api-client.ts`)
-- **Direct REST Integration**: Uses Obsidian's `requestUrl` to communicate with standard Canvas LMS API endpoints.
-- **Automatic Pagination**: Fetches paginated data streams via standard Canvas `Link: <url>; rel="next"` headers.
-- **Deep Extraction**: Pulls comprehensive course data:
-  - Course metadata, terms, and current/final grade scores.
-  - Complete module hierarchy and module items.
-  - Full wiki page HTML content.
-  - Assignment specifications, due dates, points, structured rubrics, and the student's own submission files/feedback.
-  - Discussion topics with full nested reply trees.
-  - Calendar events and schedule milestones.
-  - Course file catalog and binary download URLs.
+### 2.1 Obsidian Plugin Runtime (`apps/obsidian-plugin/`)
 
-### 2.2 Course Selection Modal (`apps/obsidian-plugin/src/course-select-modal.ts`)
-- **Interactive UI**: Modal launched from the ribbon icon or command palette.
-- **Live Course Listing**: Fetches the user's enrolled courses, displays enrollment terms and course codes, and provides interactive checkboxes, "Select All", and "Deselect All".
-- **Batch Synchronization**: Syncs selected courses sequentially with real-time status notices.
+* **Direct API Client (`canvas-api-client.ts`)**:
+  Connects directly to the Canvas REST API using Obsidian's native `requestUrl` adapter. Handles pagination headers (`rel="next"`), API authentication, submissions, discussion reply trees, and static asset streaming.
+* **Course Selection Modal (`course-select-modal.ts`)**:
+  Interactive modal displaying the user's active, completed, or concluded courses with batch selection and live sync progress.
+* **Opt-in Local Bridge Server (`main.ts`)**:
+  Listens on `127.0.0.1:27125` **only when explicitly enabled** in settings. Validates extension origin headers and payload schema before routing payloads into the shared rendering engine.
+* **Markdown & Wikilink Engine (`link-utils.ts`)**:
+  Transforms raw Canvas HTML into clean GitHub Flavored Markdown (GFM), resolves course hyperlinks to internal vault notes (`[[Modules/...]]`), escapes table pipes inside wikilinks (`[[path\|alias]]`), and inlines image assets.
+* **Vault Writer & Asset Manager (`main.ts`)**:
+  Writes course folder hierarchies, generates master index notes, synthesizes calendar milestones, downloads allowed binary files (`Files/`, `Attachments/`), and sanitizes filenames against directory traversal vulnerabilities.
 
-### 2.3 Markdown Transformation & Wikilink Engine (`apps/obsidian-plugin/src/link-utils.ts`)
-- **GFM Turndown Converter**: Converts Canvas rich text HTML into GitHub Flavored Markdown.
-- **Internal Wikilink Resolution**: Rewrites Canvas course links (`/courses/123/pages/intro`) into direct Obsidian wikilinks (`[[Modules/01 - Week 1/01 - Page - Intro.md|Intro]]`).
-- **Markdown Table Pipe Escaping**: Escapes alias pipes inside table cells (`[[path\|alias]]`) so Obsidian tables do not split columns on wikilink delimiters.
-- **Image Embed Optimization**: Preserves banner graphics and button links as clean Obsidian embeds (`![[Attachments/Banner.png]]`).
+### 2.2 Companion Browser Extension (`apps/browser-extension/`)
 
-### 2.4 Vault Writer & Asset Manager (`apps/obsidian-plugin/src/main.ts`)
-- **Structured Hierarchy**: Generates notes according to user-configurable templates.
-- **Local Asset Downloader**: Downloads course files (PDFs, DOCX, PPTX, etc.) and attachments into designated subfolders (`Files/`, `Attachments/`) while enforcing file size limits and extension filters.
-- **Security & Path Sanitization**: Sanitizes directory names and paths against directory traversal and invalid filesystem characters.
+* **Popup UI & Options (`popup.html`, `popup.ts`)**:
+  Provides single-click course detection, bridge port configuration, and granular extraction preference toggles (Modules, Pages, Assignments, Grades, Discussions, Events, Files).
+* **Session-Based Background Extractor (`background.ts`)**:
+  Executes in the active Canvas tab context to make authenticated `fetch` requests using browser session cookies. Does not require or store an API token.
+* **Cross-Browser Compatibility**:
+  Supports Manifest V3 for Google Chrome, Chromium browsers, and Mozilla Firefox (with temporary/signed AMO packaging).
 
 ---
 
-## 3. Security & Privacy Model
+## 3. Data Contracts & Payload Schema
 
-| Aspect | Implementation |
-| :--- | :--- |
-| **API Token Storage** | Stored locally in your vault's plugin configuration (`.obsidian/plugins/canvas-sync-bridge/data.json`). Never transmitted anywhere except directly to your designated Canvas LMS domain. |
-| **Zero Telemetry** | 100% local-first. No analytics, tracking, or intermediary servers. |
-| **Secure HTTPS** | All Canvas API communication uses encrypted HTTPS directly through Obsidian's native network stack. |
-| **Path Traversal Protection** | File names and paths are sanitized to prevent escape outside the configured vault folder. |
+Both ingestion pathways format data into the canonical `CanvasCoursePayload` structure:
+
+```typescript
+export interface CanvasCoursePayload {
+  courseId: string;
+  courseName: string;
+  courseCode?: string;
+  fetchedAt: string;
+  grades?: CanvasCourseGrades;
+  courseHomePageHtml?: string;
+  syllabusHtml?: string;
+  modules: CanvasModulePayload[];
+  pages: CanvasPagePayload[];
+  assignments: CanvasAssignmentPayload[];
+  discussions: CanvasDiscussionPayload[];
+  events: CanvasEventPayload[];
+  files?: CanvasFileAssetPayload[];
+  assetDiagnostics?: AssetSyncDiagnostics;
+}
+```
+
+---
+
+## 4. Security & Privacy Guarantees
+
+1. **Zero Open Ports by Default**: The local bridge HTTP listener is closed by default. Users using the direct API mode have zero open TCP ports.
+2. **Origin & Client Validation**: When the bridge listener is active, requests require an authorized origin (`chrome-extension://` or `moz-extension://`) and the `X-Canvas-Sync-Client` application header.
+3. **Local-First Storage**: API tokens and course content are stored strictly on the local machine within the Obsidian vault directory.
+4. **Path Sanitization**: All file and directory paths are sanitized against path traversal (`../`) and illegal filesystem characters.

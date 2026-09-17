@@ -115,19 +115,6 @@ export interface CanvasSubmissionPayload {
   attachments?: CanvasSubmissionAttachment[];
 }
 
-export interface CanvasAssignmentPayload {
-  id: string;
-  name: string;
-  dueAt?: string | null;
-  pointsPossible?: number | null;
-  htmlUrl?: string;
-  descriptionHtml?: string;
-  submissionTypes?: string[];
-  moduleNames?: string[];
-  rubric?: CanvasRubricCriterionPayload[];
-  submission?: CanvasSubmissionPayload;
-}
-
 export interface CanvasRubricRatingPayload {
   description: string;
   longDescription?: string;
@@ -140,6 +127,19 @@ export interface CanvasRubricCriterionPayload {
   longDescription?: string;
   points: number;
   ratings: CanvasRubricRatingPayload[];
+}
+
+export interface CanvasAssignmentPayload {
+  id: string;
+  name: string;
+  dueAt?: string | null;
+  pointsPossible?: number | null;
+  htmlUrl?: string;
+  descriptionHtml?: string;
+  submissionTypes?: string[];
+  moduleNames?: string[];
+  rubric?: CanvasRubricCriterionPayload[];
+  submission?: CanvasSubmissionPayload;
 }
 
 export interface CanvasDiscussionEntryPayload {
@@ -203,16 +203,6 @@ export interface AssetSyncDiagnostics {
   }>;
 }
 
-export interface AssetSyncFilterConfig {
-  downloadAssets: boolean;
-  downloadDocuments: boolean;
-  downloadImages: boolean;
-  downloadArchivesAndCode: boolean;
-  downloadMedia: boolean;
-  allowedExtensions: string;
-  maxAssetSizeMb: number;
-}
-
 export interface CanvasCoursePayload {
   courseId: string;
   courseName: string;
@@ -236,25 +226,26 @@ export interface CanvasSyncEnvelope {
   payload: CanvasCoursePayload;
 }
 
-export interface CanvasSyncSettings {
-  canvasBaseUrl: string;
-  canvasApiToken: string;
-  includeInactiveCourses: boolean;
-  syncDiscussionReplies: boolean;
-  syncStudentSubmissions: boolean;
-  enableBridgeServer: boolean;
-  listenPort: number;
-  rootFolder: string;
-  courseFolderTemplate: string;
-  includeRawPayload: boolean;
-  downloadAssets: boolean;
-  downloadDocuments: boolean;
-  downloadImages: boolean;
-  downloadArchivesAndCode: boolean;
-  downloadMedia: boolean;
-  allowedExtensions: string;
-  maxAssetSizeMb: number;
-  documentsSubfolder: string;
-  attachmentsSubfolder: string;
+export interface BrowserSyncOptions {
+  extractModules: boolean;
+  extractPages: boolean;
+  extractAssignments: boolean;
+  extractGrades: boolean;
+  extractDiscussions: boolean;
+  includeDiscussionReplies: boolean;
+  extractEvents: boolean;
+  extractFiles: boolean;
+  bridgePort: number;
 }
 
+export const DEFAULT_BROWSER_OPTIONS: BrowserSyncOptions = {
+  extractModules: true,
+  extractPages: true,
+  extractAssignments: true,
+  extractGrades: true,
+  extractDiscussions: true,
+  includeDiscussionReplies: true,
+  extractEvents: true,
+  extractFiles: true,
+  bridgePort: 27125
+};
