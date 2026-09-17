@@ -11,6 +11,19 @@ import type {
   CanvasSyncEnvelope
 } from "./types";
 
+declare const browser: {
+  tabs?: {
+    executeScript?: (tabId: number, details: { code?: string; allFrames?: boolean }) => Promise<unknown[]>;
+  };
+  scripting?: {
+    executeScript?: (options: { target: { tabId: number }; func: (...args: unknown[]) => unknown; args?: unknown[] }) => Promise<Array<{ result?: unknown }>>;
+  };
+  permissions?: {
+    contains?: (p: { origins: string[] }) => Promise<boolean>;
+    request?: (p: { origins: string[] }) => Promise<boolean>;
+  };
+} | undefined;
+
 const DEFAULT_PORT = 27125;
 
 interface SyncCanvasCourseMessage {
@@ -178,16 +191,8 @@ async function probeCanvasScriptExecution(tabId: number): Promise<void> {
   }
 }
 
-async function executeScriptInTab<T>(tabId: number, func: (...args: any[]) => T, args: unknown[]): Promise<T> {
-  const browserApi = (globalThis as Record<string, unknown>).browser as {
-    tabs?: {
-      executeScript?: (tabId: number, details: { code?: string; allFrames?: boolean }) => Promise<unknown[]>;
-    };
-    scripting?: {
-      executeScript?: (options: { target: { tabId: number }; func: (...args: unknown[]) => T; args?: unknown[] }) => Promise<Array<{ result?: T }>>;
-    };
-  } | undefined;
-
+async function executeScriptInTab<T, A extends unknown[]>(tabId: number, func: (...args: A) => T, args: A): Promise<T> {
+  const browserApi = typeof browser !== "undefined" ? browser : undefined;
   const scriptingApi = chrome.scripting ?? browserApi?.scripting;
 
   if (scriptingApi?.executeScript) {
@@ -264,83 +269,6 @@ function requestText(
   });
 }
 
-function requestBinary(url: string, withCredentials = true): Promise<{ data: ArrayBuffer; contentType: string }> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("GET", url, true);
-    xhr.withCredentials = withCredentials;
-    xhr.responseType = "arraybuffer";
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const contentType = xhr.getResponseHeader("Content-Type") ?? "application/octet-stream";
-        resolve({ data: xhr.response as ArrayBuffer, contentType });
-        return;
-      }
-      reject(new Error(`Binary request failed: ${xhr.status}`));
-    };
-
-    xhr.onerror = () => {
-      reject(new Error("Binary network request failed."));
-    };
-
-    xhr.send();
-  });
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-async function inlineImages(html: string, origin: string): Promise<string> {
-  if (!html) {
-    return html;
-  }
-
-  const srcPattern = /<img\b([^>]*?)\ssrc=["']([^"']+)["']([^>]*?)>/gi;
-  const matches: Array<{ full: string; before: string; src: string; after: string }> = [];
-  let match: RegExpExecArray | null;
-
-  while ((match = srcPattern.exec(html)) !== null) {
-    matches.push({ full: match[0], before: match[1], src: match[2], after: match[3] });
-  }
-
-  const replacements = await Promise.all(
-    matches.map(async ({ full, before, src, after }) => {
-      try {
-        const absoluteSrc = src.startsWith("http") ? src : `${origin}${src.startsWith("/") ? "" : "/"}${src}`;
-        // Only inline images hosted on the same Canvas origin
-        if (!absoluteSrc.startsWith(origin)) {
-          return { full, replacement: full };
-        }
-        const { data, contentType } = await requestBinary(absoluteSrc);
-        const mimeType = contentType.split(";")[0].trim();
-        if (!mimeType.startsWith("image/")) {
-          return { full, replacement: full };
-        }
-        const dataUri = `data:${mimeType};base64,${arrayBufferToBase64(data)}`;
-        return { full, replacement: `<img${before} src="${dataUri}"${after}>` };
-      } catch {
-        // Leave original src intact on failure
-        return { full, replacement: full };
-      }
-    })
-  );
-
-  let result = html;
-  for (const { full, replacement } of replacements) {
-    if (full !== replacement) {
-      result = result.replace(full, replacement);
-    }
-  }
-  return result;
-}
-
 async function requestJson(
   url: string,
   options?: {
@@ -390,7 +318,8 @@ async function ensureCanvasOriginPermission(tabUrl: string): Promise<void> {
   try {
     const parsed = new URL(tabUrl);
     const originPattern = `${parsed.origin}/*`;
-    const permissionsApi = chrome.permissions ?? ((globalThis as Record<string, unknown>).browser as { permissions?: { contains?: (p: { origins: string[] }) => Promise<boolean>; request?: (p: { origins: string[] }) => Promise<boolean> } } | undefined)?.permissions;
+    const browserApi = typeof browser !== "undefined" ? browser : undefined;
+    const permissionsApi = chrome.permissions ?? browserApi?.permissions;
 
     if (!permissionsApi) {
       return;
@@ -465,39 +394,6 @@ async function scrapeCanvasFromPage(
 
       xhr.send(options?.body);
     });
-  }
-
-  function requestBinary(url: string, withCredentials = true): Promise<{ data: ArrayBuffer; contentType: string }> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("GET", url, true);
-      xhr.withCredentials = withCredentials;
-      xhr.responseType = "arraybuffer";
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const contentType = xhr.getResponseHeader("Content-Type") ?? "application/octet-stream";
-          resolve({ data: xhr.response as ArrayBuffer, contentType });
-          return;
-        }
-        reject(new Error(`Binary request failed: ${xhr.status}`));
-      };
-
-      xhr.onerror = () => {
-        reject(new Error("Binary network request failed."));
-      };
-
-      xhr.send();
-    });
-  }
-
-  function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
   }
 
   async function requestJson(

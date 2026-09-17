@@ -18,6 +18,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   build-and-release:
@@ -86,6 +88,15 @@ jobs:
             console.log('Final checksums:');
             console.log(current);
           "
+
+      - name: Attest build provenance for release assets
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/obsidian-plugin/main.js
+            release/obsidian-plugin/manifest.json
+            release/canvas-to-obsidian-sync-chrome-${{ env.RELEASE_TAG }}.zip
+            release/canvas-to-obsidian-sync-firefox-${{ env.RELEASE_TAG }}.zip
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2

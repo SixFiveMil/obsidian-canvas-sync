@@ -1,3 +1,10 @@
+declare const browser: {
+  permissions?: {
+    contains?: (permissions: { origins: string[] }) => Promise<boolean>;
+    request?: (permissions: { origins: string[] }) => Promise<boolean>;
+  };
+} | undefined;
+
 const statusEl = document.querySelector<HTMLDivElement>("#status");
 const syncBtn = document.querySelector<HTMLButtonElement>("#syncBtn");
 const testBtn = document.querySelector<HTMLButtonElement>("#testBtn");
@@ -30,7 +37,7 @@ function requestStatus(url: string, method: "OPTIONS"): Promise<number> {
 
 async function ensureBridgePermission(): Promise<boolean> {
   const origins = ["http://127.0.0.1/*", "http://localhost/*"];
-  const browserPermissions = (globalThis as { browser?: { permissions?: { contains?: (permissions: { origins: string[] }) => Promise<boolean>; request?: (permissions: { origins: string[] }) => Promise<boolean> } } }).browser?.permissions;
+  const browserPermissions = typeof browser !== "undefined" ? browser?.permissions : undefined;
   const permissionsApi = chrome.permissions ?? browserPermissions;
 
   if (!permissionsApi) {
