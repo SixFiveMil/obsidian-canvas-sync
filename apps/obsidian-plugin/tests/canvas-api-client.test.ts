@@ -12,8 +12,8 @@ vi.mock("obsidian", () => {
           status: 200,
           json: {
             id: 35666,
-            name: "Joshua Wortz",
-            primary_email: "joshuawortz@sandiego.edu"
+            name: "Student User",
+            primary_email: "student@example.edu"
           },
           text: "",
           headers: {}
@@ -243,7 +243,7 @@ vi.mock("obsidian", () => {
               id: 999,
               display_name: "lecture1.pdf",
               size: 2048576,
-              url: "https://sandiego.instructure.com/courses/28335/files/999/download"
+              url: "https://canvas.example.edu/courses/28335/files/999/download"
             }
           ],
           text: "",
@@ -262,13 +262,13 @@ vi.mock("obsidian", () => {
 });
 
 describe("CanvasApiClient", () => {
-  const client = new CanvasApiClient("https://sandiego.instructure.com", "test-token-12345");
+  const client = new CanvasApiClient("https://canvas.example.edu", "test-token-12345");
 
   it("authenticates and returns user profile on testConnection", async () => {
     const user = await client.testConnection();
     expect(user.id).toBe(35666);
-    expect(user.name).toBe("Joshua Wortz");
-    expect(user.primary_email).toBe("joshuawortz@sandiego.edu");
+    expect(user.name).toBe("Student User");
+    expect(user.primary_email).toBe("student@example.edu");
   });
 
   it("lists all courses including inactive/concluded when includeInactive is true", async () => {

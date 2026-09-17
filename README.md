@@ -48,13 +48,13 @@ Both ingestion pathways feed into a unified rendering engine:
 
 ## 📸 Screenshots
 
-| 1. Interactive Course Selector | 2. Course Home & Module Hub |
+| 1. Interactive Course Selector (REST API) | 2. Companion Browser Extension (Zero-Token) |
 | :---: | :---: |
-| ![Course Selector Modal](docs/assets/screenshot_course_selector.svg) | ![Course Home View](docs/assets/screenshot_course_home.svg) |
+| ![Course Selector Modal](docs/assets/screenshot_course_selector.svg) | ![Extension Popup](docs/assets/screenshot_extension_popup.png) |
 
 | 3. Gradebook & Task Tracker | 4. Granular Plugin Settings |
 | :---: | :---: |
-| ![Grades and Tasks](docs/assets/screenshot_grades_tasks.svg) | ![Plugin Settings](docs/assets/screenshot_plugin_settings.svg) |
+| ![Grades and Tasks](docs/assets/screenshot_grades_tasks.svg) | ![Plugin Settings](docs/assets/screenshot_plugin_settings.png) |
 
 ---
 
@@ -100,7 +100,7 @@ Courses are written to your vault using the configured template (default: `{{cou
 
 ```text
 Canvas/
-└── CSOL-560 - Secure Software Design and Development/
+└── CS-101 - Introduction to Computer Science/
     ├── Course.md         # Master course index, metadata, and quick navigation
     ├── Home.md           # Course home page with banner and graphic links
     ├── Syllabus.md       # Complete course syllabus and policies
@@ -109,13 +109,13 @@ Canvas/
     ├── Discussions.md    # Discussion board topics with full student reply trees
     ├── Calendar.md       # Course events, milestones, and Zoom meeting links
     ├── Modules/
-    │   ├── 01 - Week 1 - Secure Development Lifecycle/
-    │   │   ├── 01 - Page - SDLC Foundations.md
+    │   ├── 01 - Week 1 - Foundations & Architecture/
+    │   │   ├── 01 - Page - Lecture Overview.md
     │   │   ├── 02 - Assignment - Lab 1 Analysis.md
-    │   │   └── 03 - Discussion - Threat Modeling.md
-    │   └── 02 - Week 2 - Static & Dynamic Analysis/
-    │       ├── 01 - Page - Static Code Scanning.md
-    │       └── 02 - Assignment - Ransomware Simulation.md
+    │   │   └── 03 - Discussion - Class Introductions.md
+    │   └── 02 - Week 2 - Algorithms & Data Structures/
+    │       ├── 01 - Page - Algorithm Complexity.md
+    │       └── 02 - Assignment - Problem Set 2.md
     ├── Files/            # Downloaded PDFs, DOCX, slides, spreadsheets, and archives
     └── Attachments/      # Embedded images, course banners, and diagrams
 ```

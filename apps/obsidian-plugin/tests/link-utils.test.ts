@@ -183,7 +183,7 @@ describe("link-utils", () => {
       };
 
       const turndown = createConfiguredTurndown(context);
-      const html = `<p><a href="https://sandiego.instructure.com/courses/17594/modules/120487"><strong>Start Here</strong></a></p><p><a href="https://sandiego.instructure.com/courses/17594/modules/120502"><strong>Module 1</strong></a></p>`;
+      const html = `<p><a href="https://canvas.example.edu/courses/17594/modules/120487"><strong>Start Here</strong></a></p><p><a href="https://canvas.example.edu/courses/17594/modules/120502"><strong>Module 1</strong></a></p>`;
       const markdown = turndown.turndown(html);
 
       expect(markdown).toBe(
@@ -200,7 +200,7 @@ describe("link-utils", () => {
       };
 
       const turndown = createConfiguredTurndown(context);
-      const html = `<p><a href="https://sandiego.instructure.com/courses/17594/assignments/syllabus"><strong>Syllabus</strong></a></p>`;
+      const html = `<p><a href="https://canvas.example.edu/courses/17594/assignments/syllabus"><strong>Syllabus</strong></a></p>`;
       const markdown = turndown.turndown(html);
 
       expect(markdown).toBe("**[[Syllabus.md|Syllabus]]**");
@@ -231,10 +231,10 @@ describe("link-utils", () => {
       };
 
       const turndown = createConfiguredTurndown(context);
-      const iconOnlyHtml = `<a href="https://sandiego.instructure.com/courses/23211/modules/149661"><img src="https://sandiego.instructure.com/courses/23211/files/3573151/download" alt="" /></a>`;
+      const iconOnlyHtml = `<a href="https://canvas.example.edu/courses/23211/modules/149661"><img src="https://canvas.example.edu/courses/23211/files/3573151/download" alt="" /></a>`;
       expect(turndown.turndown(iconOnlyHtml)).toBe("![[Attachments/Getting Started.png]]");
 
-      const iconAndTextHtml = `<a href="https://sandiego.instructure.com/courses/23211/modules/149661"><img src="https://sandiego.instructure.com/courses/23211/files/3573151/download" alt="" /><strong>Start Here</strong></a>`;
+      const iconAndTextHtml = `<a href="https://canvas.example.edu/courses/23211/modules/149661"><img src="https://canvas.example.edu/courses/23211/files/3573151/download" alt="" /><strong>Start Here</strong></a>`;
       expect(turndown.turndown(iconAndTextHtml)).toBe(
         "![[Attachments/Getting Started.png]] **[[Modules/01 - Welcome! Start Here/00 - Module Overview.md|Start Here]]**"
       );

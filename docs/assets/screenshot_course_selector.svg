@@ -44,12 +44,12 @@
   <!-- File Tree Sidebar Text -->
   <text x="76" y="95" fill="#6b7280" font-size="11" font-weight="600" letter-spacing="0.5">VAULT EXPLORER</text>
   <text x="76" y="125" fill="#d1d5db" font-size="13" font-weight="500">📁 Canvas</text>
-  <text x="92" y="152" fill="#9ca3af" font-size="12">📁 CSOL-510 - Applied Crypto</text>
+  <text x="92" y="152" fill="#9ca3af" font-size="12">📁 CS-101 - Intro to CS</text>
   <text x="108" y="177" fill="#6b7280" font-size="12">📄 Course.md</text>
   <text x="108" y="200" fill="#6b7280" font-size="12">📄 Home.md</text>
   <text x="108" y="223" fill="#6b7280" font-size="12">📄 Grades.md</text>
   <text x="108" y="246" fill="#6b7280" font-size="12">📄 Tasks.md</text>
-  <text x="92" y="276" fill="#9ca3af" font-size="12">📁 CSOL-520 - Cyber Security</text>
+  <text x="92" y="276" fill="#9ca3af" font-size="12">📁 CS-350 - Software Arch</text>
 
   <!-- Modal Backdrop -->
   <rect x="240" y="63" width="740" height="567" fill="#000000" fill-opacity="0.55"/>
@@ -72,8 +72,8 @@
   <rect x="370" y="238" width="480" height="66" rx="8" fill="#272730" stroke="#7c3aed" stroke-width="1.5"/>
   <rect x="386" y="261" width="20" height="20" rx="4" fill="#7c3aed"/>
   <polyline points="391,271 396,276 402,266" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="420" y="265" fill="#f9fafb" font-size="14" font-weight="600">CSOL-510 - Applied Cryptography</text>
-  <text x="420" y="287" fill="#a78bfa" font-size="12">CSOL-510-02</text>
+  <text x="420" y="265" fill="#f9fafb" font-size="14" font-weight="600">CS-101 - Introduction to Computer Science</text>
+  <text x="420" y="287" fill="#a78bfa" font-size="12">CS-101-01</text>
   <rect x="735" y="259" width="100" height="22" rx="4" fill="#312e81"/>
   <text x="785" y="274" fill="#c7d2fe" font-size="11" font-weight="500" text-anchor="middle">Fall 2026</text>
 
@@ -81,8 +81,8 @@
   <rect x="370" y="314" width="480" height="66" rx="8" fill="#272730" stroke="#7c3aed" stroke-width="1.5"/>
   <rect x="386" y="337" width="20" height="20" rx="4" fill="#7c3aed"/>
   <polyline points="391,347 396,352 402,342" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="420" y="341" fill="#f9fafb" font-size="14" font-weight="600">CSOL-520 - Cyber Security Strategy</text>
-  <text x="420" y="363" fill="#a78bfa" font-size="12">CSOL-520-01</text>
+  <text x="420" y="341" fill="#f9fafb" font-size="14" font-weight="600">CS-350 - Software Architecture &amp; Design</text>
+  <text x="420" y="363" fill="#a78bfa" font-size="12">CS-350-02</text>
   <rect x="735" y="335" width="100" height="22" rx="4" fill="#312e81"/>
   <text x="785" y="350" fill="#c7d2fe" font-size="11" font-weight="500" text-anchor="middle">Fall 2026</text>
 

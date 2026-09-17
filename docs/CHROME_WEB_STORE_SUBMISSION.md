@@ -49,8 +49,8 @@ Canvas to Obsidian Sync is a privacy-first companion extension designed for stud
 
 KEY FEATURES:
 
-✓ Pre-Sync Course Customization:
-Auto-detects course codes (e.g. CSOL-500) and course titles with editable fields before syncing, letting you verify and customize folder names in advance.
+✓ Granular Extraction Options:
+Choose exactly what to extract before syncing: Modules & Wiki Pages, Assignments & Rubrics, Grades & Submissions, Discussion Topics (with full reply trees), Calendar Events, and Files/Attachments.
 
 ✓ Clean Markdown Conversion:
 Converts Canvas pages, syllabus documents, and complex pacing tables into clean GitHub Flavored Markdown (GFM) tables without raw HTML tags or messy inline CSS styles.
@@ -58,22 +58,22 @@ Converts Canvas pages, syllabus documents, and complex pacing tables into clean 
 ✓ Complete Course Hierarchy:
 Organizes modules, assignments, rubrics, and discussion prompts into a structured vault folder hierarchy with configurable templates (e.g., `{{courseCode}} - {{courseName}}`).
 
-✓ Embedded Visuals:
-Inlines authenticated Canvas course images and diagrams directly into your notes so your materials remain readable offline.
+✓ Embedded Visuals & File Downloads:
+Extracts course images and downloads documents directly to your local vault so your course materials remain readable offline.
 
-✓ Privacy-First & Local-Only:
-All processing runs locally in your browser. Data is transmitted exclusively to your local Obsidian desktop application via a secure loopback connection (127.0.0.1). Zero cloud servers, zero telemetry, zero tracking.
+✓ Privacy-First & Zero-Token Session Extraction:
+Uses your active browser session directly—no need to generate or expose API access tokens. All processing runs locally in your browser and transmits exclusively to your local Obsidian desktop application via a secure loopback connection (`127.0.0.1`). Zero cloud servers, zero telemetry, zero tracking.
 
 HOW TO USE:
 
-1. Install the "Canvas Sync Bridge" plugin in Obsidian and enable it (default port: 27125).
-2. Log into your university or school Canvas LMS and navigate to any course page.
+1. Install the "Canvas Sync Bridge" plugin in Obsidian and enable the "Browser bridge listener" in settings (default port: 27125).
+2. Log into your university or school Canvas LMS in Chrome and navigate to any course page.
 3. Click the Canvas to Obsidian Sync extension icon in your toolbar.
-4. Review the auto-detected Course Code and Course Name (edit if desired).
+4. Select your desired extraction options and verify the bridge connection.
 5. Click "Sync Active Course". Your course notes, syllabus, and assignments will immediately appear in your Obsidian vault!
 
 REQUIREMENTS:
-- Obsidian desktop app with the Canvas Sync Bridge plugin enabled.
+- Obsidian desktop app with the Canvas Sync Bridge plugin and browser bridge listener enabled.
 - An active Canvas LMS student or instructor account.
 ```
 

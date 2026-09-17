@@ -1554,7 +1554,7 @@ class CanvasSyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Canvas base URL")
-      .setDesc("The web address of your Canvas institution (e.g. 'https://sandiego.instructure.com' or 'https://canvas.instructure.com').")
+      .setDesc("The web address of your Canvas institution (e.g. 'https://canvas.institution.edu' or 'https://canvas.instructure.com').")
       .addText((text) =>
         text
           .setPlaceholder("https://your-school.instructure.com")

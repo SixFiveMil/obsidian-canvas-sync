@@ -27,11 +27,13 @@ Directly synchronize Canvas LMS coursework, modules, assignments, student submis
 
 | Setting | Default | Description |
 | :--- | :--- | :--- |
-| **Canvas Base URL** | *Required* | Institutional Canvas URL (e.g. `https://canvas.instructure.com` or `https://sandiego.instructure.com`). |
+| **Canvas Base URL** | *Required* | Institutional Canvas URL (e.g. `https://canvas.instructure.com` or `https://canvas.institution.edu`). |
 | **Canvas API Token** | *Required* | Personal access token generated in Canvas LMS (`Account > Settings > Approved Integrations > + New Access Token`). |
 | **Include Inactive Courses** | `true` | When enabled, includes concluded and past courses in the course picker modal. |
 | **Sync Discussion Replies** | `true` | Downloads complete multi-tier reply threads for discussion boards. |
 | **Sync Student Submissions** | `true` | Downloads student submission files, assignment scores, and teacher comments. |
+| **Enable Browser Bridge Listener** | `false` | When enabled, opens local port `127.0.0.1:27125` to receive payloads from the companion browser extension. |
+| **Bridge Listen Port** | `27125` | Local loopback port for the browser extension bridge. |
 | **Root Folder** | `Canvas` | Destination folder path within the Obsidian vault. |
 | **Course Folder Template** | `{{courseCode}} - {{courseName}}` | Formatting template for course directories. |
 | **Download Assets & Documents** | `true` | Automatically downloads linked course files and embedded media. |
