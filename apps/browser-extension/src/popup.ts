@@ -1,4 +1,3 @@
-/* eslint-disable */
 import type { BrowserSyncOptions } from "./types";
 import { DEFAULT_BROWSER_OPTIONS } from "./types";
 
@@ -254,8 +253,8 @@ safeTestBtn.addEventListener("click", () => {
       }
 
       const port = Number.parseInt(safePortInput.value, 10) || 27125;
-      const res = await fetch(`http://127.0.0.1:${port}/health`, { method: "GET" }).catch(async () => {
-        return await fetch(`http://127.0.0.1:${port}/canvas-sync`, { method: "OPTIONS" });
+      const res = await globalThis.fetch(`http://127.0.0.1:${port}/health`, { method: "GET" }).catch(async () => {
+        return await globalThis.fetch(`http://127.0.0.1:${port}/canvas-sync`, { method: "OPTIONS" });
       });
 
       if (res.status >= 200 && res.status < 300) {

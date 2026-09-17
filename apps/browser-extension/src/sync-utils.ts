@@ -1,4 +1,3 @@
-/* eslint-disable */
 import type {
   CanvasAssignmentPayload,
   CanvasCoursePayload,

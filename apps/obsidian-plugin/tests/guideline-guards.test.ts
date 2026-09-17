@@ -80,4 +80,27 @@ describe("Obsidian guideline guardrails", () => {
     expect(source).not.toContain('.setName("Course Folder Template")');
     expect(source).not.toContain('.setName("Store Raw Payload")');
   });
+
+  it("avoids forbidden eslint-disable comments across all source files", () => {
+    const extDir = path.resolve(here, "../../browser-extension/src");
+    const pluginDir = path.resolve(here, "../src");
+    for (const file of ["background.ts", "popup.ts", "sync-utils.ts", "types.ts"]) {
+      const src = readText(path.resolve(extDir, file));
+      expect(src).not.toMatch(/\/\*\s*eslint-disable/);
+    }
+    for (const file of ["main.ts", "course-select-modal.ts", "canvas-api-client.ts", "link-utils.ts", "table-utils.ts", "template-utils.ts", "types.ts"]) {
+      const src = readText(path.resolve(pluginDir, file));
+      expect(src).not.toMatch(/\/\*\s*eslint-disable/);
+    }
+  });
+
+  it("avoids unqualified fetch globals in extension source files", () => {
+    const extDir = path.resolve(here, "../../browser-extension/src");
+    for (const file of ["background.ts", "popup.ts", "sync-utils.ts"]) {
+      const src = readText(path.resolve(extDir, file));
+      // Ensures fetch is only called via globalThis.fetch, not bare fetch(
+      expect(src).not.toMatch(/(?<!globalThis\.)\bfetch\(/);
+    }
+  });
 });
+

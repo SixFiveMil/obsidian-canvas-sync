@@ -1,4 +1,3 @@
-/* eslint-disable */
 export interface CanvasUserSummary {
   id: number;
   name: string;

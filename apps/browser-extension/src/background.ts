@@ -1,4 +1,3 @@
-/* eslint-disable */
 import type {
   BrowserSyncOptions,
   CanvasAssignmentPayload,
@@ -195,7 +194,7 @@ async function extractFromActiveCanvasTab(
 
 async function postToLocalBridge(envelope: CanvasSyncEnvelope, port: number): Promise<unknown> {
   const url = `http://127.0.0.1:${port}/canvas-sync`;
-  const res = await fetch(url, {
+  const res = await globalThis.fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
