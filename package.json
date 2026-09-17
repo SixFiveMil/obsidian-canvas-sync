@@ -30,9 +30,9 @@
     "apps/browser-extension"
   ],
   "scripts": {
-    "build": "npm run build -w apps/obsidian-plugin && npm run build -w apps/browser-extension && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js')\"",
+    "build": "npm run build -w apps/obsidian-plugin && npm run build -w apps/browser-extension && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js'); if (require('fs').existsSync('apps/obsidian-plugin/styles.css')) require('fs').copyFileSync('apps/obsidian-plugin/styles.css', 'styles.css')\"",
     "dev:plugin": "npm run dev -w apps/obsidian-plugin",
-    "build:plugin": "npm run build -w apps/obsidian-plugin && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js')\"",
+    "build:plugin": "npm run build -w apps/obsidian-plugin && node -e \"require('fs').copyFileSync('apps/obsidian-plugin/main.js', 'main.js'); if (require('fs').existsSync('apps/obsidian-plugin/styles.css')) require('fs').copyFileSync('apps/obsidian-plugin/styles.css', 'styles.css')\"",
     "build:extension": "npm run build -w apps/browser-extension",
     "build:extension:chrome": "npm run build:chrome -w apps/browser-extension",
     "build:extension:firefox": "npm run build:firefox -w apps/browser-extension",

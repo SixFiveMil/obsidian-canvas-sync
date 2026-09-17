@@ -1,4 +1,4 @@
-# Canvas Sync for Obsidian (Hybrid Ecosystem)
+# Canvas Sync Bridge
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.3.0-green.svg)](package.json)

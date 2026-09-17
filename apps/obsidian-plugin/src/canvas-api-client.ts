@@ -155,10 +155,14 @@ export class CanvasApiClient {
       `/api/v1/courses/${courseId}?include[]=syllabus_body&include[]=term&include[]=total_scores`
     );
 
-    let parsedGrades = undefined;
-    const enrollments = Array.isArray(raw.enrollments) ? (raw.enrollments as Array<Record<string, any>>) : [];
+    let parsedGrades: CanvasCourseGrades | undefined = undefined;
+    const enrollments = Array.isArray(raw.enrollments) ? (raw.enrollments as Array<Record<string, unknown>>) : [];
     const firstEnrollment = enrollments[0];
-    const rawGrades = (firstEnrollment && typeof firstEnrollment.grades === "object" ? firstEnrollment.grades : raw.grades) as Record<string, any> | undefined;
+    const rawGrades = (
+      firstEnrollment && typeof firstEnrollment.grades === "object" && firstEnrollment.grades !== null
+        ? firstEnrollment.grades
+        : raw.grades
+    ) as Record<string, unknown> | undefined;
 
     if (rawGrades && typeof rawGrades === "object") {
       parsedGrades = {

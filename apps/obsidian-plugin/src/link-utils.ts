@@ -251,8 +251,7 @@ export function canvasLinkRewritePlugin(context?: LinkRewriteContext): (service:
     turndownService.addRule("canvasLinkRewrite", {
       filter: "a",
       replacement: function (content, node) {
-        const el = node as HTMLElement;
-        const href = el.getAttribute("href") || "";
+        const href = node.getAttribute("href") || "";
         const trimmedContent = content.trim();
 
         if (!href) {
@@ -362,9 +361,8 @@ export function canvasLinkRewritePlugin(context?: LinkRewriteContext): (service:
     turndownService.addRule("canvasImageRewrite", {
       filter: "img",
       replacement: function (_content, node) {
-        const el = node as HTMLElement;
-        const src = el.getAttribute("src") || "";
-        const alt = el.getAttribute("alt") || "";
+        const src = node.getAttribute("src") || "";
+        const alt = node.getAttribute("alt") || "";
 
         if (!src) {
           return "";

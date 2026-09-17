@@ -101,7 +101,7 @@ export interface CanvasRubricAssessmentEntry {
 export interface CanvasSubmissionPayload {
   id?: string;
   submittedAt?: string | null;
-  workflowState?: "submitted" | "graded" | "unsubmitted" | "pending_review" | string;
+  workflowState?: "submitted" | "graded" | "unsubmitted" | "pending_review" | (string & {});
   score?: number | null;
   grade?: string | null;
   body?: string | null;
@@ -173,7 +173,7 @@ export interface CanvasEventPayload {
   endAt?: string | null;
   htmlUrl?: string;
   description?: string;
-  eventType?: "event" | "assignment" | string;
+  eventType?: "event" | "assignment" | (string & {});
   assignmentId?: string;
 }
 

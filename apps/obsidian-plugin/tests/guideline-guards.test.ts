@@ -8,6 +8,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const pluginMainPath = path.resolve(here, "../src/main.ts");
 const apiClientPath = path.resolve(here, "../src/canvas-api-client.ts");
 
+const modalPath = path.resolve(here, "../src/course-select-modal.ts");
+
 function readText(filePath: string): string {
   return readFileSync(filePath, "utf8");
 }
@@ -34,6 +36,28 @@ describe("Obsidian guideline guardrails", () => {
   it("uses Obsidian native requestUrl for mobile and CORS compatibility", () => {
     const apiSource = readText(apiClientPath);
     expect(apiSource).toContain('requestUrl');
+  });
+
+  it("avoids static style assignments in plugin UI components", () => {
+    const mainSource = readText(pluginMainPath);
+    const modalSource = readText(modalPath);
+    expect(mainSource).not.toMatch(/\.style\.[a-zA-Z]+\s*=/);
+    expect(modalSource).not.toMatch(/\.style\.[a-zA-Z]+\s*=/);
+  });
+
+  it("uses Setting headings instead of HTML heading elements in settings tab", () => {
+    const source = readText(pluginMainPath);
+    expect(source).toMatch(/\.setName\("Canvas API integration"\)\.setHeading\(\)/);
+    expect(source).toMatch(/\.setName\("Browser extension bridge \(optional\)"\)\.setHeading\(\)/);
+    expect(source).toMatch(/\.setName\("Vault & organization"\)\.setHeading\(\)/);
+    expect(source).toMatch(/\.setName\("Asset downloads & attachments"\)\.setHeading\(\)/);
+  });
+
+  it("guards Node.js http server import for mobile compatibility", () => {
+    const source = readText(pluginMainPath);
+    expect(source).not.toMatch(/^import\s+\{[^}]*createServer[^}]*\}\s+from\s+["']node:http["']/m);
+    expect(source).toMatch(/import type \{[^}]*\}\s+from\s+["']node:http["']/);
+    expect(source).toMatch(/Platform\.isDesktop/);
   });
 
   it("keeps setting labels in sentence case", () => {

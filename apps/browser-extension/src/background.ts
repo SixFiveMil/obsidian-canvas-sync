@@ -18,14 +18,7 @@ import type {
   CanvasSyncEnvelope
 } from "./types";
 import { DEFAULT_BROWSER_OPTIONS } from "./types";
-import {
-  cleanCourseName,
-  extractCourseCode,
-  isCanvasUrl,
-  normalizeModuleItemType,
-  parseCourseInfo,
-  parseRubricCriteria
-} from "./sync-utils";
+import { isCanvasUrl } from "./sync-utils";
 
 declare const browser: {
   tabs?: {
@@ -711,7 +704,7 @@ async function extractCoursePayloadInPage(
                     displayName: typeof att.display_name === "string" ? att.display_name : "attachment",
                     url: att.url,
                     size: typeof att.size === "number" ? att.size : undefined,
-                    contentType: typeof att["content-type"] === "string" ? (att["content-type"] as string) : undefined
+                    contentType: typeof att["content-type"] === "string" ? att["content-type"] : undefined
                   });
                 }
               }
@@ -916,7 +909,7 @@ async function extractCoursePayloadInPage(
               ? f.url.trim()
               : `${window.location.origin}/courses/${courseId}/files/${fId}/download`;
           const size = typeof f.size === "number" ? f.size : undefined;
-          const contentType = typeof f["content-type"] === "string" ? (f["content-type"] as string) : undefined;
+          const contentType = typeof f["content-type"] === "string" ? f["content-type"] : undefined;
 
           files.push({
             id: fId,

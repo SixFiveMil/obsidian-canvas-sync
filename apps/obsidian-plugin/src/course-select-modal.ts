@@ -139,27 +139,13 @@ export class CourseSelectModal extends Modal {
       );
 
     this.courseListEl = contentEl.createDiv("canvas-course-list-container");
-    this.courseListEl.style.maxHeight = "360px";
-    this.courseListEl.style.overflowY = "auto";
-    this.courseListEl.style.margin = "12px 0";
-    this.courseListEl.style.border = "1px solid var(--background-modifier-border)";
-    this.courseListEl.style.borderRadius = "6px";
-    this.courseListEl.style.padding = "8px";
-
     this.updateCourseListDisplay();
 
     // Footer actions
     const footerEl = contentEl.createDiv("canvas-modal-footer");
-    footerEl.style.display = "flex";
-    footerEl.style.justifyContent = "space-between";
-    footerEl.style.alignItems = "center";
-    footerEl.style.marginTop = "16px";
-
     const countSpan = footerEl.createSpan({ text: `${this.selectedCourseIds.size} course(s) selected` });
 
-    const btnContainer = footerEl.createDiv();
-    btnContainer.style.display = "flex";
-    btnContainer.style.gap = "8px";
+    const btnContainer = footerEl.createDiv("canvas-modal-button-container");
 
     const cancelBtn = btnContainer.createEl("button", { text: "Cancel" });
     cancelBtn.onclick = () => this.close();
@@ -214,16 +200,7 @@ export class CourseSelectModal extends Modal {
 
     for (const course of filtered) {
       const row = this.courseListEl.createDiv("canvas-course-row");
-      row.style.display = "flex";
-      row.style.alignItems = "center";
-      row.style.justifyContent = "space-between";
-      row.style.padding = "6px 8px";
-      row.style.borderBottom = "1px solid var(--background-modifier-border-focus)";
-
-      const leftContainer = row.createDiv();
-      leftContainer.style.display = "flex";
-      leftContainer.style.alignItems = "center";
-      leftContainer.style.gap = "10px";
+      const leftContainer = row.createDiv("canvas-course-row-left");
 
       const cb = leftContainer.createEl("input", { type: "checkbox" });
       cb.checked = this.selectedCourseIds.has(course.id);
@@ -238,8 +215,7 @@ export class CourseSelectModal extends Modal {
       };
 
       const info = leftContainer.createDiv("canvas-course-info");
-      const titleSpan = info.createEl("strong", { text: course.name });
-      titleSpan.style.display = "block";
+      info.createEl("strong", { text: course.name, cls: "canvas-course-title" });
 
       const subInfo = [];
       if (course.course_code) subInfo.push(course.course_code);
@@ -253,15 +229,10 @@ export class CourseSelectModal extends Modal {
 
       // Status badge
       const active = this.isCourseActive(course);
-      const badge = row.createSpan({
+      row.createSpan({
         text: active ? "Active" : "Inactive / Past",
         cls: active ? "canvas-badge-active" : "canvas-badge-inactive"
       });
-      badge.style.fontSize = "0.75em";
-      badge.style.padding = "2px 6px";
-      badge.style.borderRadius = "4px";
-      badge.style.backgroundColor = active ? "var(--background-modifier-success)" : "var(--background-modifier-border)";
-      badge.style.color = active ? "var(--text-on-accent)" : "var(--text-muted)";
     }
   }
 
@@ -281,10 +252,10 @@ export class CourseSelectModal extends Modal {
       try {
         if (this.syncStatusEl) {
           this.syncStatusEl.empty();
-          const p = this.syncStatusEl.createEl("p", {
-            text: `[${i + 1}/${selectedIds.length}] Syncing: ${courseTitle}...`
+          this.syncStatusEl.createEl("p", {
+            text: `[${i + 1}/${selectedIds.length}] Syncing: ${courseTitle}...`,
+            cls: "canvas-sync-progress-title"
           });
-          p.style.fontWeight = "bold";
         }
 
         await this.plugin.syncCourseById(courseId, (step, current, total) => {

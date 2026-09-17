@@ -67,6 +67,7 @@ jobs:
           mkdir -p release
           cp apps/obsidian-plugin/manifest.json release/manifest.json
           cp apps/obsidian-plugin/main.js release/main.js
+          if [ -f apps/obsidian-plugin/styles.css ]; then cp apps/obsidian-plugin/styles.css release/styles.css; fi
 
           node -e "
             const fs = require('fs');
@@ -75,6 +76,10 @@ jobs:
             const mainHash = getHash('release/main.js');
             const manifestHash = getHash('release/manifest.json');
             let current = mainHash + '  main.js\n' + manifestHash + '  manifest.json\n';
+            if (fs.existsSync('release/styles.css')) {
+              const stylesHash = getHash('release/styles.css');
+              current += stylesHash + '  styles.css\n';
+            }
             fs.writeFileSync('release/checksums.txt', current, 'utf8');
             console.log('Final checksums:\n' + current);
           "
@@ -85,6 +90,7 @@ jobs:
           subject-path: |
             release/main.js
             release/manifest.json
+            release/styles.css
             release/canvas-to-obsidian-sync-chrome-${{ env.RELEASE_TAG }}.zip
             release/canvas-to-obsidian-sync-firefox-${{ env.RELEASE_TAG }}.zip
 
@@ -96,6 +102,7 @@ jobs:
           files: |
             release/manifest.json
             release/main.js
+            release/styles.css
             release/canvas-to-obsidian-sync-chrome-${{ env.RELEASE_TAG }}.zip
             release/canvas-to-obsidian-sync-firefox-${{ env.RELEASE_TAG }}.zip
             release/checksums.txt

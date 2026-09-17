@@ -1,5 +1,5 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, normalizePath } from "obsidian";
+import type { IncomingMessage, ServerResponse, Server } from "node:http";
+import { App, Notice, Platform, Plugin, PluginSettingTab, Setting, TFile, normalizePath } from "obsidian";
 import type TurndownService from "turndown";
 import { CanvasApiClient } from "./canvas-api-client";
 import { CourseSelectModal } from "./course-select-modal";
@@ -25,7 +25,6 @@ import type {
   CanvasModulePayload,
   CanvasPagePayload,
   CanvasRubricCriterionPayload,
-  CanvasSyncEnvelope,
   CanvasSyncSettings
 } from "./types";
 
@@ -55,7 +54,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   private static readonly TRUSTED_CLIENT_HEADER = "x-canvas-sync-client";
   private settings: CanvasSyncSettings = DEFAULT_SETTINGS;
   private apiClient: CanvasApiClient | null = null;
-  private server: ReturnType<typeof createServer> | null = null;
+  private server: Server | null = null;
   private turndown: TurndownService = createConfiguredTurndown();
 
   async onload(): Promise<void> {
@@ -134,13 +133,22 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 
   public async startServer(): Promise<void> {
+    if (!Platform.isDesktop) {
+      return;
+    }
     if (this.server) {
       return;
     }
 
-    this.server = createServer((req, res) => {
-      void this.handleBridgeRequest(req, res);
-    });
+    try {
+      const http = require("http") as typeof import("node:http");
+      this.server = http.createServer((req, res) => {
+        void this.handleBridgeRequest(req, res);
+      });
+    } catch (err) {
+      console.error("Canvas Sync Bridge server initialization error:", err);
+      return;
+    }
 
     return new Promise<void>((resolve) => {
       this.server?.once("error", (err) => {
@@ -150,7 +158,6 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         resolve();
       });
       this.server?.listen(this.settings.listenPort, "127.0.0.1", () => {
-        console.log(`Canvas Sync Bridge listening on 127.0.0.1:${this.settings.listenPort}`);
         resolve();
       });
     });
@@ -179,7 +186,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 
   private async handleBridgeRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const originHeader = req.headers["origin"] as string | undefined;
+    const originHeader = typeof req.headers["origin"] === "string" ? req.headers["origin"] : undefined;
     const allowedOrigin = getAllowedExtensionOrigin(originHeader);
 
     if (req.method === "OPTIONS") {
@@ -214,7 +221,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       return;
     }
 
-    const clientHeader = (req.headers[CanvasSyncBridgePlugin.TRUSTED_CLIENT_HEADER] as string | undefined)?.toLowerCase();
+    const clientHeaderRaw = req.headers[CanvasSyncBridgePlugin.TRUSTED_CLIENT_HEADER];
+    const clientHeader = (typeof clientHeaderRaw === "string" ? clientHeaderRaw : undefined)?.toLowerCase();
     if (clientHeader !== "canvas-browser-extension" && clientHeader !== "canvas-to-obsidian-sync") {
       res.writeHead(403, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, message: "Untrusted client header." }));
@@ -236,26 +244,28 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       }
     });
 
-    req.on("end", async () => {
-      try {
-        const envelope = JSON.parse(raw);
-        validateEnvelopeShape(envelope);
-        await this.syncCoursePayload(envelope.payload);
-        res.writeHead(200, {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": allowedOrigin
-        });
-        res.end(JSON.stringify({ ok: true, message: `Synced course: ${envelope.payload.courseName}` }));
-        new Notice(`Canvas Sync: Synced "${envelope.payload.courseName}" from browser extension!`);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        res.writeHead(400, {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": allowedOrigin
-        });
-        res.end(JSON.stringify({ ok: false, message: msg }));
-        new Notice(`Canvas Sync error: ${msg}`);
-      }
+    req.on("end", () => {
+      void (async () => {
+        try {
+          const envelope: unknown = JSON.parse(raw);
+          validateEnvelopeShape(envelope);
+          await this.syncCoursePayload((envelope as { payload: CanvasCoursePayload }).payload);
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": allowedOrigin
+          });
+          res.end(JSON.stringify({ ok: true, message: `Synced course: ${(envelope as { payload: CanvasCoursePayload }).payload.courseName}` }));
+          new Notice(`Canvas Sync: Synced "${(envelope as { payload: CanvasCoursePayload }).payload.courseName}" from browser extension!`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          res.writeHead(400, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": allowedOrigin
+          });
+          res.end(JSON.stringify({ ok: false, message: msg }));
+          new Notice(`Canvas Sync error: ${msg}`);
+        }
+      })();
     });
   }
 
@@ -477,9 +487,6 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       payload.assignments.map((a) => [a.name.trim().toLowerCase(), a])
     );
     const discussionById = new Map<string, CanvasDiscussionPayload>(payload.discussions.map((d) => [d.id, d]));
-    const discussionByTitle = new Map<string, CanvasDiscussionPayload>(
-      payload.discussions.map((d) => [d.title.trim().toLowerCase(), d])
-    );
 
     for (const discussion of payload.discussions) {
       let matchedAssignment: CanvasAssignmentPayload | undefined = undefined;
@@ -1550,7 +1557,7 @@ class CanvasSyncSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Canvas API Integration" });
+    new Setting(containerEl).setName("Canvas API integration").setHeading();
 
     new Setting(containerEl)
       .setName("Canvas base URL")
@@ -1568,7 +1575,6 @@ class CanvasSyncSettingTab extends PluginSettingTab {
       .setName("Canvas API token")
       .setDesc("Personal access token generated from your Canvas Profile (Settings > Approved Integrations > + New Access Token).");
 
-    let isMasked = true;
     tokenSetting.addText((text) => {
       text.inputEl.type = "password";
       text
@@ -1607,7 +1613,6 @@ class CanvasSyncSettingTab extends PluginSettingTab {
       );
 
     const statusContainer = containerEl.createDiv("canvas-connection-status");
-    statusContainer.style.margin = "10px 0 20px 0";
 
     new Setting(containerEl)
       .setName("Test connection")
@@ -1623,20 +1628,21 @@ class CanvasSyncSettingTab extends PluginSettingTab {
               const client = this.plugin.getApiClient();
               const user = await client.testConnection();
               statusContainer.empty();
-              const successEl = statusContainer.createEl("div");
-              successEl.style.color = "var(--text-success)";
-              successEl.style.fontWeight = "bold";
-              successEl.setText(`✅ Successfully connected as: ${user.name || "Canvas User"} (User ID: ${user.id})`);
+              statusContainer.createDiv({
+                text: `✅ Successfully connected as: ${user.name || "Canvas User"} (User ID: ${user.id})`,
+                cls: "canvas-status-success"
+              });
             } catch (error) {
               statusContainer.empty();
-              const errorEl = statusContainer.createEl("div");
-              errorEl.style.color = "var(--text-error)";
-              errorEl.setText(`❌ Connection failed: ${error instanceof Error ? error.message : String(error)}`);
+              statusContainer.createDiv({
+                text: `❌ Connection failed: ${error instanceof Error ? error.message : String(error)}`,
+                cls: "canvas-status-error"
+              });
             }
           })
       );
 
-    containerEl.createEl("h2", { text: "Browser Extension Bridge (Optional)" });
+    new Setting(containerEl).setName("Browser extension bridge (optional)").setHeading();
 
     new Setting(containerEl)
       .setName("Enable browser bridge listener")
@@ -1671,7 +1677,7 @@ class CanvasSyncSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h2", { text: "Vault & Organization" });
+    new Setting(containerEl).setName("Vault & organization").setHeading();
 
     new Setting(containerEl)
       .setName("Root folder")
@@ -1699,7 +1705,7 @@ class CanvasSyncSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h2", { text: "Asset Downloads & Attachments" });
+    new Setting(containerEl).setName("Asset downloads & attachments").setHeading();
 
     new Setting(containerEl)
       .setName("Download static assets")
