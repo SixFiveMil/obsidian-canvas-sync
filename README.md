@@ -50,11 +50,11 @@ Both ingestion pathways feed into a unified rendering engine:
 
 | 1. Interactive Course Selector (REST API) | 2. Companion Browser Extension (Zero-Token) |
 | :---: | :---: |
-| ![Course Selector Modal](docs/assets/screenshot_course_selector.svg) | ![Extension Popup](docs/assets/screenshot_extension_popup.png) |
+| ![Course Selector Modal](docs/assets/screenshot_course_selector.png) | ![Extension Popup](docs/assets/screenshot_extension_popup.png) |
 
-| 3. Gradebook & Task Tracker | 4. Granular Plugin Settings |
+| 3. Canvas API & Bridge Settings | 4. Granular Asset & File Downloads |
 | :---: | :---: |
-| ![Grades and Tasks](docs/assets/screenshot_grades_tasks.svg) | ![Plugin Settings](docs/assets/screenshot_plugin_settings.png) |
+| ![Plugin Settings](docs/assets/screenshot_plugin_settings.png) | ![Asset Settings](docs/assets/screenshot_asset_settings.png) |
 
 ---
 
