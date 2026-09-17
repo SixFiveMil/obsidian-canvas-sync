@@ -107,7 +107,12 @@ async function publishFirefox(options = {}) {
 
   // For listed channel in CI, set approval-timeout to 0 so it submits and exits without hanging for human review
   const timeoutFlag = channel === "listed" ? "--approval-timeout=0" : "";
-  const signCommand = `npx web-ext sign --source-dir "${sourceDir}" --artifacts-dir "${artifactsDir}" --api-key="${apiKey}" --api-secret="${apiSecret}" --channel="${channel}" ${timeoutFlag}`.trim();
+  const amoMetadataPath = resolve(extensionRoot, "amo-metadata.json");
+  const metadataFlag = existsSync(amoMetadataPath) && channel === "listed"
+    ? `--amo-metadata="${amoMetadataPath}"`
+    : "";
+
+  const signCommand = `npx web-ext sign --source-dir "${sourceDir}" --artifacts-dir "${artifactsDir}" --api-key="${apiKey}" --api-secret="${apiSecret}" --channel="${channel}" ${timeoutFlag} ${metadataFlag}`.trim();
   
   execSync(signCommand, { stdio: "inherit", cwd: extensionRoot });
 
