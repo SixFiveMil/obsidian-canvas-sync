@@ -29,6 +29,9 @@ export function normalizeModuleItemType(typeValue: unknown): CanvasModuleItemPay
   if (type === "discussion" || type === "discussiontopic") {
     return "DiscussionTopic";
   }
+  if (type === "file" || type === "attachment") {
+    return "File";
+  }
   if (type === "externalurl") {
     return "ExternalUrl";
   }

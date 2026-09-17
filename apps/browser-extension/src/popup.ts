@@ -1,3 +1,6 @@
+import type { BrowserSyncOptions } from "./types";
+import { DEFAULT_BROWSER_OPTIONS } from "./types";
+
 declare const browser: {
   permissions?: {
     contains?: (permissions: { origins: string[] }) => Promise<boolean>;
@@ -9,28 +12,98 @@ const statusEl = document.querySelector<HTMLDivElement>("#status");
 const syncBtn = document.querySelector<HTMLButtonElement>("#syncBtn");
 const testBtn = document.querySelector<HTMLButtonElement>("#testBtn");
 const portInput = document.querySelector<HTMLInputElement>("#port");
-const apiTokenInput = document.querySelector<HTMLInputElement>("#apiToken");
-const courseCodeInput = document.querySelector<HTMLInputElement>("#courseCode");
-const courseNameInput = document.querySelector<HTMLInputElement>("#courseName");
+const courseCodeDisplay = document.querySelector<HTMLDivElement>("#courseCodeDisplay");
+const courseNameDisplay = document.querySelector<HTMLDivElement>("#courseNameDisplay");
 
-if (!statusEl || !syncBtn || !testBtn || !portInput || !apiTokenInput || !courseCodeInput || !courseNameInput) {
-  throw new Error("Popup UI failed to initialize.");
+const optModules = document.querySelector<HTMLInputElement>("#optModules");
+const optAssignments = document.querySelector<HTMLInputElement>("#optAssignments");
+const optGrades = document.querySelector<HTMLInputElement>("#optGrades");
+const optDiscussions = document.querySelector<HTMLInputElement>("#optDiscussions");
+const optDiscussionReplies = document.querySelector<HTMLInputElement>("#optDiscussionReplies");
+const optEvents = document.querySelector<HTMLInputElement>("#optEvents");
+const optFiles = document.querySelector<HTMLInputElement>("#optFiles");
+
+if (
+  !statusEl ||
+  !syncBtn ||
+  !testBtn ||
+  !portInput ||
+  !courseCodeDisplay ||
+  !courseNameDisplay ||
+  !optModules ||
+  !optAssignments ||
+  !optGrades ||
+  !optDiscussions ||
+  !optDiscussionReplies ||
+  !optEvents ||
+  !optFiles
+) {
+  throw new Error("Popup UI elements failed to initialize.");
 }
 
 const safeStatusEl = statusEl;
 const safeSyncBtn = syncBtn;
 const safeTestBtn = testBtn;
 const safePortInput = portInput;
-const safeApiTokenInput = apiTokenInput;
-const safeCourseCodeInput = courseCodeInput;
-const safeCourseNameInput = courseNameInput;
+const safeCourseCodeDisplay = courseCodeDisplay;
+const safeCourseNameDisplay = courseNameDisplay;
 
-async function requestStatus(url: string, method: "OPTIONS"): Promise<number> {
+const safeOptModules = optModules;
+const safeOptAssignments = optAssignments;
+const safeOptGrades = optGrades;
+const safeOptDiscussions = optDiscussions;
+const safeOptDiscussionReplies = optDiscussionReplies;
+const safeOptEvents = optEvents;
+const safeOptFiles = optFiles;
+
+let detectedCourseCode = "";
+let detectedCourseName = "";
+
+interface SyncResponse {
+  ok?: boolean;
+  message?: string;
+}
+
+interface DetectCourseResponse {
+  ok?: boolean;
+  courseCode?: string;
+  courseName?: string;
+  message?: string;
+}
+
+async function getStoredOptions(): Promise<BrowserSyncOptions> {
   try {
-    const response = await fetch(url, { method });
-    return response.status;
+    if (chrome.storage?.local) {
+      const stored = await chrome.storage.local.get<{ browserSyncOptions?: Partial<BrowserSyncOptions> }>([
+        "browserSyncOptions"
+      ]);
+      return Object.assign({}, DEFAULT_BROWSER_OPTIONS, stored.browserSyncOptions || {});
+    }
   } catch {
-    throw new Error("Network request failed.");
+    // Ignore storage errors and use defaults
+  }
+  return DEFAULT_BROWSER_OPTIONS;
+}
+
+async function saveStoredOptions(): Promise<void> {
+  const options: BrowserSyncOptions = {
+    extractModules: safeOptModules.checked,
+    extractPages: safeOptModules.checked,
+    extractAssignments: safeOptAssignments.checked,
+    extractGrades: safeOptGrades.checked,
+    extractDiscussions: safeOptDiscussions.checked,
+    includeDiscussionReplies: safeOptDiscussionReplies.checked,
+    extractEvents: safeOptEvents.checked,
+    extractFiles: safeOptFiles.checked,
+    bridgePort: Number.parseInt(safePortInput.value, 10) || 27125
+  };
+
+  try {
+    if (chrome.storage?.local) {
+      await chrome.storage.local.set({ browserSyncOptions: options });
+    }
+  } catch {
+    // Ignore
   }
 }
 
@@ -56,49 +129,89 @@ async function ensureBridgePermission(): Promise<boolean> {
   }
 }
 
-void initializeForm();
-
-interface SyncResponse {
-  ok?: boolean;
-  message?: string;
+function setStatus(message: string, className: "" | "ok" | "error"): void {
+  safeStatusEl.textContent = message;
+  safeStatusEl.className = className;
 }
 
-interface DetectCourseResponse {
-  ok?: boolean;
-  courseCode?: string;
-  courseName?: string;
-  message?: string;
-}
+async function initForm(): Promise<void> {
+  const options = await getStoredOptions();
 
-safeApiTokenInput.addEventListener("change", () => {
-  void (async () => {
-    const nextToken = safeApiTokenInput.value.trim();
-    if (chrome.storage?.local) {
-      await chrome.storage.local.set({ canvasApiToken: nextToken });
-      return;
+  safeOptModules.checked = options.extractModules;
+  safeOptAssignments.checked = options.extractAssignments;
+  safeOptGrades.checked = options.extractGrades;
+  safeOptDiscussions.checked = options.extractDiscussions;
+  safeOptDiscussionReplies.checked = options.includeDiscussionReplies;
+  safeOptEvents.checked = options.extractEvents;
+  safeOptFiles.checked = options.extractFiles;
+  safePortInput.value = String(options.bridgePort || 27125);
+
+  const checkboxes = [
+    safeOptModules,
+    safeOptAssignments,
+    safeOptGrades,
+    safeOptDiscussions,
+    safeOptDiscussionReplies,
+    safeOptEvents,
+    safeOptFiles
+  ];
+
+  for (const cb of checkboxes) {
+    cb.addEventListener("change", () => {
+      void saveStoredOptions();
+    });
+  }
+
+  safePortInput.addEventListener("change", () => {
+    void saveStoredOptions();
+  });
+
+  // Detect course from active tab
+  try {
+    let tabId: number | undefined;
+    if (chrome.tabs?.query) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      tabId = activeTab?.id;
     }
 
-    // Fallback for environments where storage API is unavailable.
-    window.localStorage.setItem("canvasApiToken", nextToken);
-  })();
-});
+    const response = await chrome.runtime.sendMessage<unknown, DetectCourseResponse | undefined>({
+      type: "detectCourseInfo",
+      tabId
+    });
+
+    if (response?.ok && response.courseName) {
+      detectedCourseCode = response.courseCode || "";
+      detectedCourseName = response.courseName;
+
+      safeCourseCodeDisplay.textContent = detectedCourseCode ? `[${detectedCourseCode}]` : "Course Detected";
+      safeCourseNameDisplay.textContent = detectedCourseName;
+      setStatus("Ready to sync.", "ok");
+    } else {
+      safeCourseCodeDisplay.textContent = "No Canvas course tab active";
+      safeCourseNameDisplay.textContent = "Navigate to a Canvas course page";
+      setStatus("Navigate to a Canvas course page in your browser.", "");
+    }
+  } catch {
+    safeCourseCodeDisplay.textContent = "Canvas Sync";
+    safeCourseNameDisplay.textContent = "Open a Canvas course tab";
+    setStatus("Navigate to a Canvas course page in your browser.", "");
+  }
+}
 
 safeSyncBtn.addEventListener("click", () => {
   void (async () => {
-    setStatus("Syncing Canvas course...", "");
+    setStatus("Extracting Canvas course...", "");
     safeSyncBtn.disabled = true;
 
     try {
       const granted = await ensureBridgePermission();
       if (!granted) {
-        setStatus("Firefox blocked localhost access. Please allow the extension to access http://127.0.0.1 and reload the extension, then try again.", "error");
+        setStatus("Localhost access was blocked by the browser. Please allow permission.", "error");
         return;
       }
 
-      const port = Number.parseInt(safePortInput.value, 10) || 27125;
-      const apiToken = safeApiTokenInput.value.trim();
-      const courseCode = safeCourseCodeInput.value.trim();
-      const courseName = safeCourseNameInput.value.trim();
+      await saveStoredOptions();
+      const options = await getStoredOptions();
 
       let tabId: number | undefined;
       if (chrome.tabs?.query) {
@@ -108,16 +221,17 @@ safeSyncBtn.addEventListener("click", () => {
 
       const response = await chrome.runtime.sendMessage<unknown, SyncResponse | undefined>({
         type: "syncCanvasCourse",
-        port,
-        apiToken: apiToken || undefined,
-        courseCode: courseCode || undefined,
-        courseName: courseName || undefined,
+        port: options.bridgePort,
+        courseCode: detectedCourseCode || undefined,
+        courseName: detectedCourseName || undefined,
+        options,
         tabId
       });
+
       if (!response?.ok) {
         throw new Error(response?.message || "Sync failed.");
       }
-      setStatus("Sync complete. Check Obsidian for updated files.", "ok");
+      setStatus("Sync complete! Notes generated in Obsidian.", "ok");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Sync failed.", "error");
     } finally {
@@ -134,66 +248,26 @@ safeTestBtn.addEventListener("click", () => {
     try {
       const granted = await ensureBridgePermission();
       if (!granted) {
-        setStatus("Firefox blocked localhost access. Please allow the extension to access http://127.0.0.1 and reload the extension, then try again.", "error");
+        setStatus("Localhost access was blocked. Please grant bridge permissions.", "error");
         return;
       }
 
       const port = Number.parseInt(safePortInput.value, 10) || 27125;
-      const status = await requestStatus(`http://127.0.0.1:${port}/canvas-sync`, "OPTIONS");
+      const res = await fetch(`http://127.0.0.1:${port}/health`, { method: "GET" }).catch(async () => {
+        return await fetch(`http://127.0.0.1:${port}/canvas-sync`, { method: "OPTIONS" });
+      });
 
-      if (status < 200 || (status >= 300 && status !== 204)) {
-        throw new Error(`Bridge returned status ${status}.`);
+      if (res.status >= 200 && res.status < 300) {
+        setStatus(`✅ Connected to Obsidian bridge on port ${port}.`, "ok");
+      } else {
+        throw new Error(`Bridge returned status ${res.status}`);
       }
-
-      setStatus("Bridge reachable on localhost.", "ok");
     } catch {
-      setStatus("Could not reach bridge. Ensure Obsidian plugin is enabled.", "error");
+      setStatus("❌ Could not connect. Ensure Obsidian plugin is enabled with 'Enable Browser Bridge' turned on.", "error");
     } finally {
       safeTestBtn.disabled = false;
     }
   })();
 });
 
-function setStatus(message: string, className: "" | "ok" | "error"): void {
-  safeStatusEl.textContent = message;
-  safeStatusEl.className = className;
-}
-
-async function initializeForm(): Promise<void> {
-  let token = "";
-  if (chrome.storage?.local) {
-    const stored = await chrome.storage.local.get<{ canvasApiToken?: unknown }>(["canvasApiToken"]);
-    token = typeof stored.canvasApiToken === "string" ? stored.canvasApiToken : "";
-  } else {
-    token = window.localStorage.getItem("canvasApiToken") ?? "";
-  }
-
-  safeApiTokenInput.value = token;
-
-  try {
-    let tabId: number | undefined;
-    if (chrome.tabs?.query) {
-      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      tabId = activeTab?.id;
-    }
-
-    const response = await chrome.runtime.sendMessage<unknown, DetectCourseResponse | undefined>({
-      type: "detectCourseInfo",
-      apiToken: token || undefined,
-      tabId
-    });
-    if (response?.ok) {
-      if (response.courseCode) {
-        safeCourseCodeInput.value = response.courseCode;
-      }
-      if (response.courseName) {
-        safeCourseNameInput.value = response.courseName;
-      }
-      setStatus(`Detected: ${response.courseCode ? `[${response.courseCode}] ` : ""}${response.courseName ?? ""}`, "ok");
-    } else {
-      setStatus("Open a Canvas course tab to auto-detect course info.", "");
-    }
-  } catch {
-    setStatus("Open a Canvas course tab to auto-detect course info.", "");
-  }
-}
+void initForm();

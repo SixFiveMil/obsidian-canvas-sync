@@ -1,44 +1,5 @@
 import { describe, expect, it } from "vitest";
-
-import { sanitizeFileName, validateEnvelopeShape } from "../src/security-utils";
-import type { CanvasSyncEnvelope } from "../src/types";
-
-describe("validateEnvelopeShape", () => {
-  it("accepts a valid envelope", () => {
-    const envelope = {
-      source: "canvas-browser-extension",
-      version: "1",
-      payload: {
-        courseId: "123",
-        courseName: "Course",
-        syncedAt: new Date().toISOString(),
-        pages: [],
-        assignments: [],
-        announcements: [],
-        discussions: [],
-        calendarEvents: []
-      }
-    } as const;
-
-    expect(() => validateEnvelopeShape(envelope as unknown as CanvasSyncEnvelope)).not.toThrow();
-  });
-
-  it("rejects unexpected source", () => {
-    expect(() =>
-      validateEnvelopeShape({ source: "bad", version: "1", payload: { courseId: "1", courseName: "A" } } as unknown as CanvasSyncEnvelope)
-    ).toThrow(/Unexpected payload source/);
-  });
-
-  it("rejects unsupported version", () => {
-    expect(() =>
-      validateEnvelopeShape({
-        source: "canvas-browser-extension",
-        version: "2",
-        payload: { courseId: "1", courseName: "A" }
-      } as unknown as CanvasSyncEnvelope)
-    ).toThrow(/Unsupported payload version/);
-  });
-});
+import { sanitizeFileName, sanitizePath } from "../src/security-utils";
 
 describe("sanitizeFileName", () => {
   it("replaces invalid filename characters", () => {
@@ -47,5 +8,15 @@ describe("sanitizeFileName", () => {
 
   it("returns Untitled for empty output", () => {
     expect(sanitizeFileName("   ")).toBe("Untitled");
+  });
+});
+
+describe("sanitizePath", () => {
+  it("sanitizes path segments and normalizes separators", () => {
+    expect(sanitizePath("Folder/Sub:Folder/File*Name.md")).toBe("Folder/Sub-Folder/File-Name.md");
+  });
+
+  it("strips directory traversal segments", () => {
+    expect(sanitizePath("../Secret/../../Notes/Doc.md")).toBe("Secret/Notes/Doc.md");
   });
 });

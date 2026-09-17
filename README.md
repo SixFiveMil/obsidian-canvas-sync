@@ -1,133 +1,128 @@
-# Canvas Sync Bridge
+# Canvas Sync for Obsidian (Hybrid Ecosystem)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.5-green.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-0.3.0-green.svg)](package.json)
 [![CI](https://github.com/SixFiveMil/obsidian-canvas-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/SixFiveMil/obsidian-canvas-sync/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Obsidian](https://img.shields.io/badge/Obsidian-Plugin-7C3AED?logo=obsidian&logoColor=white)](https://community.obsidian.md/plugins/canvas-sync-bridge)
-[![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/canvas-to-obsidian-sync/oiakmbihplldnhabhnihnekjddenbiom?authuser=0&hl=en)
-[![Firefox](https://img.shields.io/badge/Firefox-Add--on-FF7139?logo=firefoxbrowser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/canvas-to-obsidian-sync/)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/canvas-to-obsidian-sync/oiakmbihplldnhabhnihnekjddenbiom)
+[![Firefox Add-on](https://img.shields.io/badge/Firefox-Add--on-FF7139?logo=firefox&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/canvas-to-obsidian-sync/)
 [![Privacy: Zero Telemetry](https://img.shields.io/badge/Privacy-Zero%20Telemetry-success.svg)](PRIVACY.md)
 
-> Seamlessly bridge Canvas LMS courses, modules, assignments, and syllabi directly into your Obsidian knowledge vault as clean, structured, and cross-linked Markdown notes.
+> Seamlessly sync Canvas LMS courses, modules, assignments, discussions, grades, files, and calendars directly into your Obsidian knowledge vault as clean, structured, and cross-linked Markdown notes.
 
 ---
 
-## Key Features
+## ✨ Key Features & Hybrid Ingestion
 
-- 🔒 **100% Local-First & Zero Telemetry**: All course extraction occurs client-side in your browser and streams directly to Obsidian over an internal loopback bridge (`127.0.0.1`). No cloud servers, analytics, or third-party tracking.
-- ⚡ **Zero Token Friction (Session-Based)**: Extracts rich coursework directly using your existing logged-in browser session. No administrative API tokens or developer keys required.
-- 📑 **Clean Markdown & Table Conversion**: Converts messy Canvas HTML, course pacing guides, assignment briefs, and rubric tables into clean GitHub Flavored Markdown (GFM) tables and formatted callouts.
-- 🗂️ **Structured Course Vault Layout**: Automatically organizes modules, lectures, assignment checklists, syllabi, and calendar events into an intuitive, customizable folder hierarchy.
-- 🌐 **Multi-Browser Support**: Native support for Google Chrome, Brave, Microsoft Edge, Arc, Opera, and Mozilla Firefox.
+Canvas Sync provides two flexible sync workflows depending on your institutional setup:
+
+### 1. 🎓 Direct Canvas REST API (Primary / Mobile Compatible)
+* Direct connection from Obsidian using your Canvas API token.
+* Interactive course selector modal with multi-course batch syncing.
+* Supports active and completed/concluded courses.
+* Fully compatible with **Obsidian Desktop and Obsidian Mobile**.
+
+### 2. 🌐 Companion Browser Extension (Zero-Token Bridge)
+* Operates in **Google Chrome, Brave, Edge, Arc, Opera, and Mozilla Firefox**.
+* Uses your logged-in browser session cookies — **no API token required** (ideal for institutions locking down student API tokens).
+* Granular extraction toggles in the extension popup.
+* Bridges securely to Obsidian over localhost (`127.0.0.1`).
+
+---
+
+## 📊 Comprehensive Course Synchronization
+
+Both ingestion pathways feed into a unified rendering engine:
+* **Course & Home**: Course overview, home page banners/navigation, and full syllabus formatting.
+* **Modules**: Hierarchical module folders, lecture wiki pages, readings, and embedded assets.
+* **Assignments & Rubrics**: Due dates, points possible, submission instructions, and structured rubric criteria tables.
+* **Student Submissions & Grades**: Live gradebook standing (`Grades.md`), score breakdowns, submitted files, and instructor feedback comments.
+* **Discussions**: Full discussion topics, announcements, and complete multi-tier student reply trees (`Discussions.md`).
+* **Calendar & Milestones**: Schedule events, assignment due date milestones, and Zoom meeting links (`Calendar.md`).
+* **Internal Obsidian Wikilinks**: Automatically cross-links notes into native Obsidian `[[wikilinks]]` with pipe escaping (`[[path|alias]]`).
+* **Local File & Asset Downloader**: Downloads embedded images, assignment attachments, and course documents (`.pdf`, `.docx`, `.pptx`, `.xlsx`, `.zip`) with configurable size and extension filters.
+* **100% Local-First & Private**: Zero cloud relays, zero analytics, zero tracking.
 
 ---
 
 ## 📸 Screenshots
 
-| 1. One-Click Browser Sync | 2. Synced Course Vault in Obsidian |
+| 1. Interactive Course Selector (REST API) | 2. Companion Browser Extension (Zero-Token) |
 | :---: | :---: |
-| ![Sync Popup](docs/store-assets/screenshot1_sync_popup.jpg) | ![Obsidian Notes](docs/store-assets/screenshot2_obsidian_notes.jpg) |
+| ![Course Selector Modal](docs/assets/screenshot_course_selector.png) | ![Extension Popup](docs/assets/screenshot_extension_popup.png) |
+
+| 3. Canvas API & Bridge Settings | 4. Granular Asset & File Downloads |
+| :---: | :---: |
+| ![Plugin Settings](docs/assets/screenshot_plugin_settings.png) | ![Asset Settings](docs/assets/screenshot_asset_settings.png) |
 
 ---
 
 ## 🚀 Quick Start & Installation
 
-You need two components: the **Obsidian Desktop Plugin** and the **Companion Browser Extension**.
-
 ### Step 1: Install the Obsidian Plugin
+
+#### Method A: Community Plugins (Recommended)
 1. In Obsidian, open **Settings** > **Community Plugins**.
-2. Search for [Canvas Sync Bridge](https://community.obsidian.md/plugins/canvas-sync-bridge), click **Install**, and then **Enable**.
-   *(Alternatively, install via BRAT or extract `main.js` and `manifest.json` from the [Latest GitHub Release](https://github.com/SixFiveMil/obsidian-canvas-sync/releases/latest) into `<Vault>/.obsidian/plugins/canvas-sync-bridge/`).*
+2. Turn off **Restricted mode** if prompted.
+3. Search for **Canvas Sync Bridge**, click **Install**, and then **Enable**.
+
+#### Method B: Obsidian BRAT (Beta Releases)
+1. Install the [BRAT Plugin](https://github.com/TfTHacker/obsidian42-brat) in Obsidian.
+2. In BRAT settings, click **Add Beta plugin** and enter: `https://github.com/SixFiveMil/obsidian-canvas-sync`.
+
+#### Method C: Manual Installation
+1. Download `main.js` and `manifest.json` from the [Latest GitHub Release](https://github.com/SixFiveMil/obsidian-canvas-sync/releases/latest).
+2. Extract into `<Vault>/.obsidian/plugins/canvas-sync-bridge/` and restart Obsidian.
 
 ---
 
-### Step 2: Install the Browser Extension
+### Step 2: Choose Your Sync Method
 
-Install the extension directly from your browser's web store:
+#### Option A: Direct REST API (Recommended)
+1. In Canvas, go to **Account** > **Settings** > **Approved Integrations** > **+ New Access Token**.
+2. Copy the generated token string.
+3. In Obsidian settings (**Canvas Sync**), enter your Canvas Base URL and API Token.
+4. Press `Ctrl/Cmd + P` and run `Canvas Sync: Select & sync courses` (or click the `🎓` ribbon icon) to sync.
 
-| Browser | Store / Download Link |
-| :--- | :--- |
-| **Google Chrome / Brave / Edge / Arc / Opera** | 🛒 **[Get from Chrome Web Store](https://chromewebstore.google.com/detail/canvas-to-obsidian-sync/oiakmbihplldnhabhnihnekjddenbiom?authuser=0&hl=en)** |
-| **Mozilla Firefox** | 🦊 **[Get from Firefox Add-ons (AMO)](https://addons.mozilla.org/en-US/firefox/addon/canvas-to-obsidian-sync/)** *(pending review)* |
-| **Direct ZIP (No build required)** | 📦 **[Download Pre-built ZIP from GitHub Releases](https://github.com/SixFiveMil/obsidian-canvas-sync/releases/latest)** |
-
-#### Installing Pre-built ZIP (Manual / Offline — No npm/Node needed):
-1. Download `canvas-to-obsidian-sync-chrome-<version>.zip` (or `canvas-to-obsidian-sync-firefox-<version>.zip`) from [GitHub Releases](https://github.com/SixFiveMil/obsidian-canvas-sync/releases/latest).
-2. Unzip the file into a folder on your computer.
-3. **Chromium (Chrome / Edge / Brave / Arc)**: Go to `chrome://extensions`, enable **Developer mode** (top-right toggle), click **Load unpacked**, and select the unzipped folder.
-4. **Firefox**: Go to `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on...**, and select `manifest.json` in the unzipped folder.
-
----
-
-### Step 3: Sync Your Canvas Course
-1. Open your institution's Canvas LMS in your browser and navigate to any course home page (e.g. `https://canvas.instructure.com/courses/12345`).
-2. Click the **Canvas to Obsidian Sync** extension icon in your browser toolbar.
-3. Verify the **Bridge Port** matches your Obsidian plugin configuration (`27125` by default).
-4. Click **Test Bridge** to confirm connectivity to your active Obsidian instance.
-5. Click **Sync Active Course**. The extension will parse course materials and transmit them to your vault in seconds.
+#### Option B: Browser Extension Bridge (Zero-Token Session Sync)
+1. In Obsidian settings (**Canvas Sync**), toggle on **Enable browser bridge listener**.
+2. Install the extension:
+   * **Chrome / Brave / Edge / Arc**: [Chrome Web Store](https://chromewebstore.google.com/detail/canvas-to-obsidian-sync/oiakmbihplldnhabhnihnekjddenbiom)
+   * **Firefox**: [Firefox Add-ons (AMO)](https://addons.mozilla.org/en-US/firefox/addon/canvas-to-obsidian-sync/)
+3. Navigate to any Canvas course tab in your browser, click the extension icon, test the bridge connection, select your extraction options, and click **Sync Active Course**.
 
 ---
 
 ## 🗂️ Generated Vault Structure
 
-Synced courses are written directly to your vault using the configured template (default: `{{courseCode}} - {{courseName}}`):
+Courses are written to your vault using the configured template (default: `{{courseCode}} - {{courseName}}`):
 
-```
+```text
 Canvas/
-└── CS101 - Intro to Computer Science/
-    ├── Course.md         # Master index note with metadata and quick links
-    ├── Home.md           # Course home page content
-    ├── Syllabus.md       # Complete syllabus text and course policies
-    ├── Tasks.md          # All assignments, due dates, point values, and rubrics
-    ├── Discussions.md    # Discussion board topics and prompts
-    ├── Calendar.md       # Course events, exam dates, and milestones
-    └── Modules/
-        ├── 01 - Week 1 - Foundations/
-        │   ├── 01 - Page - Welcome & Setup.md
-        │   └── 02 - Assignment - Lab 1 Setup.md
-        └── 02 - Week 2 - Data Structures/
-            ├── 01 - Page - Arrays & Linked Lists.md
-            └── 02 - Assignment - Homework 1.md
+└── CS-101 - Introduction to Computer Science/
+    ├── Course.md         # Master course index, metadata, and quick navigation
+    ├── Home.md           # Course home page with banner and graphic links
+    ├── Syllabus.md       # Complete course syllabus and policies
+    ├── Tasks.md          # Assignment checklists, due dates, points, and submissions
+    ├── Grades.md         # Gradebook table with scores, percentages, and status
+    ├── Discussions.md    # Discussion board topics with full student reply trees
+    ├── Calendar.md       # Course events, milestones, and Zoom meeting links
+    ├── Modules/
+    │   ├── 01 - Week 1 - Foundations & Architecture/
+    │   │   ├── 01 - Page - Lecture Overview.md
+    │   │   ├── 02 - Assignment - Lab 1 Analysis.md
+    │   │   └── 03 - Discussion - Class Introductions.md
+    │   └── 02 - Week 2 - Algorithms & Data Structures/
+    │       ├── 01 - Page - Algorithm Complexity.md
+    │       └── 02 - Assignment - Problem Set 2.md
+    ├── Files/            # Downloaded PDFs, DOCX, slides, spreadsheets, and archives
+    └── Attachments/      # Embedded images, course banners, and diagrams
 ```
-
----
-
-## ⚙️ Configuration
-
-### Obsidian Plugin Settings
-
-| Setting | Default Value | Description |
-| :--- | :--- | :--- |
-| **Listen Port** | `27125` | Local TCP port for the loopback HTTP bridge listener (`127.0.0.1`). |
-| **Root Folder** | `Canvas` | Destination folder path within the Obsidian vault for synced course notes. |
-| **Course Folder Template** | `{{courseCode}} - {{courseName}}` | Formatting template for course directories. Supports `{{courseCode}}`, `{{courseName}}`, and `{{courseId}}`. |
-| **Store Raw Payload** | `false` | When enabled, writes the raw unparsed JSON payload to `_raw_payload.json` for debugging. |
-
-### Browser Extension Options
-
-| Option | Default | Description |
-| :--- | :--- | :--- |
-| **Bridge Port** | `27125` | Local port of the target Obsidian desktop plugin instance. |
-| **Optional Canvas API Token** | *None* | Optional personal Canvas API token for institutions restricting web-based scraping endpoints. Stored strictly in local browser storage. |
-
----
-
-## ❓ Troubleshooting & FAQs
-
-- **"Test Bridge" fails to connect:**
-  - Ensure Obsidian is running with the **Canvas Sync Bridge** plugin enabled.
-  - Verify that the port in the extension settings matches the port in Obsidian settings (default: `27125`).
-- **Do I need a Canvas API token?**
-  - No! The extension automatically uses your logged-in browser session cookies. An API token is only an optional fallback if your institution blocks standard browser endpoints.
-- **Is my Canvas data sent to any third-party server?**
-  - No. All data flows strictly over your computer's internal loopback interface (`127.0.0.1`) directly from your browser to Obsidian.
 
 ---
 
 ## 🛠️ Building from Source & Contributing
-
-If you are a developer or contributor wanting to build the project locally from source:
 
 ```bash
 # Clone repository
@@ -137,38 +132,31 @@ cd obsidian-canvas-sync
 # Install dependencies (Node.js 20+ required)
 npm install
 
-# Build all targets (Obsidian Plugin + Chrome + Firefox)
-npm run build
-
 # Run unit tests across all workspaces
 npm test
 
 # Type-check TypeScript files
-npx tsc -p apps/browser-extension/tsconfig.json --noEmit
-npx tsc -p apps/obsidian-plugin/tsconfig.json --noEmit
+npm run typecheck
 
-# Validate extension manifests and dist artifacts
+# Build all targets (Obsidian plugin + Chrome + Firefox extension)
+npm run build
+
+# Validate extension dist and manifests
 npm run validate:extension
-
-# Lint Firefox extension with web-ext
-npm run lint:extension
-
-# Package extension release archives
-npm run package:extension
 ```
 
 ---
 
 ## 🔒 Security & Privacy
 
-- **Local-Only Bridge**: The internal HTTP listener binds strictly to `127.0.0.1`. It will never accept connections from outside your local computer.
-- **Origin Guard**: Inbound sync requests verify browser extension origins (`chrome-extension://` / `moz-extension://`) and require custom application headers (`X-Canvas-Sync-Client`).
-- **Path Traversal Protection**: All folder and file paths are sanitized against illegal filesystem characters and directory traversal patterns.
-- Read the complete [Security Policy](SECURITY.md) and [Privacy Policy](PRIVACY.md).
+- **Closed by Default**: The local loopback listener (`127.0.0.1:27125`) only runs when explicitly toggled on in Obsidian settings.
+- **Origin & Header Guards**: Inbound requests verify trusted extension origins (`chrome-extension://`, `moz-extension://`) and custom application headers.
+- **Local Storage**: API tokens are stored strictly within `.obsidian/plugins/canvas-sync-bridge/data.json` inside your local vault.
+- Read our full [Security Policy](SECURITY.md) and [Privacy Policy](PRIVACY.md).
 
 ---
 
-## Author & License
+## 📄 License & Author
 
 Developed and maintained by **Joshua A. Wortz** ([SixFiveMil](https://github.com/SixFiveMil)).
 

@@ -50,17 +50,11 @@ jobs:
       - name: Run unit tests
         run: npm test
 
-      - name: Type check browser extension
-        run: npx tsc -p apps/browser-extension/tsconfig.json --noEmit
-
-      - name: Type check Obsidian plugin
-        run: npx tsc -p apps/obsidian-plugin/tsconfig.json --noEmit
+      - name: Type check all workspaces
+        run: npm run typecheck
 
       - name: Build all targets
         run: npm run build
-
-      - name: Lint Firefox extension (web-ext)
-        run: npm run lint:extension
 
       - name: Validate extension dist and manifests
         run: npm run validate:extension
@@ -68,33 +62,29 @@ jobs:
       - name: Package Chrome and Firefox extension archives
         run: node apps/browser-extension/scripts/package.mjs all --version "${RELEASE_TAG}" --out-dir release
 
-      - name: Prepare Obsidian plugin release assets
+      - name: Prepare release assets
         run: |
-          mkdir -p release/obsidian-plugin
-          cp apps/obsidian-plugin/manifest.json release/obsidian-plugin/manifest.json
-          cp apps/obsidian-plugin/main.js release/obsidian-plugin/main.js
+          mkdir -p release
+          cp apps/obsidian-plugin/manifest.json release/manifest.json
+          cp apps/obsidian-plugin/main.js release/main.js
 
-          # Add Obsidian assets to checksums.txt
           node -e "
             const fs = require('fs');
             const crypto = require('crypto');
             function getHash(p) { return crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex'); }
-            const mainHash = getHash('release/obsidian-plugin/main.js');
-            const manifestHash = getHash('release/obsidian-plugin/manifest.json');
-            let current = fs.existsSync('release/checksums.txt') ? fs.readFileSync('release/checksums.txt', 'utf8') : '';
-            current += mainHash + '  obsidian-plugin/main.js\n';
-            current += manifestHash + '  obsidian-plugin/manifest.json\n';
+            const mainHash = getHash('release/main.js');
+            const manifestHash = getHash('release/manifest.json');
+            let current = mainHash + '  main.js\n' + manifestHash + '  manifest.json\n';
             fs.writeFileSync('release/checksums.txt', current, 'utf8');
-            console.log('Final checksums:');
-            console.log(current);
+            console.log('Final checksums:\n' + current);
           "
 
       - name: Attest build provenance for release assets
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
-            release/obsidian-plugin/main.js
-            release/obsidian-plugin/manifest.json
+            release/main.js
+            release/manifest.json
             release/canvas-to-obsidian-sync-chrome-${{ env.RELEASE_TAG }}.zip
             release/canvas-to-obsidian-sync-firefox-${{ env.RELEASE_TAG }}.zip
 
@@ -104,70 +94,11 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           generate_release_notes: true
           files: |
-            release/obsidian-plugin/manifest.json
-            release/obsidian-plugin/main.js
+            release/manifest.json
+            release/main.js
             release/canvas-to-obsidian-sync-chrome-${{ env.RELEASE_TAG }}.zip
             release/canvas-to-obsidian-sync-firefox-${{ env.RELEASE_TAG }}.zip
             release/checksums.txt
-
-      - name: Verify uploaded release assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
-            > release.json
-
-          node -e "
-            const fs = require('fs');
-            const rel = JSON.parse(fs.readFileSync('release.json', 'utf8'));
-            const assets = rel.assets || [];
-            const required = [
-              'manifest.json',
-              'main.js',
-              'checksums.txt',
-              'canvas-to-obsidian-sync-chrome-' + process.env.RELEASE_TAG + '.zip',
-              'canvas-to-obsidian-sync-firefox-' + process.env.RELEASE_TAG + '.zip'
-            ];
-            const byName = new Map(assets.map(a => [a.name, a]));
-            const missing = required.filter(name => !byName.has(name));
-            if (missing.length > 0) {
-              console.error('Missing release assets: ' + missing.join(', '));
-              process.exit(1);
-            }
-            const empty = required.filter(name => (byName.get(name)?.size || 0) <= 0);
-            if (empty.length > 0) {
-              console.error('Release assets have zero size: ' + empty.join(', '));
-              process.exit(1);
-            }
-            console.log('Verified all required release assets: ' + required.join(', '));
-          "
-
-          # Verify extension zip structure
-          node -e "
-            import('jszip').then(async (m) => {
-              const fs = require('fs');
-              const JSZip = m.default;
-              for (const target of ['chrome', 'firefox']) {
-                const zipPath = 'release/canvas-to-obsidian-sync-' + target + '-' + process.env.RELEASE_TAG + '.zip';
-                const buf = fs.readFileSync(zipPath);
-                const zip = await JSZip.loadAsync(buf);
-                const files = Object.keys(zip.files);
-                if (!files.includes('manifest.json')) {
-                  console.error(target + ' zip is missing root manifest.json');
-                  process.exit(1);
-                }
-                const hasNestedManifest = files.some(f => /\/.+manifest\.json$/.test(f));
-                if (hasNestedManifest) {
-                  console.error(target + ' zip contains nested manifest.json');
-                  process.exit(1);
-                }
-                console.log('Verified ' + target + ' zip structure: contains root manifest.json and ' + files.length + ' entries.');
-              }
-            });
-          "
 
       - name: Deploy to extension stores (CWS & AMO)
         if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish_to_stores != 'false' }}

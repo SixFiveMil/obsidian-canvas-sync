@@ -31,6 +31,8 @@ Course-Export/
 
 # Logs & Diagnostics
 *.log
+debug/
+debug-reports/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

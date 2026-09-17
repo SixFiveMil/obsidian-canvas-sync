@@ -1,9 +1,9 @@
 {
   "name": "obsidian-canvas-sync",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "private": true,
   "license": "MIT",
-  "description": "Bridge Canvas LMS content into Obsidian as Markdown",
+  "description": "Hybrid Canvas LMS integration for Obsidian: direct REST API syncing and zero-token browser session scraper",
   "author": "Joshua A. Wortz <security@codeandcypher.com> (https://github.com/SixFiveMil)",
   "repository": {
     "type": "git",
@@ -17,11 +17,13 @@
     "obsidian",
     "obsidian-plugin",
     "canvas-lms",
+    "canvas-api",
     "browser-extension",
     "chrome-extension",
     "firefox-addon",
     "markdown",
-    "local-first"
+    "local-first",
+    "education"
   ],
   "workspaces": [
     "apps/obsidian-plugin",
@@ -42,14 +44,12 @@
     "publish:extension:stores": "npm run publish:stores -w apps/browser-extension",
     "publish:extension:cws": "npm run publish:cws -w apps/browser-extension",
     "publish:extension:amo": "npm run publish:amo -w apps/browser-extension",
-    "package:firefox": "npm run package:firefox -w apps/browser-extension",
-    "test:firefox": "npm run test:firefox -w apps/browser-extension",
-    "publish:plugin-repo": "powershell -ExecutionPolicy Bypass -File scripts/publish-plugin-repo.ps1",
-    "publish:plugin-repo:tag": "powershell -ExecutionPolicy Bypass -File scripts/publish-plugin-repo.ps1 -Tag $env:npm_package_version",
+    "typecheck": "tsc -p apps/obsidian-plugin/tsconfig.json --noEmit && tsc -p apps/browser-extension/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "typescript": "^5.8.2",
     "vitest": "^3.2.4"
   }
 }
