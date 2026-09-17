@@ -4,6 +4,25 @@
   "private": true,
   "license": "MIT",
   "description": "Bridge Canvas LMS content into Obsidian as Markdown",
+  "author": "Joshua A. Wortz <security@codeandcypher.com> (https://github.com/SixFiveMil)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SixFiveMil/obsidian-canvas-sync.git"
+  },
+  "homepage": "https://codeandcypher.com/projects",
+  "bugs": {
+    "url": "https://github.com/SixFiveMil/obsidian-canvas-sync/issues"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "canvas-lms",
+    "browser-extension",
+    "chrome-extension",
+    "firefox-addon",
+    "markdown",
+    "local-first"
+  ],
   "workspaces": [
     "apps/obsidian-plugin",
     "apps/browser-extension"

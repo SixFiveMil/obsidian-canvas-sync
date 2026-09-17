@@ -1,11 +1,56 @@
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Build Outputs & Releases
 dist/
-*.tsbuildinfo
-.DS_Store
-Thumbs.db
+build/
+out/
+release/
+*.zip
+*.tar.gz
+*.tgz
 apps/obsidian-plugin/main.js
 apps/obsidian-plugin/styles.css
 apps/obsidian-plugin/data.json
 /main.js
 Course-Export/
-release/
+
+# TypeScript & Compiler Cache
+*.tsbuildinfo
+.eslintcache
+
+# Environment & Secrets
+.env
+.env.*
+*.env
+*.local
+*.pem
+*.key
+
+# Logs & Diagnostics
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# IDEs & System Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Python / Misc
+venv/
+.venv/
+__pycache__/
+

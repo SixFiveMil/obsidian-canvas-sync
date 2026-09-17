@@ -3,6 +3,13 @@
   "version": "0.2.3",
   "private": true,
   "license": "MIT",
+  "description": "Browser extension that extracts Canvas LMS course content from an active session and forwards to Obsidian.",
+  "author": "Joshua A. Wortz (SixFiveMil)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SixFiveMil/obsidian-canvas-sync.git",
+    "directory": "apps/browser-extension"
+  },
   "scripts": {
     "build": "node build.mjs all",
     "build:all": "node build.mjs all",
