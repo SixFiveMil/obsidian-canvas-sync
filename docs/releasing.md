@@ -42,7 +42,7 @@ The CI workflow (`.github/workflows/ci.yml`) runs on every push and pull request
 
 ## 3. Automated Release Pipeline
 
-The Release workflow (`.github/workflows/release.yml`) runs automatically on tag push (e.g. `v0.2.1` or `0.2.1`) or via manual dispatch:
+The Release workflow (`.github/workflows/release.yml`) runs automatically on tag push (e.g. `0.2.3`) or via manual dispatch:
 
 1. Verifies the tag matches `apps/obsidian-plugin/manifest.json`.
 2. Runs all unit tests, typechecks, builds, and linting.
@@ -65,7 +65,21 @@ Use the **Deploy Browser Extensions** workflow (`.github/workflows/deploy-extens
 
 ---
 
-## 5. Setting up Store Publishing Credentials
+## 5. Store Submission & Listing Guides
+
+Detailed guides with complete listing copy, descriptions, permission justifications, reviewer notes, and store assets:
+
+- **[Mozilla Add-ons (Firefox) Submission Guide](FIREFOX_ADDON_SUBMISSION.md)**: Full metadata, permitted tags (`scholar`, `privacy`, `download`), `amo-metadata.json` licensing, and reviewer testing steps.
+- **[Chrome Web Store Submission Guide](CHROME_WEB_STORE_SUBMISSION.md)**: Full metadata, single-purpose statement, privacy certifications, and reviewer instructions.
+- **[Store Assets Directory](store-assets/)**: Contains 128x128 icons, promotional banners, and high-resolution screenshots for both store listings:
+  - `screenshot1_sync_popup.jpg`: Extension popup open over Canvas course dashboard
+  - `screenshot2_obsidian_notes.jpg`: Synced course notes, checklist & syllabus in Obsidian
+  - `screenshot3_privacy_architecture.jpg`: Localhost loopback architecture infographic
+  - `promo_marquee_1400x560.jpg`: 1400x560 promo banner
+
+---
+
+## 6. Setting up Store Publishing Credentials
 
 To enable automated store publishing, configure the following secrets in GitHub (**Settings -> Secrets and variables -> Actions**):
 
@@ -78,13 +92,6 @@ To enable automated store publishing, configure the following secrets in GitHub 
 | `CHROME_CLIENT_SECRET` | OAuth 2.0 Client Secret from Google Cloud Console. |
 | `CHROME_REFRESH_TOKEN` | OAuth 2.0 Refresh Token authorized for Chrome Web Store API (`https://www.googleapis.com/auth/chromewebstore`). |
 
-#### Obtaining Chrome Web Store API Credentials:
-1. Register a developer account in [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole).
-2. Upload the extension once manually to generate the `CHROME_EXTENSION_ID`.
-3. In [Google Cloud Console](https://console.cloud.google.com/), create a project and enable the **Chrome Web Store API**.
-4. Create an **OAuth 2.0 Client ID** (Desktop Application) to get `CHROME_CLIENT_ID` and `CHROME_CLIENT_SECRET`.
-5. Obtain a `CHROME_REFRESH_TOKEN` with authorization scope `https://www.googleapis.com/auth/chromewebstore`.
-
 ### Mozilla Add-ons (AMO)
 
 | GitHub Secret | Description |
@@ -92,14 +99,9 @@ To enable automated store publishing, configure the following secrets in GitHub 
 | `WEB_EXT_API_KEY` | JWT issuer key from [AMO Manage API Keys](https://addons.mozilla.org/developers/addon/api/key/). |
 | `WEB_EXT_API_SECRET` | JWT secret from [AMO Manage API Keys](https://addons.mozilla.org/developers/addon/api/key/). |
 
-#### Obtaining Mozilla AMO API Credentials:
-1. Sign in to [addons.mozilla.org](https://addons.mozilla.org/).
-2. Go to **Tools -> Manage API Keys**.
-3. Generate new credentials to get the `JWT Issuer` (`WEB_EXT_API_KEY`) and `JWT Secret` (`WEB_EXT_API_SECRET`).
-
 ---
 
-## 6. Obsidian Community Plugin Directory
+## 7. Obsidian Community Plugin Directory
 
 Obsidian plugin submissions are handled through the developer portal at **[community.obsidian.md](https://community.obsidian.md)**:
 
