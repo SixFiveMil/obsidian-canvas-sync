@@ -56,7 +56,7 @@ async function publishChrome(zipPath, options = {}) {
   });
 
   const uploadData = await uploadRes.json();
-  if (!uploadRes.ok) {
+  if (!uploadRes.ok || uploadData.uploadState === "FAILURE") {
     throw new Error(`[CWS] Package upload failed: ${JSON.stringify(uploadData)}`);
   }
 
