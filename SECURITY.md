@@ -10,9 +10,11 @@ Security and privacy are core architectural requirements of **Canvas Sync**. Bec
 
 Only the latest release of the Obsidian plugin is actively maintained for security patches.
 
-| Component | Supported Version |
-| :--- | :--- |
-| **Obsidian Plugin** (`apps/obsidian-plugin`) | `>= 0.2.5` |
+| Component | Supported Version | Status |
+| :--- | :--- | :--- |
+| **Obsidian Plugin** (`apps/obsidian-plugin`) | `>= 0.3.0` | :white_check_mark: |
+| **Browser Extension** (`apps/browser-extension`) | `>= 0.3.0` | :white_check_mark: |
+| Versions `< 0.3.0` | `< 0.3.0` | :x: |
 
 ---
 
