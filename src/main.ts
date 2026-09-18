@@ -13,7 +13,7 @@ import {
 } from "./link-utils";
 import { createCourseManifest, mergePreservedContent } from "./note-utils";
 import { isAllowedOrigin, sanitizeFileName, validateEnvelopeShape } from "./security-utils";
-import { formatCourseFolderName } from "./template-utils";
+import { formatCourseFolderName, formatSyncTimestamp } from "./template-utils";
 import type {
   AssetSyncDiagnostics,
   CanvasAssignmentPayload,
@@ -674,13 +674,13 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     // Step 3: Write Markdown Notes to Vault
     if (payload.courseHomePageHtml) {
       const homePath = normalizePath(`${courseFolder}/Home.md`);
-      await this.upsertFile(homePath, this.renderHtmlDoc("Course Home", payload.courseHomePageHtml) + "\n");
+      await this.upsertFile(homePath, this.renderHtmlDoc("Course Home", payload.courseHomePageHtml, payload.fetchedAt) + "\n");
       syncedFiles.push(homePath);
     }
 
     if (payload.syllabusHtml) {
       const syllabusPath = normalizePath(`${courseFolder}/Syllabus.md`);
-      await this.upsertFile(syllabusPath, this.renderHtmlDoc("Syllabus", payload.syllabusHtml) + "\n");
+      await this.upsertFile(syllabusPath, this.renderHtmlDoc("Syllabus", payload.syllabusHtml, payload.fetchedAt) + "\n");
       syncedFiles.push(syllabusPath);
     }
 
@@ -699,12 +699,13 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         fileById,
         fileMap,
         moduleByName,
-        syncedFiles
+        syncedFiles,
+        payload.fetchedAt
       );
     }
 
     const tasksPath = normalizePath(`${courseFolder}/Tasks.md`);
-    await this.upsertFile(tasksPath, this.renderAssignments(payload.assignments, assignmentMap, moduleByName, fileMap));
+    await this.upsertFile(tasksPath, this.renderAssignments(payload.assignments, assignmentMap, moduleByName, fileMap, payload.fetchedAt));
     syncedFiles.push(tasksPath);
 
     const gradesPath = normalizePath(`${courseFolder}/Grades.md`);
@@ -712,7 +713,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     syncedFiles.push(gradesPath);
 
     const discussionsPath = normalizePath(`${courseFolder}/Discussions.md`);
-    await this.upsertFile(discussionsPath, this.renderDiscussions(payload.discussions, discussionMap, moduleByName));
+    await this.upsertFile(discussionsPath, this.renderDiscussions(payload.discussions, discussionMap, moduleByName, payload.fetchedAt));
     syncedFiles.push(discussionsPath);
 
     // Ensure events include synthesized milestones from assignments if not already present
@@ -747,7 +748,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     payload.events = finalEvents;
 
     const eventsPath = normalizePath(`${courseFolder}/Calendar.md`);
-    await this.upsertFile(eventsPath, this.renderEvents(payload.events, assignmentMap));
+    await this.upsertFile(eventsPath, this.renderEvents(payload.events, assignmentMap, payload.fetchedAt));
     syncedFiles.push(eventsPath);
 
     const courseIndexPath = normalizePath(`${courseFolder}/Course.md`);
@@ -763,7 +764,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
     // Step 4: Record sync manifest for history and location tracking
     const manifest = createCourseManifest(payload, syncedFiles, syncSource);
-    const manifestPath = normalizePath(`${courseFolder}/.canvas-sync-manifest.json`);
+    const manifestPath = normalizePath(`${courseFolder}/_canvas-sync-manifest.json`);
     await this.upsertFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", false);
 
     return { isNew, courseFolder };
@@ -774,7 +775,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       `# ${payload.courseName}`,
       "",
       `Course ID: ${payload.courseId}`,
-      `Last Synced: ${payload.fetchedAt}`,
+      `Last Synced: ${formatSyncTimestamp(payload.fetchedAt)}`,
       "",
       "## Notes",
       "",
@@ -856,7 +857,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     fileById: Map<string, CanvasFileAssetPayload>,
     fileMap: Map<string, { relativePath: string; displayName: string }>,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
-    syncedFiles?: string[]
+    syncedFiles?: string[],
+    lastSynced?: string
   ): Promise<void> {
     const moduleFolder = normalizePath(
       `${modulesFolder}/${this.padPosition(module.position)} - ${this.sanitizeFileName(module.name)}`
@@ -865,7 +867,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const items = [...module.items].sort((a, b) => a.position - b.position);
 
     if (module.summaryHtml) {
-      await this.upsertFile(moduleOverviewPath, this.renderHtmlDoc(module.name, module.summaryHtml) + "\n");
+      await this.upsertFile(moduleOverviewPath, this.renderHtmlDoc(module.name, module.summaryHtml, lastSynced) + "\n");
       syncedFiles?.push(moduleOverviewPath);
     } else {
       const itemLinks: string[] = [];
@@ -889,6 +891,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       const overviewDoc = [
         `# ${module.name}`,
         "",
+        `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+        "",
         "## Module Items",
         "",
         itemLinks.length > 0 ? itemLinks.join("\n") : "_No items in this module._",
@@ -907,7 +911,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
           (item.pageSlug ? pageBySlug.get(item.pageSlug) : undefined) ||
           pageByTitle.get(item.title.trim().toLowerCase());
         const pagePath = normalizePath(`${moduleFolder}/${filePrefix} - Page - ${safeTitle}.md`);
-        await this.upsertFile(pagePath, this.renderModulePageDoc(item, page, moduleByName));
+        await this.upsertFile(pagePath, this.renderModulePageDoc(item, page, moduleByName, lastSynced));
         syncedFiles?.push(pagePath);
         continue;
       }
@@ -915,7 +919,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       if (item.type === "Assignment") {
         const assignment = item.assignmentId ? assignmentById.get(item.assignmentId) : undefined;
         const assignmentPath = normalizePath(`${moduleFolder}/${filePrefix} - Assignment - ${safeTitle}.md`);
-        await this.upsertFile(assignmentPath, this.renderModuleAssignmentDoc(item, assignment, moduleByName, fileMap));
+        await this.upsertFile(assignmentPath, this.renderModuleAssignmentDoc(item, assignment, moduleByName, fileMap, lastSynced));
         syncedFiles?.push(assignmentPath);
         continue;
       }
@@ -923,7 +927,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       if (item.type === "DiscussionTopic") {
         const discussion = item.discussionId ? discussionById.get(item.discussionId) : undefined;
         const discussionPath = normalizePath(`${moduleFolder}/${filePrefix} - Discussion - ${safeTitle}.md`);
-        await this.upsertFile(discussionPath, this.renderModuleDiscussionDoc(item, discussion, moduleByName, fileMap));
+        await this.upsertFile(discussionPath, this.renderModuleDiscussionDoc(item, discussion, moduleByName, fileMap, lastSynced));
         syncedFiles?.push(discussionPath);
         continue;
       }
@@ -931,30 +935,35 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       if (item.type === "File") {
         const file = item.fileId ? fileById.get(item.fileId) : undefined;
         const filePath = normalizePath(`${moduleFolder}/${filePrefix} - File - ${safeTitle}.md`);
-        await this.upsertFile(filePath, this.renderModuleFileDoc(item, file));
+        await this.upsertFile(filePath, this.renderModuleFileDoc(item, file, lastSynced));
         syncedFiles?.push(filePath);
         continue;
       }
 
       if (item.type === "ExternalUrl" || item.type === "ContextExternalTool") {
         const linkPath = normalizePath(`${moduleFolder}/${filePrefix} - Link - ${safeTitle}.md`);
-        await this.upsertFile(linkPath, this.renderModuleLinkDoc(item));
+        await this.upsertFile(linkPath, this.renderModuleLinkDoc(item, lastSynced));
         syncedFiles?.push(linkPath);
         continue;
       }
 
       if (item.type === "ContextModuleSubHeader") {
         const subHeaderPath = normalizePath(`${moduleFolder}/${filePrefix} - Section - ${safeTitle}.md`);
-        await this.upsertFile(subHeaderPath, this.renderSubHeaderDoc(item));
+        await this.upsertFile(subHeaderPath, this.renderSubHeaderDoc(item, lastSynced));
         syncedFiles?.push(subHeaderPath);
         continue;
       }
     }
   }
 
-  private renderHtmlDoc(title: string, html: string): string {
+  private renderHtmlDoc(title: string, html: string, lastSynced?: string): string {
     const markdown = this.turndown.turndown(html).trim();
-    return [`# ${title}`, "", markdown || "No content available."].join("\n");
+    const lines = [`# ${title}`, ""];
+    if (lastSynced) {
+      lines.push(`> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`, "");
+    }
+    lines.push(markdown || "No content available.");
+    return lines.join("\n");
   }
 
   private formatModuleLinks(
@@ -974,7 +983,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   private renderModulePageDoc(
     item: CanvasModuleItemPayload,
     page?: CanvasPagePayload,
-    moduleByName?: Map<string, { relativePath: string; title: string }>
+    moduleByName?: Map<string, { relativePath: string; title: string }>,
+    lastSynced?: string
   ): string {
     if (!page) {
       return [
@@ -982,6 +992,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         "",
         `Type: ${item.type}`,
         item.pageSlug ? `Page Slug: ${item.pageSlug}` : null,
+        `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
         "",
         "Page content could not be retrieved in this sync."
       ]
@@ -996,7 +1007,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       `# ${page.title}`,
       "",
       `Source: ${page.url}`,
-      page.updatedAt ? `Updated: ${page.updatedAt}` : null,
+      `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
+      page.updatedAt ? `Canvas Updated: ${page.updatedAt}` : null,
       modLinks.length > 0 ? `Modules: ${modLinks.join(", ")}` : null,
       "",
       pageBody || "No page body available."
@@ -1006,8 +1018,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       .trim() + "\n";
   }
 
-  private renderModuleFileDoc(item: CanvasModuleItemPayload, file?: CanvasFileAssetPayload): string {
-    const lines = [`# ${item.title}`, "", `Type: File`];
+  private renderModuleFileDoc(item: CanvasModuleItemPayload, file?: CanvasFileAssetPayload, lastSynced?: string): string {
+    const lines = [`# ${item.title}`, "", `Type: File`, `Last Synced: ${formatSyncTimestamp(lastSynced)}`];
 
     if (file?.downloaded && file.savedRelativePath) {
       lines.push(`File: [[${file.savedRelativePath}|${file.displayName}]]`);
@@ -1030,7 +1042,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     item: CanvasModuleItemPayload,
     assignment?: CanvasAssignmentPayload,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
-    fileMap?: Map<string, { relativePath: string; displayName: string }>
+    fileMap?: Map<string, { relativePath: string; displayName: string }>,
+    lastSynced?: string
   ): string {
     if (!assignment) {
       return [
@@ -1038,6 +1051,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         "",
         `Type: ${item.type}`,
         item.assignmentId ? `Assignment ID: ${item.assignmentId}` : null,
+        `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
         "",
         "Assignment details could not be retrieved in this sync."
       ]
@@ -1062,6 +1076,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       `Assignment ID: ${assignment.id}`,
       `Due: ${due}`,
       `Points: ${points}`,
+      `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
       modLinks.length > 0 ? `Modules: ${modLinks.join(", ")}` : null,
       assignment.htmlUrl ? `Source: ${assignment.htmlUrl}` : null,
       "",
@@ -1260,7 +1275,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     item: CanvasModuleItemPayload,
     discussion?: CanvasDiscussionPayload,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
-    fileMap?: Map<string, { relativePath: string; displayName: string }>
+    fileMap?: Map<string, { relativePath: string; displayName: string }>,
+    lastSynced?: string
   ): string {
     if (!discussion) {
       return [
@@ -1268,6 +1284,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         "",
         `Type: ${item.type}`,
         item.discussionId ? `Discussion ID: ${item.discussionId}` : null,
+        `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
         "",
         "Discussion details could not be retrieved in this sync."
       ]
@@ -1299,6 +1316,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       "",
       `Discussion ID: ${discussion.id}`,
       discussion.assignmentId ? `Assignment ID: ${discussion.assignmentId}` : null,
+      `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
       due ? `Due: ${due}` : null,
       points ? `Points: ${points}` : null,
       discussion.postedAt ? `Posted: ${discussion.postedAt}` : null,
@@ -1323,26 +1341,33 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       .trim() + "\n";
   }
 
-  private renderModuleLinkDoc(item: CanvasModuleItemPayload): string {
+  private renderModuleLinkDoc(item: CanvasModuleItemPayload, lastSynced?: string): string {
     return [
       `# ${item.title}`,
       "",
       `Type: ${item.type}`,
+      `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
       item.externalUrl ? `URL: ${item.externalUrl}` : "URL: Not provided by Canvas API"
     ].join("\n") + "\n";
   }
 
-  private renderSubHeaderDoc(item: CanvasModuleItemPayload): string {
-    return [`# ${item.title}`, "", "Module section header."].join("\n") + "\n";
+  private renderSubHeaderDoc(item: CanvasModuleItemPayload, lastSynced?: string): string {
+    return [`# ${item.title}`, "", `Type: Section Header`, `Last Synced: ${formatSyncTimestamp(lastSynced)}`, "", "Module section header."].join("\n") + "\n";
   }
 
   private renderAssignments(
     assignments: CanvasAssignmentPayload[],
     assignmentMap?: Map<string, { relativePath: string; title: string }>,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
-    fileMap?: Map<string, { relativePath: string; displayName: string }>
+    fileMap?: Map<string, { relativePath: string; displayName: string }>,
+    lastSynced?: string
   ): string {
-    const lines: string[] = ["# Tasks & Assignments", ""];
+    const lines: string[] = [
+      "# Tasks & Assignments",
+      "",
+      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+      ""
+    ];
 
     if (assignments.length === 0) {
       lines.push("No assignments were found in this sync.", "");
@@ -1413,6 +1438,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     lines.push(`> [!INFO] **Overall Course Grade**`);
     lines.push(`> - **Current Score**: ${currentScoreText}${currentGradeText}`);
     lines.push(`> - **Final Calculated Score**: ${finalScoreText}${finalGradeText}`);
+    lines.push(`> - **Last Synced**: ${formatSyncTimestamp(payload.fetchedAt)}`);
     lines.push("");
 
     // 2. Metrics & Summary
@@ -1509,9 +1535,15 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   private renderDiscussions(
     discussions: CanvasDiscussionPayload[],
     discussionMap?: Map<string, { relativePath: string; title: string }>,
-    moduleByName?: Map<string, { relativePath: string; title: string }>
+    moduleByName?: Map<string, { relativePath: string; title: string }>,
+    lastSynced?: string
   ): string {
-    const lines: string[] = ["# Discussions", ""];
+    const lines: string[] = [
+      "# Discussions",
+      "",
+      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+      ""
+    ];
 
     if (discussions.length === 0) {
       lines.push("No discussions were found in this sync.", "");
@@ -1546,14 +1578,24 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
   private renderEvents(
     events: CanvasEventPayload[],
-    assignmentMap?: Map<string, { relativePath: string; title: string }>
+    assignmentMap?: Map<string, { relativePath: string; title: string }>,
+    lastSynced?: string
   ): string {
     if (events.length === 0) {
-      return ["# Calendar & Milestones", "", "No events or milestones were found in this sync.", ""].join("\n");
+      return [
+        "# Calendar & Milestones",
+        "",
+        `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+        "",
+        "No events or milestones were found in this sync.",
+        ""
+      ].join("\n");
     }
 
     const lines: string[] = [
       "# Calendar & Milestones",
+      "",
+      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
       "",
       "| Date | Type | Event / Milestone | Details | Link |",
       "| :--- | :--- | :--- | :--- | :--- |"
@@ -1629,7 +1671,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
     const existing =
       this.app.vault.getAbstractFileByPath(normPath) ||
-      this.app.vault.getFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
+      this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
     let finalContent = content;
 
     if (preserveUserNotes && normPath.endsWith(".md")) {
@@ -1656,11 +1698,13 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       if (String(err).toLowerCase().includes("already exists")) {
         const retryFile =
           this.app.vault.getAbstractFileByPath(normPath) ||
-          this.app.vault.getFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
+          this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
         if (retryFile instanceof TFile) {
           await this.app.vault.process(retryFile, () => finalContent);
           return;
         }
+        console.warn(`File ${normPath} already exists on disk but is not indexed as TFile in vault.`);
+        return;
       }
       throw err;
     }
@@ -1673,7 +1717,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
     const existing =
       this.app.vault.getAbstractFileByPath(normPath) ||
-      this.app.vault.getFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
+      this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
     if (existing instanceof TFile) {
       await this.app.vault.modifyBinary(existing, arrayBuffer);
       return;
@@ -1685,11 +1729,13 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       if (String(err).toLowerCase().includes("already exists")) {
         const retryFile =
           this.app.vault.getAbstractFileByPath(normPath) ||
-          this.app.vault.getFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
+          this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
         if (retryFile instanceof TFile) {
           await this.app.vault.modifyBinary(retryFile, arrayBuffer);
           return;
         }
+        console.warn(`Binary file ${normPath} already exists on disk but is not indexed as TFile in vault.`);
+        return;
       }
       throw err;
     }

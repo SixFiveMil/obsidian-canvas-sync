@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatCourseFolderName } from "../src/template-utils";
+import { formatCourseFolderName, formatSyncTimestamp } from "../src/template-utils";
 
 describe("formatCourseFolderName", () => {
   it("renders default template with courseCode and courseName", () => {
@@ -84,3 +84,18 @@ describe("formatCourseFolderName", () => {
     expect(result).toBe("Courses/Applied Cryptography");
   });
 });
+
+describe("formatSyncTimestamp", () => {
+  it("formats valid ISO timestamp into localized string", () => {
+    const iso = "2026-09-18T18:30:00.000Z";
+    const formatted = formatSyncTimestamp(iso);
+    expect(formatted).toBeDefined();
+    expect(formatted.length).toBeGreaterThan(0);
+  });
+
+  it("handles missing or invalid timestamps gracefully", () => {
+    expect(formatSyncTimestamp()).toBeDefined();
+    expect(formatSyncTimestamp("not-a-date")).toBe("not-a-date");
+  });
+});
+

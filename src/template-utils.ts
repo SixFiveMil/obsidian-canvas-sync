@@ -65,3 +65,12 @@ export function formatCourseFolderName(template: string, payload: CourseFolderPa
 
   return segments.join("/");
 }
+
+export function formatSyncTimestamp(isoTimestamp?: string): string {
+  if (!isoTimestamp) {
+    return new Date().toLocaleString();
+  }
+  const date = new Date(isoTimestamp);
+  return Number.isNaN(date.getTime()) ? isoTimestamp : date.toLocaleString();
+}
+
