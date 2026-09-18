@@ -103,5 +103,22 @@ describe("Obsidian guideline guardrails", () => {
     expect(source).toContain('key: "enableBridgeServer"');
     expect(source).toContain('key: "rootFolder"');
   });
+
+  it("avoids console.log in plugin source files per Obsidian plugin guidelines", () => {
+    const pluginDir = path.resolve(here, "../src");
+    for (const file of [
+      "main.ts",
+      "course-select-modal.ts",
+      "canvas-api-client.ts",
+      "link-utils.ts",
+      "table-utils.ts",
+      "template-utils.ts",
+      "note-utils.ts",
+      "types.ts"
+    ]) {
+      const src = readText(path.resolve(pluginDir, file));
+      expect(src).not.toMatch(/console\.log\(/);
+    }
+  });
 });
 

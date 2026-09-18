@@ -1845,8 +1845,6 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
       if (!isSilent) {
         new Notice(`Canvas Sync: Successfully synced ${successCount}/${targetCourses.length} course(s).`);
-      } else {
-        console.log(`Canvas Sync: Background scheduled sync completed (${successCount}/${targetCourses.length} courses).`);
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
