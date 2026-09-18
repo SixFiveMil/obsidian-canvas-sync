@@ -14,10 +14,20 @@ export class CourseSelectModal extends Modal {
   private syncStatusEl: HTMLElement | null = null;
   private courseListEl: HTMLElement | null = null;
 
+  private scheduledInterval = 60;
+  private enableAutoSync = false;
+
   constructor(app: App, plugin: CanvasSyncBridgePlugin) {
     super(app);
     this.plugin = plugin;
     this.includeInactive = this.plugin.getSettings().includeInactiveCourses ?? true;
+    this.scheduledInterval = this.plugin.getSettings().scheduledSyncIntervalMinutes || 60;
+    this.enableAutoSync = this.plugin.getSettings().enableScheduledSync ?? false;
+
+    const configured = this.plugin.getSettings().scheduledCourseIds;
+    if (Array.isArray(configured) && configured.length > 0) {
+      configured.forEach((id) => this.selectedCourseIds.add(Number(id)));
+    }
   }
 
   async onOpen(): Promise<void> {
@@ -93,7 +103,7 @@ export class CourseSelectModal extends Modal {
 
     this.syncStatusEl = contentEl.createDiv("canvas-sync-status");
 
-    // Controls: Search, Status Filter & Actions
+    // Controls: Search, Status Filter, Auto-Sync Interval & Actions
     const controlsEl = contentEl.createDiv("canvas-modal-controls");
 
     new Setting(controlsEl)
@@ -138,6 +148,28 @@ export class CourseSelectModal extends Modal {
           })
       );
 
+    new Setting(controlsEl)
+      .setName("Auto-sync interval")
+      .setDesc("How often Canvas should automatically resync the courses selected below.")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("15", "Every 15 minutes")
+          .addOption("30", "Every 30 minutes")
+          .addOption("60", "Every 1 hour")
+          .addOption("120", "Every 2 hours")
+          .addOption("240", "Every 4 hours")
+          .addOption("360", "Every 6 hours")
+          .addOption("720", "Every 12 hours")
+          .addOption("1440", "Every 24 hours (Daily)")
+          .setValue(String(this.scheduledInterval))
+          .onChange((val) => {
+            const mins = Number.parseInt(val, 10);
+            if (Number.isFinite(mins) && mins > 0) {
+              this.scheduledInterval = mins;
+            }
+          })
+      );
+
     this.courseListEl = contentEl.createDiv("canvas-course-list-container");
     this.updateCourseListDisplay();
 
@@ -155,9 +187,15 @@ export class CourseSelectModal extends Modal {
       const selectedIds = Array.from(this.selectedCourseIds);
       await this.plugin.updateSettings({
         scheduledCourseIds: selectedIds,
-        scheduledSyncSelectionMode: "selected"
+        scheduledSyncSelectionMode: "selected",
+        scheduledSyncIntervalMinutes: this.scheduledInterval,
+        enableScheduledSync: true
       });
-      new Notice(`Saved ${selectedIds.length} course(s) for scheduled background sync.`);
+      const intervalText =
+        this.scheduledInterval >= 60
+          ? `${this.scheduledInterval / 60} hour(s)`
+          : `${this.scheduledInterval} minutes`;
+      new Notice(`Saved ${selectedIds.length} course(s) for auto-sync (interval: every ${intervalText}).`);
       this.close();
     };
 
