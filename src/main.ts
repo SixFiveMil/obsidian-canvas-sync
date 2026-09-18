@@ -11,7 +11,7 @@ import {
   shouldDownloadAsset,
   type LinkRewriteContext
 } from "./link-utils";
-import { getAllowedExtensionOrigin, isAllowedOrigin, validateEnvelopeShape } from "./security-utils";
+import { isAllowedOrigin, validateEnvelopeShape } from "./security-utils";
 import { formatCourseFolderName } from "./template-utils";
 import type {
   AssetSyncDiagnostics,
@@ -152,17 +152,14 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       return null;
     }
     try {
-      // Electron desktop Node environment
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      return require("http") as typeof import("http");
-    } catch {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        return require("node:http") as typeof import("http");
-      } catch {
-        return null;
+      const nodeRequire = (globalThis as unknown as { require?: (moduleName: string) => typeof import("http") }).require;
+      if (typeof nodeRequire === "function") {
+        return nodeRequire("http");
       }
+    } catch {
+      // Platform fallback
     }
+    return null;
   }
 
   public async startServer(): Promise<void> {
@@ -175,32 +172,26 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
     const http = this.getHttpModule();
     if (!http) {
-      console.error("Canvas Sync Bridge: Node http module not available in this environment.");
-      new Notice("Canvas Sync Bridge: HTTP module unavailable in this environment.");
+      new Notice("Canvas Sync Bridge: HTTP module unavailable on this platform.");
       return;
     }
 
     try {
-      const http = await import("http");
       this.server = http.createServer((req, res) => {
         void this.handleBridgeRequest(req, res);
       });
     } catch (err) {
-      console.error("Canvas Sync Bridge server initialization error:", err);
       new Notice(`Canvas Sync Bridge: Failed to initialize listener: ${err instanceof Error ? err.message : String(err)}`);
       return;
     }
 
     return new Promise<void>((resolve) => {
-      this.server?.once("error", (err) => {
       this.server?.once("error", (err: Error) => {
-        console.error("Canvas Sync Bridge server error:", err);
         new Notice(`Canvas Sync Bridge: Failed to bind port ${this.settings.listenPort}: ${err.message}`);
         this.server = null;
         resolve();
       });
       this.server?.listen(this.settings.listenPort, "127.0.0.1", () => {
-        console.log(`Canvas Sync Bridge listening on 127.0.0.1:${this.settings.listenPort}`);
         resolve();
       });
     });
