@@ -16,7 +16,9 @@ export function canvasTablePlugin(turndownService: TurndownService): void {
       const el = node;
       let clean = content
         .replace(/&nbsp;/gi, " ")
-        .replace(/(?<!\\)\|/g, "\\|")
+        .replace(/\\\|/g, "\u0000PIPE\u0000")
+        .replace(/\|/g, "\\|")
+        .replace(/\u0000PIPE\u0000/g, "\\|")
         .replace(/\r?\n+/g, "<br>")
         .replace(/\s*<br\s*\/?>\s*/gi, "<br>")
         .replace(/^(?:<br>)+|(?:<br>)+$/gi, "")
