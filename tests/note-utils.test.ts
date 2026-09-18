@@ -71,17 +71,16 @@ describe("note-utils", () => {
   });
 
   describe("mergePreservedContent", () => {
-    it("appends blank notes section for fresh note", () => {
+    it("appends clean personal notes section for fresh note without visible comment tags", () => {
       const rendered = "# Syllabus\n\nCourse info.";
       const merged = mergePreservedContent(rendered, null);
 
       expect(merged).toContain("# Syllabus\n\nCourse info.");
       expect(merged).toContain(PERSONAL_NOTES_HEADER);
-      expect(merged).toContain(PERSONAL_NOTES_START_TAG);
-      expect(merged).toContain(PERSONAL_NOTES_END_TAG);
+      expect(merged).not.toContain("canvas-sync:user-notes");
     });
 
-    it("preserves student notes across note updates", () => {
+    it("preserves student notes across note updates and cleans legacy tags", () => {
       const existing = [
         "# Assignment 1 - Old instructions",
         "",
@@ -89,9 +88,9 @@ describe("note-utils", () => {
         "",
         PERSONAL_NOTES_HEADER,
         "",
-        PERSONAL_NOTES_START_TAG,
+        "<!-- %% canvas-sync:user-notes-start %% -->",
         "- Need to cite section 4 of textbook.",
-        PERSONAL_NOTES_END_TAG
+        "<!-- %% canvas-sync:user-notes-end %% -->"
       ].join("\n");
 
       const newCanvasContent = "# Assignment 1 - Updated instructions\n\nPoints: 100";
@@ -100,6 +99,7 @@ describe("note-utils", () => {
       expect(merged).toContain("# Assignment 1 - Updated instructions");
       expect(merged).not.toContain("Old instructions");
       expect(merged).toContain("- Need to cite section 4 of textbook.");
+      expect(merged).not.toContain("canvas-sync:user-notes");
     });
   });
 

@@ -1593,11 +1593,14 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     for (const segment of segments) {
       cursor = cursor ? `${cursor}/${segment}` : segment;
       const normalizedCursor = normalizePath(cursor);
-      if (!this.app.vault.getAbstractFileByPath(normalizedCursor)) {
+      const existing =
+        this.app.vault.getAbstractFileByPath(normalizedCursor) ||
+        this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normalizedCursor.toLowerCase());
+      if (!existing) {
         try {
           await this.app.vault.createFolder(normalizedCursor);
         } catch (err) {
-          if (!String(err).includes("already exists")) {
+          if (!String(err).toLowerCase().includes("already exists")) {
             console.warn("Failed to create folder", normalizedCursor, err);
           }
         }
@@ -1614,7 +1617,9 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const parent = normPath.split("/").slice(0, -1).join("/");
     await this.ensureFolder(parent);
 
-    const existing = this.app.vault.getAbstractFileByPath(normPath);
+    const existing =
+      this.app.vault.getAbstractFileByPath(normPath) ||
+      this.app.vault.getFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
     let finalContent = content;
 
     if (preserveUserNotes && normPath.endsWith(".md")) {
@@ -1638,8 +1643,10 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     try {
       await this.app.vault.create(normPath, finalContent);
     } catch (err) {
-      if (String(err).includes("already exists")) {
-        const retryFile = this.app.vault.getAbstractFileByPath(normPath);
+      if (String(err).toLowerCase().includes("already exists")) {
+        const retryFile =
+          this.app.vault.getAbstractFileByPath(normPath) ||
+          this.app.vault.getFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
         if (retryFile instanceof TFile) {
           await this.app.vault.process(retryFile, () => finalContent);
           return;
@@ -1654,7 +1661,9 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const parent = normPath.split("/").slice(0, -1).join("/");
     await this.ensureFolder(parent);
 
-    const existing = this.app.vault.getAbstractFileByPath(normPath);
+    const existing =
+      this.app.vault.getAbstractFileByPath(normPath) ||
+      this.app.vault.getFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
     if (existing instanceof TFile) {
       await this.app.vault.modifyBinary(existing, arrayBuffer);
       return;
@@ -1663,8 +1672,10 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     try {
       await this.app.vault.createBinary(normPath, arrayBuffer);
     } catch (err) {
-      if (String(err).includes("already exists")) {
-        const retryFile = this.app.vault.getAbstractFileByPath(normPath);
+      if (String(err).toLowerCase().includes("already exists")) {
+        const retryFile =
+          this.app.vault.getAbstractFileByPath(normPath) ||
+          this.app.vault.getFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
         if (retryFile instanceof TFile) {
           await this.app.vault.modifyBinary(retryFile, arrayBuffer);
           return;

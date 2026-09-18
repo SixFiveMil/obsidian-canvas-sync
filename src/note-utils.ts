@@ -22,23 +22,24 @@ export function extractPersonalNotes(content: string): string | null {
     return null;
   }
 
-  // Check 1: Tagged comment markers
+  // Check 1: Header match for '## 📝 Personal Notes' or '## Personal Notes'
+  const headerRegex = /##\s*(?:📝\s*)?Personal Notes[^\n]*\n([\s\S]*)$/i;
+  const match = content.match(headerRegex);
+  if (match && match[1]) {
+    // Strip out any legacy comment tags if present from earlier versions
+    const raw = match[1]
+      .replace(/<!--\s*%%\s*canvas-sync:user-notes-(?:start|end)\s*%%\s*-->/gi, "")
+      .replace(/<!--\s*canvas-sync:user-notes-(?:start|end)\s*-->/gi, "")
+      .replace(/%%\s*canvas-sync:user-notes-(?:start|end)\s*%%/gi, "")
+      .trim();
+    return raw.length > 0 ? raw : null;
+  }
+
+  // Check 2: Legacy tagged comment markers fallback
   const startIdx = content.indexOf(PERSONAL_NOTES_START_TAG);
   const endIdx = content.indexOf(PERSONAL_NOTES_END_TAG);
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
     const raw = content.substring(startIdx + PERSONAL_NOTES_START_TAG.length, endIdx).trim();
-    return raw.length > 0 ? raw : null;
-  }
-
-  // Check 2: Header match for '## 📝 Personal Notes' or '## Personal Notes'
-  const headerRegex = /##\s*(?:📝\s*)?Personal Notes[^\n]*\n([\s\S]*)$/i;
-  const match = content.match(headerRegex);
-  if (match && match[1]) {
-    // Strip out tags if any remain
-    const raw = match[1]
-      .replace(PERSONAL_NOTES_START_TAG, "")
-      .replace(PERSONAL_NOTES_END_TAG, "")
-      .trim();
     return raw.length > 0 ? raw : null;
   }
 
@@ -50,7 +51,18 @@ export function extractPersonalNotes(content: string): string | null {
  */
 export function appendPersonalNotesSection(newContent: string, existingUserNotes?: string | null): string {
   const base = newContent.trimEnd();
-  const notesBody = existingUserNotes && existingUserNotes.trim().length > 0 ? `\n${existingUserNotes.trim()}\n` : "\n";
+  const notesBody = existingUserNotes && existingUserNotes.trim().length > 0 ? `${existingUserNotes.trim()}\n` : "";
+
+  if (!notesBody) {
+    return [
+      base,
+      "",
+      "---",
+      "",
+      PERSONAL_NOTES_HEADER,
+      ""
+    ].join("\n");
+  }
 
   return [
     base,
@@ -59,17 +71,9 @@ export function appendPersonalNotesSection(newContent: string, existingUserNotes
     "",
     PERSONAL_NOTES_HEADER,
     "",
-    PERSONAL_NOTES_START_TAG,
     notesBody.trimEnd(),
-    PERSONAL_NOTES_END_TAG,
     ""
-  ]
-    .filter((line, idx, arr) => {
-      // Avoid excessive duplicate empty lines
-      if (line === "" && arr[idx - 1] === "") return false;
-      return true;
-    })
-    .join("\n");
+  ].join("\n");
 }
 
 /**
