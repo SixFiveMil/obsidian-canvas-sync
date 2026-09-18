@@ -23,6 +23,14 @@ export function validateEnvelopeShape(envelope: unknown): asserts envelope is Ca
   }
 }
 
+export function isAllowedOrigin(originHeader?: string | null): boolean {
+  if (!originHeader) {
+    // Background service workers on localhost do not send Origin header; allowed
+    return true;
+  }
+  return originHeader.startsWith("chrome-extension://") || originHeader.startsWith("moz-extension://");
+}
+
 export function getAllowedExtensionOrigin(originHeader?: string | null): string | null {
   if (typeof originHeader !== "string") {
     return null;

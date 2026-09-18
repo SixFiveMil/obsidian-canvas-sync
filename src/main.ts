@@ -11,7 +11,7 @@ import {
   shouldDownloadAsset,
   type LinkRewriteContext
 } from "./link-utils";
-import { getAllowedExtensionOrigin, validateEnvelopeShape } from "./security-utils";
+import { getAllowedExtensionOrigin, isAllowedOrigin, validateEnvelopeShape } from "./security-utils";
 import { formatCourseFolderName } from "./template-utils";
 import type {
   AssetSyncDiagnostics,
@@ -190,17 +190,19 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
   private async handleBridgeRequest(req: HttpIncomingMessage, res: HttpServerResponse): Promise<void> {
     const originHeader = typeof req.headers["origin"] === "string" ? req.headers["origin"] : undefined;
-    const allowedOrigin = getAllowedExtensionOrigin(originHeader);
+    const allowed = isAllowedOrigin(originHeader);
+
+    if (!allowed) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, message: "Origin not allowed." }));
+      return;
+    }
+
+    const corsOrigin = originHeader && isAllowedOrigin(originHeader) ? originHeader : "*";
 
     if (req.method === "OPTIONS") {
-      if (!allowedOrigin) {
-        res.writeHead(403, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: false, message: "Origin not allowed." }));
-        return;
-      }
-
       res.writeHead(204, {
-        "Access-Control-Allow-Origin": allowedOrigin,
+        "Access-Control-Allow-Origin": corsOrigin,
         "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
         "Access-Control-Allow-Headers": "Content-Type, X-Canvas-Sync-Client",
         "Vary": "Origin"
@@ -212,7 +214,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     if (req.method === "GET" && (req.url === "/health" || req.url === "/status")) {
       res.writeHead(200, {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": allowedOrigin || "*"
+        "Access-Control-Allow-Origin": corsOrigin
       });
       res.end(JSON.stringify({ ok: true, status: "healthy", plugin: "canvas-sync-bridge" }));
       return;
@@ -229,12 +231,6 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     if (clientHeader !== "canvas-browser-extension" && clientHeader !== "canvas-to-obsidian-sync") {
       res.writeHead(403, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, message: "Untrusted client header." }));
-      return;
-    }
-
-    if (!allowedOrigin) {
-      res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: false, message: "Origin not allowed." }));
       return;
     }
 
@@ -255,7 +251,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
           await this.syncCoursePayload((envelope as { payload: CanvasCoursePayload }).payload);
           res.writeHead(200, {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": allowedOrigin
+            "Access-Control-Allow-Origin": corsOrigin
           });
           res.end(JSON.stringify({ ok: true, message: `Synced course: ${(envelope as { payload: CanvasCoursePayload }).payload.courseName}` }));
           new Notice(`Canvas Sync: Synced "${(envelope as { payload: CanvasCoursePayload }).payload.courseName}" from browser extension!`);
@@ -263,7 +259,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
           const msg = err instanceof Error ? err.message : String(err);
           res.writeHead(400, {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": allowedOrigin
+            "Access-Control-Allow-Origin": corsOrigin
           });
           res.end(JSON.stringify({ ok: false, message: msg }));
           new Notice(`Canvas Sync error: ${msg}`);
