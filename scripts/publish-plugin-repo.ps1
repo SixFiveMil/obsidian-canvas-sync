@@ -1,5 +1,5 @@
 param(
-  [string]$RemoteName = "obsidian-plugin",
+  [string]$RemoteName = "obsidian-canvas-sync",
   [string]$RemoteUrl = "",
   [string]$TargetBranch = "main",
   [string]$Tag = ""

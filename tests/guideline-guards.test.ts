@@ -97,5 +97,16 @@ describe("Obsidian guideline guardrails", () => {
     expect(source).toContain('key: "enableBridgeServer"');
     expect(source).toContain('key: "rootFolder"');
   });
+
+  it("maintains version consistency between package.json, manifest.json, and versions.json", () => {
+    const pkg = JSON.parse(readText(path.resolve(here, "../package.json")));
+    const manifest = JSON.parse(readText(path.resolve(here, "../manifest.json")));
+    const versions = JSON.parse(readText(path.resolve(here, "../versions.json")));
+
+    expect(manifest.version).toBe(pkg.version);
+    expect(versions[pkg.version]).toBeDefined();
+    expect(versions[pkg.version]).toBe(manifest.minAppVersion);
+  });
 });
+
 

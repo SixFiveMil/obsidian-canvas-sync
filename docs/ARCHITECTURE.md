@@ -89,7 +89,7 @@ It supports two distinct ingestion pathways that converge into a single unified 
 
 ## 2. Core Components
 
-### 2.1 Obsidian Plugin Runtime (`apps/obsidian-plugin/`)
+### 2.1 Obsidian Plugin Runtime (`obsidian-canvas-sync`)
 
 * **Direct API Client (`canvas-api-client.ts`)**:
   Connects directly to the Canvas REST API using Obsidian's native `requestUrl` adapter. Handles pagination headers (`rel="next"`), API authentication, submissions, discussion reply trees, and static asset streaming.
@@ -102,7 +102,7 @@ It supports two distinct ingestion pathways that converge into a single unified 
 * **Vault Writer & Asset Manager (`main.ts`)**:
   Writes course folder hierarchies, generates master index notes, synthesizes calendar milestones, downloads allowed binary files (`Files/`, `Attachments/`), and sanitizes filenames against directory traversal vulnerabilities.
 
-### 2.2 Companion Browser Extension (`apps/browser-extension/`)
+### 2.2 Companion Browser Extension (`canvas-to-obsidian-extension`)
 
 * **Popup UI & Options (`popup.html`, `popup.ts`)**:
   Provides single-click course detection, bridge port configuration, and granular extraction preference toggles (Modules, Pages, Assignments, Grades, Discussions, Events, Files).

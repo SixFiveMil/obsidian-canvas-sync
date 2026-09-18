@@ -1,6 +1,6 @@
 {
-  "id": "canvas-sync-bridge",
-  "name": "Canvas Sync Bridge",
+  "id": "obsidian-canvas-sync",
+  "name": "Canvas Sync",
   "version": "0.3.1",
   "minAppVersion": "1.5.0",
   "description": "Sync Canvas LMS courses, modules, assignments, grades, discussions, files, and calendars directly into your vault as clean Markdown.",

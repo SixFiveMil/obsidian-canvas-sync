@@ -10,7 +10,7 @@ All commands can be run from the repository root:
 
 | Command | Description |
 |---|---|
-| `npm run build` | Builds the production Obsidian plugin bundle (`main.js` and `apps/obsidian-plugin/main.js`). |
+| `npm run build` | Builds the production Obsidian plugin bundle (`main.js`). |
 | `npm run dev` | Runs `esbuild` in watch mode for active plugin development. |
 | `npm test` | Runs the full Vitest unit test suite. |
 | `npm run typecheck` | Type-checks all TypeScript source and test files (`tsc --noEmit`). |
@@ -31,7 +31,7 @@ The CI workflow (`.github/workflows/ci.yml`) runs on every push and pull request
 
 The Release workflow (`.github/workflows/release.yml`) runs automatically on tag push (e.g. `0.2.5`) or via manual dispatch:
 
-1. Verifies the tag matches `apps/obsidian-plugin/manifest.json`.
+1. Verifies the tag matches `manifest.json`.
 2. Runs all unit tests, typechecks, and production build.
 3. Prepares release assets (`manifest.json`, `main.js`, and `checksums.txt` with SHA-256 hashes).
 4. Attests build provenance using GitHub's artifact attestations.
@@ -46,4 +46,5 @@ Users can install the plugin directly via [Obsidian BRAT](https://github.com/TfT
 ```text
 https://github.com/SixFiveMil/obsidian-canvas-sync
 ```
-Or by placing `main.js` and `manifest.json` from the latest GitHub Release into `<Vault>/.obsidian/plugins/canvas-sync-bridge/`.
+Or by placing `main.js` and `manifest.json` from the latest GitHub Release into `<Vault>/.obsidian/plugins/obsidian-canvas-sync/`.
+
