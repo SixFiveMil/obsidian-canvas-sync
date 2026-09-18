@@ -46,5 +46,5 @@ Users can install the plugin directly via [Obsidian BRAT](https://github.com/TfT
 ```text
 https://github.com/SixFiveMil/obsidian-canvas-sync
 ```
-Or by placing `main.js` and `manifest.json` from the latest GitHub Release into `<Vault>/.obsidian/plugins/obsidian-canvas-sync/`.
+Or by placing `main.js` and `manifest.json` from the latest GitHub Release into `<Vault>/.obsidian/plugins/canvas-sync-bridge/`.
 

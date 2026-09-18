@@ -1,10 +1,10 @@
-# Canvas Sync
+# Canvas Sync Bridge
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.3.1-green.svg)](package.json)
 [![CI](https://github.com/SixFiveMil/obsidian-canvas-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/SixFiveMil/obsidian-canvas-sync/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Obsidian](https://img.shields.io/badge/Obsidian-Plugin-7C3AED?logo=obsidian&logoColor=white)](https://community.obsidian.md/plugins/obsidian-canvas-sync)
+[![Obsidian](https://img.shields.io/badge/Obsidian-Plugin-7C3AED?logo=obsidian&logoColor=white)](https://community.obsidian.md/plugins/canvas-sync-bridge)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/canvas-to-obsidian-sync/oiakmbihplldnhabhnihnekjddenbiom)
 [![Firefox Add-on](https://img.shields.io/badge/Firefox-Add--on-FF7139?logo=firefox&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/canvas-to-obsidian-sync/)
 [![Privacy: Zero Telemetry](https://img.shields.io/badge/Privacy-Zero%20Telemetry-success.svg)](PRIVACY.md)
@@ -65,7 +65,7 @@ Both ingestion pathways feed into a unified rendering engine:
 #### Method A: Community Plugins (Recommended)
 1. In Obsidian, open **Settings** > **Community Plugins**.
 2. Turn off **Restricted mode** if prompted.
-3. Search for **Canvas Sync**, click **Install**, and then **Enable**.
+3. Search for **Canvas Sync Bridge**, click **Install**, and then **Enable**.
 
 #### Method B: Obsidian BRAT (Beta Releases)
 1. Install the [BRAT Plugin](https://github.com/TfTHacker/obsidian42-brat) in Obsidian.
@@ -73,7 +73,7 @@ Both ingestion pathways feed into a unified rendering engine:
 
 #### Method C: Manual Installation
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [Latest GitHub Release](https://github.com/SixFiveMil/obsidian-canvas-sync/releases/latest).
-2. Extract into `<Vault>/.obsidian/plugins/obsidian-canvas-sync/` and restart Obsidian.
+2. Extract into `<Vault>/.obsidian/plugins/canvas-sync-bridge/` and restart Obsidian.
 
 ---
 
@@ -158,7 +158,7 @@ The browser extension source code, pre-packaged `.zip` release files, and store 
 
 - **Closed by Default**: The local loopback listener (`127.0.0.1:27125`) only runs when explicitly toggled on in Obsidian settings.
 - **Origin & Header Guards**: Inbound requests verify trusted extension origins (`chrome-extension://`, `moz-extension://`) and custom application headers.
-- **Local Storage**: API tokens are stored strictly within `.obsidian/plugins/obsidian-canvas-sync/data.json` inside your local vault.
+- **Local Storage**: API tokens are stored strictly within `.obsidian/plugins/canvas-sync-bridge/data.json` inside your local vault.
 - Read our full [Security Policy](SECURITY.md) and [Privacy Policy](PRIVACY.md).
 
 ---

@@ -214,7 +214,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": allowedOrigin || "*"
       });
-      res.end(JSON.stringify({ ok: true, status: "healthy", plugin: "obsidian-canvas-sync" }));
+      res.end(JSON.stringify({ ok: true, status: "healthy", plugin: "canvas-sync-bridge" }));
       return;
     }
 

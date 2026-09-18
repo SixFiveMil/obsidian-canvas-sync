@@ -23,7 +23,7 @@ Only the latest release of the Obsidian plugin is actively maintained for securi
 The plugin employs a defense-in-depth, local-first architecture:
 
 1. **Direct Encrypted Transport**: All Canvas API requests are made over HTTPS directly to the user's configured Canvas LMS domain using Obsidian's native `requestUrl` API.
-2. **Local Token Storage**: The Canvas API token is stored strictly in your local vault's plugin configuration (`.obsidian/plugins/obsidian-canvas-sync/data.json`). It is never sent to any third-party or middleman server.
+2. **Local Token Storage**: The Canvas API token is stored strictly in your local vault's plugin configuration (`.obsidian/plugins/canvas-sync-bridge/data.json`). It is never sent to any third-party or middleman server.
 3. **Path Traversal Protection**: All folder names and file paths constructed from Canvas course metadata, module titles, and file attachments undergo strict sanitization (`sanitizeFileName` and `sanitizePath`) to prevent directory traversal outside the vault.
 4. **Markdown Table Sanitization**: Pipe delimiters within links (`[[path\|alias]]`) are sanitized to prevent Markdown table formatting exploits or column corruption.
 5. **Zero Telemetry**: No tracking, metrics, analytics, or crash reporters are present in the codebase.

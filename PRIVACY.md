@@ -31,7 +31,7 @@ Canvas Sync processes data solely to facilitate the download and formatting of y
 
 ### B. Authentication & Credentials
 - **Canvas API Token:** You generate a Personal Access Token within your Canvas LMS account (`Canvas -> Account -> Settings -> Approved Integrations -> + New Access Token`).
-- **Local Storage:** The token and Canvas Base URL are stored strictly on your local machine within your Obsidian plugin settings file (`.obsidian/plugins/obsidian-canvas-sync/data.json`).
+- **Local Storage:** The token and Canvas Base URL are stored strictly on your local machine within your Obsidian plugin settings file (`.obsidian/plugins/canvas-sync-bridge/data.json`).
 - **No Third-Party Transmission:** The token is included solely in the `Authorization: Bearer <token>` HTTP header sent directly to your configured Canvas LMS domain.
 
 ---
