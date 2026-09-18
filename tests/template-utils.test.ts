@@ -1,6 +1,6 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { formatCourseFolderName } from "../src/template-utils";
+import { formatCourseFolderName, formatSyncTimestamp } from "../src/template-utils";
 
 describe("formatCourseFolderName", () => {
   it("renders default template with courseCode and courseName", () => {
@@ -38,14 +38,23 @@ describe("formatCourseFolderName", () => {
     expect(result).toBe("Network Security (999)");
   });
 
-  it("prevents 'My Dashboard' folder spam when code is present", () => {
+  it("prevents 'My Dashboard' folder spam and duplicate courseCode/name when code is present", () => {
     const result = formatCourseFolderName("{{courseCode}} - {{courseName}}", {
       courseId: "12345",
       courseCode: "CSOL-500",
       courseName: "My Dashboard"
     });
-    expect(result).toBe("CSOL-500 - CSOL-500");
+    expect(result).toBe("CSOL-500");
     expect(result).not.toContain("My Dashboard");
+  });
+
+  it("deduplicates folder name if courseCode equals courseName", () => {
+    const result = formatCourseFolderName("{{courseCode}} - {{courseName}}", {
+      courseId: "211",
+      courseCode: "CHEM 211",
+      courseName: "CHEM 211"
+    });
+    expect(result).toBe("CHEM 211");
   });
 
   it("prevents 'Dashboard' folder spam when code is absent", () => {
@@ -75,3 +84,18 @@ describe("formatCourseFolderName", () => {
     expect(result).toBe("Courses/Applied Cryptography");
   });
 });
+
+describe("formatSyncTimestamp", () => {
+  it("formats valid ISO timestamp into localized string", () => {
+    const iso = "2026-09-18T18:30:00.000Z";
+    const formatted = formatSyncTimestamp(iso);
+    expect(formatted).toBeDefined();
+    expect(formatted.length).toBeGreaterThan(0);
+  });
+
+  it("handles missing or invalid timestamps gracefully", () => {
+    expect(formatSyncTimestamp()).toBeDefined();
+    expect(formatSyncTimestamp("not-a-date")).toBe("not-a-date");
+  });
+});
+

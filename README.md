@@ -1,7 +1,7 @@
 # Canvas Sync Bridge
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.1-green.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-0.4.1-green.svg)](package.json)
 [![CI](https://github.com/SixFiveMil/obsidian-canvas-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/SixFiveMil/obsidian-canvas-sync/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Obsidian](https://img.shields.io/badge/Obsidian-Plugin-7C3AED?logo=obsidian&logoColor=white)](https://community.obsidian.md/plugins/canvas-sync-bridge)
@@ -19,7 +19,8 @@ Canvas Sync provides two flexible sync workflows depending on your institutional
 
 ### 1. 🎓 Direct Canvas REST API (Primary / Mobile Compatible)
 * Direct connection from Obsidian using your Canvas API token.
-* Interactive course selector modal with multi-course batch syncing.
+* Interactive course selector modal with multi-course batch syncing and in-modal auto-sync interval selection.
+* **Scheduled Background Sync**: Automatically resyncs active courses on a schedule (15m, 30m, 1h, 2h, 4h, 6h, 12h, 24h) with course selection filters and silent background operation.
 * Supports active and completed/concluded courses.
 * Fully compatible with **Obsidian Desktop and Obsidian Mobile**.
 
@@ -40,6 +41,9 @@ Both ingestion pathways feed into a unified rendering engine:
 * **Student Submissions & Grades**: Live gradebook standing (`Grades.md`), score breakdowns, submitted files, and instructor feedback comments.
 * **Discussions**: Full discussion topics, announcements, and complete multi-tier student reply trees (`Discussions.md`).
 * **Calendar & Milestones**: Schedule events, assignment due date milestones, and Zoom meeting links (`Calendar.md`).
+* **📝 Student Personal Notes Preservation**: Type student notes and annotations freely under `## 📝 Personal Notes` on any course note — personal content is automatically preserved across all future syncs without tag clutter.
+* **⏱️ Per-Page "Last Synced" Timestamps**: Every generated note and hub displays a localized timestamp showing exactly when the note was fetched.
+* **🛡️ Safe Filename Capping**: Automatically sanitizes and caps oversized module item titles (up to 100 chars) while preserving extensions to prevent OS `ENAMETOOLONG` errors.
 * **Internal Obsidian Wikilinks**: Automatically cross-links notes into native Obsidian `[[wikilinks]]` with pipe escaping (`[[path|alias]]`).
 * **Local File & Asset Downloader**: Downloads embedded images, assignment attachments, and course documents (`.pdf`, `.docx`, `.pptx`, `.xlsx`, `.zip`) with configurable size and extension filters.
 * **100% Local-First & Private**: Zero cloud relays, zero analytics, zero tracking.

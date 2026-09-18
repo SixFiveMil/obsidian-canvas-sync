@@ -2,12 +2,27 @@ import { describe, expect, it } from "vitest";
 import { getAllowedExtensionOrigin, isAllowedOrigin, sanitizeFileName, sanitizePath } from "../src/security-utils";
 
 describe("sanitizeFileName", () => {
-  it("replaces invalid filename characters", () => {
-    expect(sanitizeFileName('A:/B*"C"?')).toBe("A--B--C--");
+  it("replaces invalid filename characters and trims trailing dashes", () => {
+    expect(sanitizeFileName('A:/B*"C"?')).toBe("A--B--C");
   });
 
   it("returns Untitled for empty output", () => {
     expect(sanitizeFileName("   ")).toBe("Untitled");
+    expect(sanitizeFileName("")).toBe("Untitled");
+  });
+
+  it("truncates long names to maxLength and trims trailing punctuation", () => {
+    const longTitle =
+      "The final exam is a standardized final written by the American Chemical Society (ACS). This national organization has also created a guidebook to help students prepare for the exam. Two copies of this guidebook are on reserve in the library. Students will need to go to the main desk at the library and they can check them out for 4 hours at a time. This book is also available online at various locations. The guidebook is for BOTH semesters of general chemistry, but the book provides a division of content between the one semester and two semester exams. Click on the link below to see the library information about these books on reserve..";
+    const sanitized = sanitizeFileName(longTitle, 100);
+    expect(sanitized.length).toBeLessThanOrEqual(100);
+    expect(sanitized).not.toMatch(/[.\-\s]+$/);
+    expect(sanitized.startsWith("The final exam is a standardized final written by the American Chemical Society (ACS)")).toBe(true);
+  });
+
+  it("cleans trailing dots and spaces before extension", () => {
+    expect(sanitizeFileName("Exam Guidebook..")).toBe("Exam Guidebook");
+    expect(sanitizeFileName("Lecture Notes - - ")).toBe("Lecture Notes");
   });
 });
 

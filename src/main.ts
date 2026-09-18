@@ -11,8 +11,9 @@ import {
   shouldDownloadAsset,
   type LinkRewriteContext
 } from "./link-utils";
-import { isAllowedOrigin, validateEnvelopeShape } from "./security-utils";
-import { formatCourseFolderName } from "./template-utils";
+import { createCourseManifest, mergePreservedContent } from "./note-utils";
+import { isAllowedOrigin, sanitizeFileName, validateEnvelopeShape } from "./security-utils";
+import { formatCourseFolderName, formatSyncTimestamp } from "./template-utils";
 import type {
   AssetSyncDiagnostics,
   CanvasAssignmentPayload,
@@ -50,7 +51,13 @@ export const DEFAULT_SETTINGS: CanvasSyncSettings = {
   allowedExtensions: "pdf, docx, pptx, xlsx, png, jpg, jpeg, svg, zip",
   maxAssetSizeMb: 50,
   documentsSubfolder: "Files",
-  attachmentsSubfolder: "Attachments"
+  attachmentsSubfolder: "Attachments",
+  preservePersonalNotes: true,
+  enableScheduledSync: false,
+  scheduledSyncIntervalMinutes: 60,
+  scheduledSyncSelectionMode: "all_active",
+  scheduledCourseIds: [],
+  silentScheduledSync: true
 };
 
 export default class CanvasSyncBridgePlugin extends Plugin {
@@ -59,6 +66,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   private apiClient: CanvasApiClient | null = null;
   private server: HttpServer | null = null;
   private turndown: TurndownService = createConfiguredTurndown();
+  private syncIntervalTimer: number | null = null;
+  private isSyncing = false;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -67,6 +76,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     if (this.settings.enableBridgeServer) {
       await this.startServer();
     }
+
+    this.initBackgroundSyncScheduler();
 
     this.addSettingTab(new CanvasSyncSettingTab(this.app, this));
 
@@ -93,6 +104,14 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "canvas-sync-run-scheduled-sync",
+      name: "Run scheduled background sync now",
+      callback: () => {
+        void this.runScheduledSync(true);
+      }
+    });
+
+    this.addCommand({
       id: "canvas-sync-restart-bridge-server",
       name: "Restart browser bridge listener",
       callback: () => {
@@ -109,6 +128,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
   onunload(): void {
     this.apiClient = null;
+    this.stopBackgroundSyncScheduler();
     void this.stopServer();
   }
 
@@ -133,6 +153,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   async updateSettings(patch: Partial<CanvasSyncSettings>): Promise<void> {
     const prevBridgeEnabled = this.settings.enableBridgeServer;
     const prevBridgePort = this.settings.listenPort;
+    const prevScheduledEnabled = this.settings.enableScheduledSync;
+    const prevScheduledInterval = this.settings.scheduledSyncIntervalMinutes;
     this.settings = { ...this.settings, ...patch };
     await this.saveSettings();
 
@@ -144,6 +166,18 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       }
     } else if (patch.listenPort !== undefined && patch.listenPort !== prevBridgePort && this.settings.enableBridgeServer) {
       await this.restartServer();
+    }
+
+    if (
+      patch.enableScheduledSync !== undefined ||
+      patch.scheduledSyncIntervalMinutes !== undefined
+    ) {
+      if (
+        patch.enableScheduledSync !== prevScheduledEnabled ||
+        patch.scheduledSyncIntervalMinutes !== prevScheduledInterval
+      ) {
+        this.restartBackgroundSyncScheduler();
+      }
     }
   }
 
@@ -279,13 +313,15 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         try {
           const envelope: unknown = JSON.parse(raw);
           validateEnvelopeShape(envelope);
-          await this.syncCoursePayload((envelope as { payload: CanvasCoursePayload }).payload);
+          const payload = (envelope as { payload: CanvasCoursePayload }).payload;
+          const result = await this.syncCoursePayload(payload, undefined, "browser-extension");
+          const actionText = result.isNew ? "Created course" : "Updated course";
           res.writeHead(200, {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": corsOrigin
           });
-          res.end(JSON.stringify({ ok: true, message: `Synced course: ${(envelope as { payload: CanvasCoursePayload }).payload.courseName}` }));
-          new Notice(`Canvas Sync: Synced "${(envelope as { payload: CanvasCoursePayload }).payload.courseName}" from browser extension!`);
+          res.end(JSON.stringify({ ok: true, message: `${actionText}: ${payload.courseName}` }));
+          new Notice(`Canvas Sync: ${actionText} "${payload.courseName}" from browser extension!`);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           res.writeHead(400, {
@@ -337,8 +373,9 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       const course = courses[i];
       try {
         new Notice(`[${i + 1}/${courses.length}] Syncing: ${course.name}...`);
-        await this.syncCourseById(course.id);
-        new Notice(`Synced: ${course.name}`);
+        const result = await this.syncCourseById(course.id);
+        const actionText = result?.isNew ? "Created course" : "Updated course";
+        new Notice(`${actionText}: ${course.name}`);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         new Notice(`Failed to sync ${course.name}: ${msg}`, 8000);
@@ -350,21 +387,27 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   public async syncCourseById(
     courseId: string | number,
     onProgress?: (step: string, current: number, total: number) => void
-  ): Promise<void> {
+  ): Promise<{ isNew: boolean; courseFolder: string }> {
     const client = this.getApiClient();
     const payload = await client.fetchCompleteCoursePayload(courseId, onProgress, {
       syncDiscussionReplies: this.settings.syncDiscussionReplies,
       syncStudentSubmissions: this.settings.syncStudentSubmissions
     });
-    await this.syncCoursePayload(payload, onProgress);
+    return await this.syncCoursePayload(payload, onProgress, "api");
   }
 
   public async syncCoursePayload(
     payload: CanvasCoursePayload,
-    onProgress?: (step: string, current: number, total: number) => void
-  ): Promise<void> {
+    onProgress?: (step: string, current: number, total: number) => void,
+    syncSource: "api" | "browser-extension" = "api"
+  ): Promise<{ isNew: boolean; courseFolder: string }> {
     const subfolder = formatCourseFolderName(this.settings.courseFolderTemplate, payload);
     const courseFolder = normalizePath(`${this.settings.rootFolder}/${subfolder}`);
+
+    const existingFolder =
+      this.app.vault.getAbstractFileByPath(courseFolder) ||
+      this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === courseFolder.toLowerCase());
+    const isNew = !existingFolder;
 
     await this.ensureFolder(courseFolder);
 
@@ -372,6 +415,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const attachmentsSubfolder = this.settings.attachmentsSubfolder || "Attachments";
     const filesFolder = normalizePath(`${courseFolder}/${documentsSubfolder}`);
     const attachmentsFolder = normalizePath(`${courseFolder}/${attachmentsSubfolder}`);
+
+    const syncedFiles: string[] = [];
 
     if (this.settings.downloadAssets) {
       await this.ensureFolder(filesFolder);
@@ -449,6 +494,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
           const targetVaultPath = normalizePath(`${courseFolder}/${targetRelativePath}`);
 
           await this.upsertArrayBufferFile(targetVaultPath, arrayBuffer);
+          syncedFiles.push(targetVaultPath);
 
           file.displayName = finalFileName;
           file.downloaded = true;
@@ -628,12 +674,14 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     // Step 3: Write Markdown Notes to Vault
     if (payload.courseHomePageHtml) {
       const homePath = normalizePath(`${courseFolder}/Home.md`);
-      await this.upsertFile(homePath, this.renderHtmlDoc("Course Home", payload.courseHomePageHtml) + "\n");
+      await this.upsertFile(homePath, this.renderHtmlDoc("Course Home", payload.courseHomePageHtml, payload.fetchedAt) + "\n");
+      syncedFiles.push(homePath);
     }
 
     if (payload.syllabusHtml) {
       const syllabusPath = normalizePath(`${courseFolder}/Syllabus.md`);
-      await this.upsertFile(syllabusPath, this.renderHtmlDoc("Syllabus", payload.syllabusHtml) + "\n");
+      await this.upsertFile(syllabusPath, this.renderHtmlDoc("Syllabus", payload.syllabusHtml, payload.fetchedAt) + "\n");
+      syncedFiles.push(syllabusPath);
     }
 
     const modulesFolder = normalizePath(`${courseFolder}/Modules`);
@@ -650,18 +698,23 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         discussionById,
         fileById,
         fileMap,
-        moduleByName
+        moduleByName,
+        syncedFiles,
+        payload.fetchedAt
       );
     }
 
     const tasksPath = normalizePath(`${courseFolder}/Tasks.md`);
-    await this.upsertFile(tasksPath, this.renderAssignments(payload.assignments, assignmentMap, moduleByName, fileMap));
+    await this.upsertFile(tasksPath, this.renderAssignments(payload.assignments, assignmentMap, moduleByName, fileMap, payload.fetchedAt));
+    syncedFiles.push(tasksPath);
 
     const gradesPath = normalizePath(`${courseFolder}/Grades.md`);
     await this.upsertFile(gradesPath, this.renderGradesPage(payload, assignmentMap, moduleByName));
+    syncedFiles.push(gradesPath);
 
     const discussionsPath = normalizePath(`${courseFolder}/Discussions.md`);
-    await this.upsertFile(discussionsPath, this.renderDiscussions(payload.discussions, discussionMap, moduleByName));
+    await this.upsertFile(discussionsPath, this.renderDiscussions(payload.discussions, discussionMap, moduleByName, payload.fetchedAt));
+    syncedFiles.push(discussionsPath);
 
     // Ensure events include synthesized milestones from assignments if not already present
     const finalEvents = Array.isArray(payload.events) ? [...payload.events] : [];
@@ -695,16 +748,26 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     payload.events = finalEvents;
 
     const eventsPath = normalizePath(`${courseFolder}/Calendar.md`);
-    await this.upsertFile(eventsPath, this.renderEvents(payload.events, assignmentMap));
+    await this.upsertFile(eventsPath, this.renderEvents(payload.events, assignmentMap, payload.fetchedAt));
+    syncedFiles.push(eventsPath);
 
     const courseIndexPath = normalizePath(`${courseFolder}/Course.md`);
     const indexDoc = this.renderCourseIndex(payload);
     await this.upsertFile(courseIndexPath, indexDoc + "\n");
+    syncedFiles.push(courseIndexPath);
 
     if (this.settings.includeRawPayload) {
       const rawPath = normalizePath(`${courseFolder}/Raw Payload.json`);
-      await this.upsertFile(rawPath, JSON.stringify(payload, null, 2) + "\n");
+      await this.upsertFile(rawPath, JSON.stringify(payload, null, 2) + "\n", false);
+      syncedFiles.push(rawPath);
     }
+
+    // Step 4: Record sync manifest for history and location tracking
+    const manifest = createCourseManifest(payload, syncedFiles, syncSource);
+    const manifestPath = normalizePath(`${courseFolder}/_canvas-sync-manifest.json`);
+    await this.upsertFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", false);
+
+    return { isNew, courseFolder };
   }
 
   private renderCourseIndex(payload: CanvasCoursePayload): string {
@@ -712,7 +775,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       `# ${payload.courseName}`,
       "",
       `Course ID: ${payload.courseId}`,
-      `Last Synced: ${payload.fetchedAt}`,
+      `Last Synced: ${formatSyncTimestamp(payload.fetchedAt)}`,
       "",
       "## Notes",
       "",
@@ -793,7 +856,9 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     discussionById: Map<string, CanvasDiscussionPayload>,
     fileById: Map<string, CanvasFileAssetPayload>,
     fileMap: Map<string, { relativePath: string; displayName: string }>,
-    moduleByName?: Map<string, { relativePath: string; title: string }>
+    moduleByName?: Map<string, { relativePath: string; title: string }>,
+    syncedFiles?: string[],
+    lastSynced?: string
   ): Promise<void> {
     const moduleFolder = normalizePath(
       `${modulesFolder}/${this.padPosition(module.position)} - ${this.sanitizeFileName(module.name)}`
@@ -802,7 +867,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const items = [...module.items].sort((a, b) => a.position - b.position);
 
     if (module.summaryHtml) {
-      await this.upsertFile(moduleOverviewPath, this.renderHtmlDoc(module.name, module.summaryHtml) + "\n");
+      await this.upsertFile(moduleOverviewPath, this.renderHtmlDoc(module.name, module.summaryHtml, lastSynced) + "\n");
+      syncedFiles?.push(moduleOverviewPath);
     } else {
       const itemLinks: string[] = [];
       for (const item of items) {
@@ -825,12 +891,15 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       const overviewDoc = [
         `# ${module.name}`,
         "",
+        `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+        "",
         "## Module Items",
         "",
         itemLinks.length > 0 ? itemLinks.join("\n") : "_No items in this module._",
         ""
       ].join("\n");
       await this.upsertFile(moduleOverviewPath, overviewDoc);
+      syncedFiles?.push(moduleOverviewPath);
     }
 
     for (const item of items) {
@@ -842,48 +911,59 @@ export default class CanvasSyncBridgePlugin extends Plugin {
           (item.pageSlug ? pageBySlug.get(item.pageSlug) : undefined) ||
           pageByTitle.get(item.title.trim().toLowerCase());
         const pagePath = normalizePath(`${moduleFolder}/${filePrefix} - Page - ${safeTitle}.md`);
-        await this.upsertFile(pagePath, this.renderModulePageDoc(item, page, moduleByName));
+        await this.upsertFile(pagePath, this.renderModulePageDoc(item, page, moduleByName, lastSynced));
+        syncedFiles?.push(pagePath);
         continue;
       }
 
       if (item.type === "Assignment") {
         const assignment = item.assignmentId ? assignmentById.get(item.assignmentId) : undefined;
         const assignmentPath = normalizePath(`${moduleFolder}/${filePrefix} - Assignment - ${safeTitle}.md`);
-        await this.upsertFile(assignmentPath, this.renderModuleAssignmentDoc(item, assignment, moduleByName, fileMap));
+        await this.upsertFile(assignmentPath, this.renderModuleAssignmentDoc(item, assignment, moduleByName, fileMap, lastSynced));
+        syncedFiles?.push(assignmentPath);
         continue;
       }
 
       if (item.type === "DiscussionTopic") {
         const discussion = item.discussionId ? discussionById.get(item.discussionId) : undefined;
         const discussionPath = normalizePath(`${moduleFolder}/${filePrefix} - Discussion - ${safeTitle}.md`);
-        await this.upsertFile(discussionPath, this.renderModuleDiscussionDoc(item, discussion, moduleByName, fileMap));
+        await this.upsertFile(discussionPath, this.renderModuleDiscussionDoc(item, discussion, moduleByName, fileMap, lastSynced));
+        syncedFiles?.push(discussionPath);
         continue;
       }
 
       if (item.type === "File") {
         const file = item.fileId ? fileById.get(item.fileId) : undefined;
         const filePath = normalizePath(`${moduleFolder}/${filePrefix} - File - ${safeTitle}.md`);
-        await this.upsertFile(filePath, this.renderModuleFileDoc(item, file));
+        await this.upsertFile(filePath, this.renderModuleFileDoc(item, file, lastSynced));
+        syncedFiles?.push(filePath);
         continue;
       }
 
       if (item.type === "ExternalUrl" || item.type === "ContextExternalTool") {
         const linkPath = normalizePath(`${moduleFolder}/${filePrefix} - Link - ${safeTitle}.md`);
-        await this.upsertFile(linkPath, this.renderModuleLinkDoc(item));
+        await this.upsertFile(linkPath, this.renderModuleLinkDoc(item, lastSynced));
+        syncedFiles?.push(linkPath);
         continue;
       }
 
       if (item.type === "ContextModuleSubHeader") {
         const subHeaderPath = normalizePath(`${moduleFolder}/${filePrefix} - Section - ${safeTitle}.md`);
-        await this.upsertFile(subHeaderPath, this.renderSubHeaderDoc(item));
+        await this.upsertFile(subHeaderPath, this.renderSubHeaderDoc(item, lastSynced));
+        syncedFiles?.push(subHeaderPath);
         continue;
       }
     }
   }
 
-  private renderHtmlDoc(title: string, html: string): string {
+  private renderHtmlDoc(title: string, html: string, lastSynced?: string): string {
     const markdown = this.turndown.turndown(html).trim();
-    return [`# ${title}`, "", markdown || "No content available."].join("\n");
+    const lines = [`# ${title}`, ""];
+    if (lastSynced) {
+      lines.push(`> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`, "");
+    }
+    lines.push(markdown || "No content available.");
+    return lines.join("\n");
   }
 
   private formatModuleLinks(
@@ -903,7 +983,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   private renderModulePageDoc(
     item: CanvasModuleItemPayload,
     page?: CanvasPagePayload,
-    moduleByName?: Map<string, { relativePath: string; title: string }>
+    moduleByName?: Map<string, { relativePath: string; title: string }>,
+    lastSynced?: string
   ): string {
     if (!page) {
       return [
@@ -911,6 +992,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         "",
         `Type: ${item.type}`,
         item.pageSlug ? `Page Slug: ${item.pageSlug}` : null,
+        `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
         "",
         "Page content could not be retrieved in this sync."
       ]
@@ -925,7 +1007,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       `# ${page.title}`,
       "",
       `Source: ${page.url}`,
-      page.updatedAt ? `Updated: ${page.updatedAt}` : null,
+      `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
+      page.updatedAt ? `Canvas Updated: ${page.updatedAt}` : null,
       modLinks.length > 0 ? `Modules: ${modLinks.join(", ")}` : null,
       "",
       pageBody || "No page body available."
@@ -935,8 +1018,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       .trim() + "\n";
   }
 
-  private renderModuleFileDoc(item: CanvasModuleItemPayload, file?: CanvasFileAssetPayload): string {
-    const lines = [`# ${item.title}`, "", `Type: File`];
+  private renderModuleFileDoc(item: CanvasModuleItemPayload, file?: CanvasFileAssetPayload, lastSynced?: string): string {
+    const lines = [`# ${item.title}`, "", `Type: File`, `Last Synced: ${formatSyncTimestamp(lastSynced)}`];
 
     if (file?.downloaded && file.savedRelativePath) {
       lines.push(`File: [[${file.savedRelativePath}|${file.displayName}]]`);
@@ -959,7 +1042,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     item: CanvasModuleItemPayload,
     assignment?: CanvasAssignmentPayload,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
-    fileMap?: Map<string, { relativePath: string; displayName: string }>
+    fileMap?: Map<string, { relativePath: string; displayName: string }>,
+    lastSynced?: string
   ): string {
     if (!assignment) {
       return [
@@ -967,6 +1051,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         "",
         `Type: ${item.type}`,
         item.assignmentId ? `Assignment ID: ${item.assignmentId}` : null,
+        `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
         "",
         "Assignment details could not be retrieved in this sync."
       ]
@@ -991,6 +1076,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       `Assignment ID: ${assignment.id}`,
       `Due: ${due}`,
       `Points: ${points}`,
+      `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
       modLinks.length > 0 ? `Modules: ${modLinks.join(", ")}` : null,
       assignment.htmlUrl ? `Source: ${assignment.htmlUrl}` : null,
       "",
@@ -1189,7 +1275,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     item: CanvasModuleItemPayload,
     discussion?: CanvasDiscussionPayload,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
-    fileMap?: Map<string, { relativePath: string; displayName: string }>
+    fileMap?: Map<string, { relativePath: string; displayName: string }>,
+    lastSynced?: string
   ): string {
     if (!discussion) {
       return [
@@ -1197,6 +1284,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         "",
         `Type: ${item.type}`,
         item.discussionId ? `Discussion ID: ${item.discussionId}` : null,
+        `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
         "",
         "Discussion details could not be retrieved in this sync."
       ]
@@ -1228,6 +1316,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       "",
       `Discussion ID: ${discussion.id}`,
       discussion.assignmentId ? `Assignment ID: ${discussion.assignmentId}` : null,
+      `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
       due ? `Due: ${due}` : null,
       points ? `Points: ${points}` : null,
       discussion.postedAt ? `Posted: ${discussion.postedAt}` : null,
@@ -1252,26 +1341,33 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       .trim() + "\n";
   }
 
-  private renderModuleLinkDoc(item: CanvasModuleItemPayload): string {
+  private renderModuleLinkDoc(item: CanvasModuleItemPayload, lastSynced?: string): string {
     return [
       `# ${item.title}`,
       "",
       `Type: ${item.type}`,
+      `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
       item.externalUrl ? `URL: ${item.externalUrl}` : "URL: Not provided by Canvas API"
     ].join("\n") + "\n";
   }
 
-  private renderSubHeaderDoc(item: CanvasModuleItemPayload): string {
-    return [`# ${item.title}`, "", "Module section header."].join("\n") + "\n";
+  private renderSubHeaderDoc(item: CanvasModuleItemPayload, lastSynced?: string): string {
+    return [`# ${item.title}`, "", `Type: Section Header`, `Last Synced: ${formatSyncTimestamp(lastSynced)}`, "", "Module section header."].join("\n") + "\n";
   }
 
   private renderAssignments(
     assignments: CanvasAssignmentPayload[],
     assignmentMap?: Map<string, { relativePath: string; title: string }>,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
-    fileMap?: Map<string, { relativePath: string; displayName: string }>
+    fileMap?: Map<string, { relativePath: string; displayName: string }>,
+    lastSynced?: string
   ): string {
-    const lines: string[] = ["# Tasks & Assignments", ""];
+    const lines: string[] = [
+      "# Tasks & Assignments",
+      "",
+      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+      ""
+    ];
 
     if (assignments.length === 0) {
       lines.push("No assignments were found in this sync.", "");
@@ -1342,6 +1438,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     lines.push(`> [!INFO] **Overall Course Grade**`);
     lines.push(`> - **Current Score**: ${currentScoreText}${currentGradeText}`);
     lines.push(`> - **Final Calculated Score**: ${finalScoreText}${finalGradeText}`);
+    lines.push(`> - **Last Synced**: ${formatSyncTimestamp(payload.fetchedAt)}`);
     lines.push("");
 
     // 2. Metrics & Summary
@@ -1438,9 +1535,15 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   private renderDiscussions(
     discussions: CanvasDiscussionPayload[],
     discussionMap?: Map<string, { relativePath: string; title: string }>,
-    moduleByName?: Map<string, { relativePath: string; title: string }>
+    moduleByName?: Map<string, { relativePath: string; title: string }>,
+    lastSynced?: string
   ): string {
-    const lines: string[] = ["# Discussions", ""];
+    const lines: string[] = [
+      "# Discussions",
+      "",
+      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+      ""
+    ];
 
     if (discussions.length === 0) {
       lines.push("No discussions were found in this sync.", "");
@@ -1475,14 +1578,24 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
   private renderEvents(
     events: CanvasEventPayload[],
-    assignmentMap?: Map<string, { relativePath: string; title: string }>
+    assignmentMap?: Map<string, { relativePath: string; title: string }>,
+    lastSynced?: string
   ): string {
     if (events.length === 0) {
-      return ["# Calendar & Milestones", "", "No events or milestones were found in this sync.", ""].join("\n");
+      return [
+        "# Calendar & Milestones",
+        "",
+        `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+        "",
+        "No events or milestones were found in this sync.",
+        ""
+      ].join("\n");
     }
 
     const lines: string[] = [
       "# Calendar & Milestones",
+      "",
+      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
       "",
       "| Date | Type | Event / Milestone | Details | Link |",
       "| :--- | :--- | :--- | :--- | :--- |"
@@ -1522,48 +1635,110 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 
   private async ensureFolder(path: string): Promise<void> {
-    if (path === "" || path === "/") {
+    const cleanPath = normalizePath(path);
+    if (!cleanPath || cleanPath === "/" || cleanPath === ".") {
       return;
     }
 
-    if (this.app.vault.getAbstractFileByPath(path)) {
-      return;
-    }
-
-    const segments = path.split("/");
+    const segments = cleanPath.split("/");
     let cursor = "";
     for (const segment of segments) {
       cursor = cursor ? `${cursor}/${segment}` : segment;
-      if (!this.app.vault.getAbstractFileByPath(cursor)) {
-        await this.app.vault.createFolder(cursor);
+      const normalizedCursor = normalizePath(cursor);
+      const existing =
+        this.app.vault.getAbstractFileByPath(normalizedCursor) ||
+        this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normalizedCursor.toLowerCase());
+      if (!existing) {
+        try {
+          await this.app.vault.createFolder(normalizedCursor);
+        } catch (err) {
+          if (!String(err).toLowerCase().includes("already exists")) {
+            console.warn("Failed to create folder", normalizedCursor, err);
+          }
+        }
       }
     }
   }
 
-  private async upsertFile(path: string, content: string): Promise<void> {
-    const parent = path.split("/").slice(0, -1).join("/");
+  private async upsertFile(
+    path: string,
+    content: string,
+    preserveUserNotes = this.settings.preservePersonalNotes
+  ): Promise<void> {
+    const normPath = normalizePath(path);
+    const parent = normPath.split("/").slice(0, -1).join("/");
     await this.ensureFolder(parent);
 
-    const existing = this.app.vault.getAbstractFileByPath(path);
+    const existing =
+      this.app.vault.getAbstractFileByPath(normPath) ||
+      this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
+    let finalContent = content;
+
+    if (preserveUserNotes && normPath.endsWith(".md")) {
+      if (existing instanceof TFile) {
+        try {
+          const existingContent = await this.app.vault.read(existing);
+          finalContent = mergePreservedContent(content, existingContent);
+        } catch {
+          finalContent = mergePreservedContent(content, null);
+        }
+      } else {
+        finalContent = mergePreservedContent(content, null);
+      }
+    }
+
     if (existing instanceof TFile) {
-      await this.app.vault.process(existing, () => content);
+      await this.app.vault.process(existing, () => finalContent);
       return;
     }
 
-    await this.app.vault.create(path, content);
+    try {
+      await this.app.vault.create(normPath, finalContent);
+    } catch (err) {
+      if (String(err).toLowerCase().includes("already exists")) {
+        const retryFile =
+          this.app.vault.getAbstractFileByPath(normPath) ||
+          this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
+        if (retryFile instanceof TFile) {
+          await this.app.vault.process(retryFile, () => finalContent);
+          return;
+        }
+        console.warn(`File ${normPath} already exists on disk but is not indexed as TFile in vault.`);
+        return;
+      }
+      throw err;
+    }
   }
 
   private async upsertArrayBufferFile(path: string, arrayBuffer: ArrayBuffer): Promise<void> {
-    const parent = path.split("/").slice(0, -1).join("/");
+    const normPath = normalizePath(path);
+    const parent = normPath.split("/").slice(0, -1).join("/");
     await this.ensureFolder(parent);
 
-    const existing = this.app.vault.getAbstractFileByPath(path);
+    const existing =
+      this.app.vault.getAbstractFileByPath(normPath) ||
+      this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
     if (existing instanceof TFile) {
       await this.app.vault.modifyBinary(existing, arrayBuffer);
       return;
     }
 
-    await this.app.vault.createBinary(path, arrayBuffer);
+    try {
+      await this.app.vault.createBinary(normPath, arrayBuffer);
+    } catch (err) {
+      if (String(err).toLowerCase().includes("already exists")) {
+        const retryFile =
+          this.app.vault.getAbstractFileByPath(normPath) ||
+          this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === normPath.toLowerCase());
+        if (retryFile instanceof TFile) {
+          await this.app.vault.modifyBinary(retryFile, arrayBuffer);
+          return;
+        }
+        console.warn(`Binary file ${normPath} already exists on disk but is not indexed as TFile in vault.`);
+        return;
+      }
+      throw err;
+    }
   }
 
   private padPosition(position: number): string {
@@ -1571,7 +1746,113 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 
   private sanitizeFileName(input: string): string {
-    return input.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim() || "Untitled";
+    return sanitizeFileName(input, 100);
+  }
+
+  public initBackgroundSyncScheduler(): void {
+    this.stopBackgroundSyncScheduler();
+
+    if (!this.settings.enableScheduledSync) {
+      return;
+    }
+
+    const intervalMs = Math.max(1, this.settings.scheduledSyncIntervalMinutes) * 60 * 1000;
+    this.syncIntervalTimer = window.setInterval(() => {
+      void this.runScheduledSync(false);
+    }, intervalMs);
+
+    this.registerInterval(this.syncIntervalTimer);
+  }
+
+  public stopBackgroundSyncScheduler(): void {
+    if (this.syncIntervalTimer !== null) {
+      window.clearInterval(this.syncIntervalTimer);
+      this.syncIntervalTimer = null;
+    }
+  }
+
+  public restartBackgroundSyncScheduler(): void {
+    this.initBackgroundSyncScheduler();
+  }
+
+  public async runScheduledSync(isManual = false): Promise<void> {
+    if (this.isSyncing) {
+      if (isManual) {
+        new Notice("Canvas Sync is already in progress.");
+      }
+      return;
+    }
+
+    if (!this.settings.canvasBaseUrl || !this.settings.canvasApiToken) {
+      if (isManual) {
+        new Notice("Canvas URL and API Token are not configured in settings.");
+      }
+      return;
+    }
+
+    this.isSyncing = true;
+    const isSilent = this.settings.silentScheduledSync && !isManual;
+
+    try {
+      if (!isSilent) {
+        new Notice("Canvas Sync: Starting scheduled course sync...");
+      }
+
+      const client = this.getApiClient();
+      const courses = await client.listCourses({ includeInactive: this.settings.includeInactiveCourses });
+
+      if (!courses || courses.length === 0) {
+        if (!isSilent) {
+          new Notice("Canvas Sync: No courses found to sync.");
+        }
+        return;
+      }
+
+      let targetCourses = courses;
+      if (this.settings.scheduledSyncSelectionMode === "selected" && this.settings.scheduledCourseIds.length > 0) {
+        const selectedSet = new Set(this.settings.scheduledCourseIds.map(Number));
+        targetCourses = courses.filter((c) => selectedSet.has(Number(c.id)));
+      }
+
+      if (targetCourses.length === 0) {
+        if (!isSilent) {
+          new Notice("Canvas Sync: No matching courses selected for scheduled sync.");
+        }
+        return;
+      }
+
+      let successCount = 0;
+      for (let i = 0; i < targetCourses.length; i++) {
+        const course = targetCourses[i];
+        try {
+          if (!isSilent) {
+            new Notice(`[${i + 1}/${targetCourses.length}] Syncing: ${course.name}...`);
+          }
+          const result = await this.syncCourseById(course.id);
+          successCount++;
+          if (!isSilent) {
+            const actionText = result?.isNew ? "Created course" : "Updated course";
+            new Notice(`${actionText}: ${course.name}`);
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`Failed to sync course ${course.name}:`, err);
+          new Notice(`Canvas Sync error on ${course.name}: ${msg}`, 10000);
+        }
+      }
+
+      await this.updateSettings({ lastScheduledSyncTimestamp: Date.now() });
+
+      if (!isSilent) {
+        new Notice(`Canvas Sync: Successfully synced ${successCount}/${targetCourses.length} course(s).`);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Scheduled Canvas Sync error:", error);
+      new Notice(`Canvas background sync failed: ${msg}`, 10000);
+    } finally {
+      this.isSyncing = false;
+    }
   }
 }
 
@@ -1894,6 +2175,104 @@ class CanvasSyncSettingTab extends PluginSettingTab {
             });
           })
       );
+
+    new Setting(containerEl)
+      .setName("Preserve student personal notes")
+      .setDesc("Retain personal annotations written in '## 📝 Personal Notes' section across course resyncs.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().preservePersonalNotes ?? true).onChange((value) => {
+          void this.plugin.updateSettings({ preservePersonalNotes: value });
+        })
+      );
+
+    new Setting(containerEl).setName("Scheduled background sync & automation").setHeading();
+
+    new Setting(containerEl)
+      .setName("Enable background sync")
+      .setDesc("Automatically resync courses in the background at regular intervals.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().enableScheduledSync ?? false).onChange(async (value) => {
+          await this.plugin.updateSettings({ enableScheduledSync: value });
+          this.display();
+        })
+      );
+
+    if (this.plugin.getSettings().enableScheduledSync) {
+      new Setting(containerEl)
+        .setName("Sync interval")
+        .setDesc("How often to periodically resync courses.")
+        .addDropdown((dropdown) =>
+          dropdown
+            .addOption("15", "Every 15 minutes")
+            .addOption("30", "Every 30 minutes")
+            .addOption("60", "Every 1 hour")
+            .addOption("120", "Every 2 hours")
+            .addOption("240", "Every 4 hours")
+            .addOption("360", "Every 6 hours")
+            .addOption("720", "Every 12 hours")
+            .addOption("1440", "Every 24 hours (Daily)")
+            .setValue(String(this.plugin.getSettings().scheduledSyncIntervalMinutes || 60))
+            .onChange((value) => {
+              const minutes = Number.parseInt(value, 10);
+              if (Number.isFinite(minutes) && minutes > 0) {
+                void this.plugin.updateSettings({ scheduledSyncIntervalMinutes: minutes });
+              }
+            })
+        );
+
+      new Setting(containerEl)
+        .setName("Course selection for auto-sync")
+        .setDesc("Choose whether to sync all active courses or only specific selected courses.")
+        .addDropdown((dropdown) =>
+          dropdown
+            .addOption("all_active", "All active courses")
+            .addOption("selected", "Selected courses only")
+            .setValue(this.plugin.getSettings().scheduledSyncSelectionMode || "all_active")
+            .onChange((value) => {
+              void this.plugin.updateSettings({
+                scheduledSyncSelectionMode: value as "all_active" | "selected"
+              });
+              this.display();
+            })
+        );
+
+      if (this.plugin.getSettings().scheduledSyncSelectionMode === "selected") {
+        const count = this.plugin.getSettings().scheduledCourseIds?.length || 0;
+        new Setting(containerEl)
+          .setName("Manage auto-sync courses")
+          .setDesc(`${count} course(s) currently configured for auto-sync.`)
+          .addButton((btn) =>
+            btn.setButtonText("Select Courses...").onClick(() => {
+              new CourseSelectModal(this.app, this.plugin).open();
+            })
+          );
+      }
+
+      new Setting(containerEl)
+        .setName("Silent background sync")
+        .setDesc("Sync silently in the background without pop-up notifications unless an error occurs.")
+        .addToggle((toggle) =>
+          toggle.setValue(this.plugin.getSettings().silentScheduledSync ?? true).onChange((value) => {
+            void this.plugin.updateSettings({ silentScheduledSync: value });
+          })
+        );
+
+      const lastSync = this.plugin.getSettings().lastScheduledSyncTimestamp;
+      const lastSyncText = lastSync ? new Date(lastSync).toLocaleString() : "Never";
+
+      new Setting(containerEl)
+        .setName("Run scheduled sync now")
+        .setDesc(`Last background sync: ${lastSyncText}`)
+        .addButton((btn) =>
+          btn
+            .setButtonText("Sync Now")
+            .setCta()
+            .onClick(async () => {
+              await this.plugin.runScheduledSync(true);
+              this.display();
+            })
+        );
+    }
 
     new Setting(containerEl).setName("Asset downloads & attachments").setHeading();
 
