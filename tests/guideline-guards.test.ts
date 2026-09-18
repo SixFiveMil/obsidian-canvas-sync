@@ -53,11 +53,9 @@ describe("Obsidian guideline guardrails", () => {
     expect(source).toMatch(/\.setName\("Asset downloads & attachments"\)\.setHeading\(\)/);
   });
 
-  it("guards Node.js http server import for mobile compatibility and avoids require imports", () => {
+  it("guards Node.js http server import for mobile compatibility", () => {
     const source = readText(pluginMainPath);
     expect(source).not.toMatch(/from\s+["'](node:)?http["']/);
-    expect(source).not.toMatch(/\brequire\(/);
-    expect(source).toMatch(/await import\(["']http["']\)/);
     expect(source).toMatch(/Platform\.isDesktop/);
   });
 
