@@ -46,8 +46,26 @@ export const ARCHIVE_CODE_EXTENSIONS = [
 ];
 export const MEDIA_EXTENSIONS = ["mp4", "mov", "webm", "mkv", "avi", "mp3", "m4a", "wav", "aac", "ogg", "flac"];
 
-export function cleanFileName(input: string): string {
-  return input.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim() || "file";
+export function cleanFileName(input: string, maxLength = 100): string {
+  if (!input || typeof input !== "string") {
+    return "file";
+  }
+
+  const cleaned = input.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
+  if (!cleaned) {
+    return "file";
+  }
+
+  const lastDot = cleaned.lastIndexOf(".");
+  if (lastDot > 0 && lastDot < cleaned.length - 1) {
+    const base = cleaned.substring(0, lastDot).trim();
+    const ext = cleaned.substring(lastDot + 1).trim();
+    const truncatedBase = base.slice(0, maxLength).trim().replace(/[.\-\s]+$/, "");
+    return truncatedBase ? `${truncatedBase}.${ext}` : `file.${ext}`;
+  }
+
+  const truncated = cleaned.slice(0, maxLength).trim().replace(/[.\-\s]+$/, "");
+  return truncated || "file";
 }
 
 export function parseContentDispositionFilename(header: string): string | null {

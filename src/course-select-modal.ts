@@ -150,6 +150,17 @@ export class CourseSelectModal extends Modal {
     const cancelBtn = btnContainer.createEl("button", { text: "Cancel" });
     cancelBtn.onclick = () => this.close();
 
+    const saveScheduledBtn = btnContainer.createEl("button", { text: "Save for Auto-Sync" });
+    saveScheduledBtn.onclick = async () => {
+      const selectedIds = Array.from(this.selectedCourseIds);
+      await this.plugin.updateSettings({
+        scheduledCourseIds: selectedIds,
+        scheduledSyncSelectionMode: "selected"
+      });
+      new Notice(`Saved ${selectedIds.length} course(s) for scheduled background sync.`);
+      this.close();
+    };
+
     const syncBtn = btnContainer.createEl("button", {
       text: "Sync Selected",
       cls: "mod-cta"
@@ -161,6 +172,7 @@ export class CourseSelectModal extends Modal {
       }
       syncBtn.disabled = true;
       cancelBtn.disabled = true;
+      saveScheduledBtn.disabled = true;
       await this.runSync();
     };
 

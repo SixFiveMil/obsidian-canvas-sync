@@ -1,4 +1,4 @@
-﻿import { sanitizeFileName } from "./security-utils";
+import { sanitizeFileName } from "./security-utils";
 import type { CanvasCoursePayload } from "./types";
 
 export type CourseFolderPayload = Pick<CanvasCoursePayload, "courseId" | "courseName" | "courseCode">;
@@ -31,11 +31,27 @@ export function formatCourseFolderName(template: string, payload: CourseFolderPa
     return fallbackFolder;
   }
 
+  // If courseCode and courseName are identical, simplify to avoid "CSOL-510 - CSOL-510"
+  let effectiveCourseName = courseName;
+  if (courseCode && courseName.toLowerCase() === courseCode.toLowerCase()) {
+    effectiveCourseName = courseName;
+  }
+
   // Replace placeholders
-  const resolved = effectiveTemplate
-    .replace(/\{\{courseCode\}\}|\$\{courseCode\}/g, courseCode)
-    .replace(/\{\{courseName\}\}|\$\{courseName\}/g, courseName)
-    .replace(/\{\{courseId\}\}|\$\{courseId\}/g, courseId);
+  let resolved = effectiveTemplate;
+  if (
+    courseCode &&
+    courseName &&
+    courseName.toLowerCase() === courseCode.toLowerCase() &&
+    (resolved === "{{courseCode}} - {{courseName}}" || resolved === "${courseCode} - ${courseName}")
+  ) {
+    resolved = courseName;
+  } else {
+    resolved = resolved
+      .replace(/\{\{courseCode\}\}|\$\{courseCode\}/g, courseCode)
+      .replace(/\{\{courseName\}\}|\$\{courseName\}/g, effectiveCourseName)
+      .replace(/\{\{courseId\}\}|\$\{courseId\}/g, courseId);
+  }
 
   // Sanitize path segments while preserving subfolder hierarchy if slashes are present
   const segments = resolved

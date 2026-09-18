@@ -256,5 +256,12 @@ export interface CanvasSyncSettings {
   maxAssetSizeMb: number;
   documentsSubfolder: string;
   attachmentsSubfolder: string;
+  preservePersonalNotes: boolean;
+  enableScheduledSync: boolean;
+  scheduledSyncIntervalMinutes: number;
+  scheduledSyncSelectionMode: "all_active" | "selected";
+  scheduledCourseIds: number[];
+  silentScheduledSync: boolean;
+  lastScheduledSyncTimestamp?: number;
 }
 

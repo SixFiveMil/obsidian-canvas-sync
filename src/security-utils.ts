@@ -43,15 +43,27 @@ export function getAllowedExtensionOrigin(originHeader?: string | null): string 
   return null;
 }
 
-export function sanitizeFileName(input: string): string {
-  return input.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim() || "Untitled";
+export function sanitizeFileName(input: string, maxLength = 100): string {
+  if (!input || typeof input !== "string") {
+    return "Untitled";
+  }
+
+  const cleaned = input.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
+  if (!cleaned) {
+    return "Untitled";
+  }
+
+  const truncated = cleaned.slice(0, maxLength).trim().replace(/[.\-\s]+$/, "");
+  return truncated || "Untitled";
 }
 
-export function sanitizePath(input: string): string {
+export function sanitizePath(input: string, maxSegmentLength = 100): string {
   return input
     .replace(/\\/g, "/")
     .split("/")
-    .map((segment) => sanitizeFileName(segment))
-    .filter((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && segment !== "." && segment !== ".." && !/^\.+$/.test(segment))
+    .map((segment) => sanitizeFileName(segment, maxSegmentLength))
+    .filter((segment) => segment.length > 0)
     .join("/");
 }
