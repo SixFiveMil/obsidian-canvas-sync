@@ -146,8 +146,9 @@ npm run build
 
 ## 🌐 Companion Browser Extension
 
-The browser extension source code, build system, and store deployment pipelines are maintained in a dedicated repository:
+The browser extension source code, pre-packaged `.zip` release files, and store deployment pipelines are maintained in a dedicated repository:
 * **Repository**: [SixFiveMil/canvas-to-obsidian-extension](https://github.com/SixFiveMil/canvas-to-obsidian-extension)
+* **Latest Extension Release (.zip downloads)**: [Extension Releases on GitHub](https://github.com/SixFiveMil/canvas-to-obsidian-extension/releases/latest)
 * **Chrome Web Store**: [Canvas to Obsidian Sync](https://chromewebstore.google.com/detail/canvas-to-obsidian-sync/oiakmbihplldnhabhnihnekjddenbiom)
 * **Firefox Add-ons**: [Canvas to Obsidian Sync](https://addons.mozilla.org/en-US/firefox/addon/canvas-to-obsidian-sync/)
 
