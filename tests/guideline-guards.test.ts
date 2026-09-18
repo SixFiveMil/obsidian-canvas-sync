@@ -88,5 +88,14 @@ describe("Obsidian guideline guardrails", () => {
       expect(src).not.toMatch(/\/\*\s*eslint-disable/);
     }
   });
+
+  it("implements getSettingDefinitions for declarative settings search indexing", () => {
+    const source = readText(pluginMainPath);
+    expect(source).toMatch(/getSettingDefinitions\(\)/);
+    expect(source).toContain('key: "canvasBaseUrl"');
+    expect(source).toContain('key: "canvasApiToken"');
+    expect(source).toContain('key: "enableBridgeServer"');
+    expect(source).toContain('key: "rootFolder"');
+  });
 });
 

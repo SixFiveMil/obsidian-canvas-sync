@@ -1556,6 +1556,166 @@ class CanvasSyncSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  getSettingDefinitions(): unknown[] {
+    return [
+      {
+        heading: "Canvas API integration"
+      },
+      {
+        name: "Canvas base URL",
+        desc: "The web address of your Canvas institution (e.g. 'https://canvas.institution.edu' or 'https://canvas.instructure.com').",
+        control: {
+          type: "text",
+          key: "canvasBaseUrl",
+          placeholder: "https://your-school.instructure.com"
+        }
+      },
+      {
+        name: "Canvas API token",
+        desc: "Personal access token generated from your Canvas Profile (Settings > Approved Integrations > + New Access Token).",
+        control: {
+          type: "text",
+          key: "canvasApiToken",
+          placeholder: "Enter API token..."
+        }
+      },
+      {
+        name: "Include inactive & past courses",
+        desc: "Fetch completed, concluded, and past term courses in addition to active courses.",
+        control: {
+          type: "toggle",
+          key: "includeInactiveCourses"
+        }
+      },
+      {
+        name: "Sync discussion replies",
+        desc: "Fetch threaded student and instructor replies for course discussion topics.",
+        control: {
+          type: "toggle",
+          key: "syncDiscussionReplies"
+        }
+      },
+      {
+        name: "Sync student submissions & grades",
+        desc: "Fetch submitted assignments, scores, feedback comments, and rubric grading details.",
+        control: {
+          type: "toggle",
+          key: "syncStudentSubmissions"
+        }
+      },
+      {
+        heading: "Browser extension bridge (optional)"
+      },
+      {
+        name: "Enable browser bridge listener",
+        desc: "Open a local listener on 127.0.0.1 to receive course data from the companion browser extension (required for session-based sync).",
+        control: {
+          type: "toggle",
+          key: "enableBridgeServer"
+        }
+      },
+      {
+        name: "Bridge listen port",
+        desc: "Localhost port that receives data from the browser extension.",
+        control: {
+          type: "text",
+          key: "listenPort",
+          placeholder: "27125"
+        }
+      },
+      {
+        heading: "Vault & organization"
+      },
+      {
+        name: "Root folder",
+        desc: "Vault folder where course data should be written.",
+        control: {
+          type: "text",
+          key: "rootFolder",
+          placeholder: "Canvas"
+        }
+      },
+      {
+        name: "Course folder template",
+        desc: "Folder template for synced courses. Placeholders: {{courseCode}}, {{courseName}}, {{courseId}}.",
+        control: {
+          type: "text",
+          key: "courseFolderTemplate",
+          placeholder: "{{courseCode}} - {{courseName}}"
+        }
+      },
+      {
+        heading: "Asset downloads & attachments"
+      },
+      {
+        name: "Download static assets",
+        desc: "Download course attachments, documents, and images locally into the vault.",
+        control: {
+          type: "toggle",
+          key: "downloadAssets"
+        }
+      },
+      {
+        name: "Download documents",
+        desc: "Preset for .pdf, .docx, .pptx, .xlsx, .txt, .csv, .rtf.",
+        control: {
+          type: "toggle",
+          key: "downloadDocuments"
+        }
+      },
+      {
+        name: "Download images",
+        desc: "Preset for .png, .jpg, .jpeg, .gif, .svg, .webp.",
+        control: {
+          type: "toggle",
+          key: "downloadImages"
+        }
+      },
+      {
+        name: "Download archives & code",
+        desc: "Preset for .zip, .tar, .py, .java, .cpp, .js, .ts, .ipynb.",
+        control: {
+          type: "toggle",
+          key: "downloadArchivesAndCode"
+        }
+      },
+      {
+        name: "Download audio & video",
+        desc: "Download audio and direct video files (can use significant vault storage).",
+        control: {
+          type: "toggle",
+          key: "downloadMedia"
+        }
+      },
+      {
+        name: "Custom allowed extensions",
+        desc: "Comma-separated list of allowed file extensions (e.g. 'pdf, docx, pptx, zip').",
+        control: {
+          type: "text",
+          key: "allowedExtensions",
+          placeholder: "pdf, docx, pptx, xlsx, png, jpg, zip"
+        }
+      },
+      {
+        name: "Max file size limit (MB)",
+        desc: "Maximum size in megabytes for any single downloaded asset (prevents vault bloat).",
+        control: {
+          type: "text",
+          key: "maxAssetSizeMb",
+          placeholder: "50"
+        }
+      },
+      {
+        name: "Store raw payload",
+        desc: "Save incoming JSON payload for debugging.",
+        control: {
+          type: "toggle",
+          key: "includeRawPayload"
+        }
+      }
+    ];
+  }
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
