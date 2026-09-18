@@ -28,6 +28,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:bridge": "node scripts/test-bridge.mjs",
     "version": "node scripts/sync-version.mjs",
     "version:sync": "node scripts/sync-version.mjs"
   },
