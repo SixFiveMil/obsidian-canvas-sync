@@ -1583,20 +1583,24 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 
   private async ensureFolder(path: string): Promise<void> {
-    if (path === "" || path === "/") {
+    const cleanPath = normalizePath(path);
+    if (!cleanPath || cleanPath === "/" || cleanPath === ".") {
       return;
     }
 
-    if (this.app.vault.getAbstractFileByPath(path)) {
-      return;
-    }
-
-    const segments = path.split("/");
+    const segments = cleanPath.split("/");
     let cursor = "";
     for (const segment of segments) {
       cursor = cursor ? `${cursor}/${segment}` : segment;
-      if (!this.app.vault.getAbstractFileByPath(cursor)) {
-        await this.app.vault.createFolder(cursor);
+      const normalizedCursor = normalizePath(cursor);
+      if (!this.app.vault.getAbstractFileByPath(normalizedCursor)) {
+        try {
+          await this.app.vault.createFolder(normalizedCursor);
+        } catch (err) {
+          if (!String(err).includes("already exists")) {
+            console.warn("Failed to create folder", normalizedCursor, err);
+          }
+        }
       }
     }
   }
@@ -1606,13 +1610,14 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     content: string,
     preserveUserNotes = this.settings.preservePersonalNotes
   ): Promise<void> {
-    const parent = path.split("/").slice(0, -1).join("/");
+    const normPath = normalizePath(path);
+    const parent = normPath.split("/").slice(0, -1).join("/");
     await this.ensureFolder(parent);
 
-    const existing = this.app.vault.getAbstractFileByPath(path);
+    const existing = this.app.vault.getAbstractFileByPath(normPath);
     let finalContent = content;
 
-    if (preserveUserNotes && path.endsWith(".md")) {
+    if (preserveUserNotes && normPath.endsWith(".md")) {
       if (existing instanceof TFile) {
         try {
           const existingContent = await this.app.vault.read(existing);
@@ -1630,20 +1635,43 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       return;
     }
 
-    await this.app.vault.create(path, finalContent);
+    try {
+      await this.app.vault.create(normPath, finalContent);
+    } catch (err) {
+      if (String(err).includes("already exists")) {
+        const retryFile = this.app.vault.getAbstractFileByPath(normPath);
+        if (retryFile instanceof TFile) {
+          await this.app.vault.process(retryFile, () => finalContent);
+          return;
+        }
+      }
+      throw err;
+    }
   }
 
   private async upsertArrayBufferFile(path: string, arrayBuffer: ArrayBuffer): Promise<void> {
-    const parent = path.split("/").slice(0, -1).join("/");
+    const normPath = normalizePath(path);
+    const parent = normPath.split("/").slice(0, -1).join("/");
     await this.ensureFolder(parent);
 
-    const existing = this.app.vault.getAbstractFileByPath(path);
+    const existing = this.app.vault.getAbstractFileByPath(normPath);
     if (existing instanceof TFile) {
       await this.app.vault.modifyBinary(existing, arrayBuffer);
       return;
     }
 
-    await this.app.vault.createBinary(path, arrayBuffer);
+    try {
+      await this.app.vault.createBinary(normPath, arrayBuffer);
+    } catch (err) {
+      if (String(err).includes("already exists")) {
+        const retryFile = this.app.vault.getAbstractFileByPath(normPath);
+        if (retryFile instanceof TFile) {
+          await this.app.vault.modifyBinary(retryFile, arrayBuffer);
+          return;
+        }
+      }
+      throw err;
+    }
   }
 
   private padPosition(position: number): string {
