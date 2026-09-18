@@ -308,7 +308,7 @@ export class CourseSelectModal extends Modal {
           });
         }
 
-        await this.plugin.syncCourseById(courseId, (step, current, total) => {
+        const result = await this.plugin.syncCourseById(courseId, (step, current, total) => {
           if (this.syncStatusEl) {
             const detailEl =
               this.syncStatusEl.querySelector(".canvas-sync-step-detail") ||
@@ -317,7 +317,8 @@ export class CourseSelectModal extends Modal {
           }
         });
 
-        new Notice(`Synced: ${courseTitle}`);
+        const actionText = result?.isNew ? "Created course" : "Updated course";
+        new Notice(`${actionText}: ${courseTitle}`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         new Notice(`Failed to sync ${courseTitle}: ${message}`, 8000);

@@ -313,13 +313,15 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         try {
           const envelope: unknown = JSON.parse(raw);
           validateEnvelopeShape(envelope);
-          await this.syncCoursePayload((envelope as { payload: CanvasCoursePayload }).payload);
+          const payload = (envelope as { payload: CanvasCoursePayload }).payload;
+          const result = await this.syncCoursePayload(payload, undefined, "browser-extension");
+          const actionText = result.isNew ? "Created course" : "Updated course";
           res.writeHead(200, {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": corsOrigin
           });
-          res.end(JSON.stringify({ ok: true, message: `Synced course: ${(envelope as { payload: CanvasCoursePayload }).payload.courseName}` }));
-          new Notice(`Canvas Sync: Synced "${(envelope as { payload: CanvasCoursePayload }).payload.courseName}" from browser extension!`);
+          res.end(JSON.stringify({ ok: true, message: `${actionText}: ${payload.courseName}` }));
+          new Notice(`Canvas Sync: ${actionText} "${payload.courseName}" from browser extension!`);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           res.writeHead(400, {
@@ -371,8 +373,9 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       const course = courses[i];
       try {
         new Notice(`[${i + 1}/${courses.length}] Syncing: ${course.name}...`);
-        await this.syncCourseById(course.id);
-        new Notice(`Synced: ${course.name}`);
+        const result = await this.syncCourseById(course.id);
+        const actionText = result?.isNew ? "Created course" : "Updated course";
+        new Notice(`${actionText}: ${course.name}`);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         new Notice(`Failed to sync ${course.name}: ${msg}`, 8000);
@@ -384,22 +387,27 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   public async syncCourseById(
     courseId: string | number,
     onProgress?: (step: string, current: number, total: number) => void
-  ): Promise<void> {
+  ): Promise<{ isNew: boolean; courseFolder: string }> {
     const client = this.getApiClient();
     const payload = await client.fetchCompleteCoursePayload(courseId, onProgress, {
       syncDiscussionReplies: this.settings.syncDiscussionReplies,
       syncStudentSubmissions: this.settings.syncStudentSubmissions
     });
-    await this.syncCoursePayload(payload, onProgress, "api");
+    return await this.syncCoursePayload(payload, onProgress, "api");
   }
 
   public async syncCoursePayload(
     payload: CanvasCoursePayload,
     onProgress?: (step: string, current: number, total: number) => void,
     syncSource: "api" | "browser-extension" = "api"
-  ): Promise<void> {
+  ): Promise<{ isNew: boolean; courseFolder: string }> {
     const subfolder = formatCourseFolderName(this.settings.courseFolderTemplate, payload);
     const courseFolder = normalizePath(`${this.settings.rootFolder}/${subfolder}`);
+
+    const existingFolder =
+      this.app.vault.getAbstractFileByPath(courseFolder) ||
+      this.app.vault.getAllLoadedFiles().find((f) => f.path.toLowerCase() === courseFolder.toLowerCase());
+    const isNew = !existingFolder;
 
     await this.ensureFolder(courseFolder);
 
@@ -757,6 +765,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const manifest = createCourseManifest(payload, syncedFiles, syncSource);
     const manifestPath = normalizePath(`${courseFolder}/.canvas-sync-manifest.json`);
     await this.upsertFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", false);
+
+    return { isNew, courseFolder };
   }
 
   private renderCourseIndex(payload: CanvasCoursePayload): string {
@@ -1772,8 +1782,12 @@ export default class CanvasSyncBridgePlugin extends Plugin {
           if (!isSilent) {
             new Notice(`[${i + 1}/${targetCourses.length}] Syncing: ${course.name}...`);
           }
-          await this.syncCourseById(course.id);
+          const result = await this.syncCourseById(course.id);
           successCount++;
+          if (!isSilent) {
+            const actionText = result?.isNew ? "Created course" : "Updated course";
+            new Notice(`${actionText}: ${course.name}`);
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`Failed to sync course ${course.name}:`, err);
