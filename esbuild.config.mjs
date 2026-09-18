@@ -5,6 +5,7 @@ const watch = process.argv.includes("--watch");
 const ctx = await esbuild.context({
   entryPoints: ["src/main.ts"],
   bundle: true,
+  external: ["obsidian"],
   external: [
     "obsidian",
     "electron",

@@ -60,3 +60,4 @@ if ($Passed -eq $Total) {
     Write-Host "------------------------------------------------------`n" -ForegroundColor Cyan
     exit 1
 }
+

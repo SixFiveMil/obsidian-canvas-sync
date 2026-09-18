@@ -181,6 +181,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     }
 
     try {
+      const http = await import("http");
       this.server = http.createServer((req, res) => {
         void this.handleBridgeRequest(req, res);
       });
@@ -191,6 +192,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     }
 
     return new Promise<void>((resolve) => {
+      this.server?.once("error", (err) => {
       this.server?.once("error", (err: Error) => {
         console.error("Canvas Sync Bridge server error:", err);
         new Notice(`Canvas Sync Bridge: Failed to bind port ${this.settings.listenPort}: ${err.message}`);
