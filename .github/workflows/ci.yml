@@ -9,8 +9,11 @@ on:
       - main
 
 jobs:
-  build-and-test:
+  validate-and-test:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -33,3 +36,9 @@ jobs:
 
       - name: Build Obsidian plugin
         run: npm run build
+
+      - name: Validate with Obsidian official workflow
+        uses: obsidianmd/obsidian-workflows@v1
+        with:
+          mode: pr
+          scanner-lint: 'true'
