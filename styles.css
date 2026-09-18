@@ -1,0 +1,106 @@
+/* Canvas Sync Bridge Plugin Styles */
+
+.canvas-course-list-container {
+  max-height: 360px;
+  overflow-y: auto;
+  margin: 12px 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.canvas-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.canvas-modal-button-container {
+  display: flex;
+  gap: 8px;
+}
+
+.canvas-course-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border-focus);
+}
+
+.canvas-course-row:last-child {
+  border-bottom: none;
+}
+
+.canvas-course-row-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.canvas-course-title {
+  display: block;
+}
+
+.canvas-course-subtext {
+  color: var(--text-muted);
+}
+
+.canvas-course-badge {
+  font-size: 0.75em;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.canvas-badge-active {
+  font-size: 0.75em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--background-modifier-success);
+  color: var(--text-on-accent);
+}
+
+.canvas-badge-inactive {
+  font-size: 0.75em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.canvas-sync-progress-title {
+  font-weight: bold;
+}
+
+.canvas-no-courses {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 0;
+}
+
+.canvas-connection-status {
+  margin: 10px 0 20px 0;
+}
+
+.canvas-status-success {
+  color: var(--text-success);
+  font-weight: bold;
+}
+
+.canvas-status-error {
+  color: var(--text-error);
+}
+
+.canvas-status-testing {
+  color: var(--text-muted);
+}
+
+.canvas-sync-loading {
+  color: var(--text-muted);
+}
+
+.canvas-sync-error {
+  color: var(--text-error);
+}
+
