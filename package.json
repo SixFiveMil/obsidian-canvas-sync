@@ -1,6 +1,6 @@
 {
   "name": "obsidian-canvas-sync",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "main": "main.js",
   "description": "Sync Canvas LMS courses, modules, assignments, grades, discussions, files, and calendars directly into your vault as clean Markdown.",
   "author": "Joshua A. Wortz <security@codeandcypher.com> (https://github.com/SixFiveMil)",
