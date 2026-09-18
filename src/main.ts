@@ -152,7 +152,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       return null;
     }
     try {
-      const nodeRequire = (globalThis as unknown as { require?: (moduleName: string) => typeof import("http") }).require;
+      const nodeRequire = (window as unknown as { require?: (moduleName: string) => typeof import("http") }).require;
       if (typeof nodeRequire === "function") {
         return nodeRequire("http");
       }

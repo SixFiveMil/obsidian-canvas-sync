@@ -87,6 +87,14 @@ describe("Obsidian guideline guardrails", () => {
     }
   });
 
+  it("avoids globalThis in plugin source files in favor of window/activeWindow", () => {
+    const pluginDir = path.resolve(here, "../src");
+    for (const file of ["main.ts", "course-select-modal.ts", "canvas-api-client.ts", "link-utils.ts", "table-utils.ts", "template-utils.ts", "types.ts"]) {
+      const src = readText(path.resolve(pluginDir, file));
+      expect(src).not.toMatch(/\bglobalThis\b/);
+    }
+  });
+
   it("implements getSettingDefinitions for declarative settings search indexing", () => {
     const source = readText(pluginMainPath);
     expect(source).toMatch(/getSettingDefinitions\(\)/);
