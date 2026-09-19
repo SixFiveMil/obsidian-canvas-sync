@@ -1,10 +1,15 @@
 import os
 import shutil
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 brain_dir = r"C:\Users\joshu\.gemini\antigravity\brain\9f821b01-1d1f-4158-a081-b1e8ec2e602d"
 store_dir = r"d:\repos\obsidian-canvas-sync\docs\store-assets"
 assets_dir = r"d:\repos\obsidian-canvas-sync\docs\assets"
+repo_root = Path(__file__).resolve().parent.parent
+store_dir = repo_root / "docs" / "store-assets"
+assets_dir = repo_root / "docs" / "assets"
+brain_dir = Path(os.environ.get("BRAIN_DIR", store_dir))
 
 os.makedirs(store_dir, exist_ok=True)
 

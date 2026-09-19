@@ -263,5 +263,14 @@ export interface CanvasSyncSettings {
   scheduledCourseIds: number[];
   silentScheduledSync: boolean;
   lastScheduledSyncTimestamp?: number;
+
+  // 🔑 Licensing & Pro Tier
+  licenseKey: string;
+  isPro: boolean;
+  licenseInstanceId?: string;
+  lastLicenseCheck?: number;
+  licenseActivationsUsed?: number;
+  licenseActivationsMax?: number;
+  licenseApiBaseUrl?: string;
 }
 

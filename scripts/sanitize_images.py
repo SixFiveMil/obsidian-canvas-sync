@@ -1,8 +1,12 @@
 import os
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 brain_dir = r"C:\Users\joshu\.gemini\antigravity\brain\9f821b01-1d1f-4158-a081-b1e8ec2e602d"
 repo_assets_dir = r"d:\repos\obsidian-canvas-sync\docs\assets"
+repo_root = Path(__file__).resolve().parent.parent
+repo_assets_dir = repo_root / "docs" / "assets"
+brain_dir = Path(os.environ.get("BRAIN_DIR", repo_assets_dir))
 
 font_code = ImageFont.truetype(r"C:\Windows\Fonts\segoeuib.ttf", 13)
 font_title = ImageFont.truetype(r"C:\Windows\Fonts\segoeuib.ttf", 13)
