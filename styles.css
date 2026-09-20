@@ -1,32 +1,61 @@
 /* Canvas Sync Bridge Plugin Styles */
 
+/* Modal Container Layout */
+.canvas-course-select-modal {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Modal Controls (Search, Filter, Interval) */
+.canvas-modal-controls .setting-item {
+  border-top: none;
+  padding: 6px 0;
+}
+
+.canvas-modal-controls .setting-item-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.canvas-modal-controls .setting-item-control input[type="text"] {
+  min-width: 130px;
+}
+
+.canvas-modal-controls .setting-item-control select.dropdown {
+  min-width: 120px;
+}
+
+/* Course List Container */
 .canvas-course-list-container {
+  min-height: 120px;
   max-height: 360px;
   overflow-y: auto;
-  margin: 12px 0;
+  margin: 10px 0;
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
-  padding: 8px;
+  padding: 6px;
+  background-color: var(--background-primary);
 }
 
-.canvas-modal-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 16px;
-}
-
-.canvas-modal-button-container {
-  display: flex;
-  gap: 8px;
-}
-
+/* Course Row */
 .canvas-course-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--background-modifier-border-focus);
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+  gap: 8px;
+}
+
+.canvas-course-row:hover {
+  background-color: var(--background-modifier-hover);
 }
 
 .canvas-course-row:last-child {
@@ -37,20 +66,39 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.canvas-course-row-left input[type="checkbox"] {
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.canvas-course-info {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .canvas-course-title {
   display: block;
+  font-size: 0.95em;
+  line-height: 1.3;
+  word-break: break-word;
 }
 
 .canvas-course-subtext {
   color: var(--text-muted);
+  display: block;
+  font-size: 0.8em;
+  margin-top: 2px;
 }
 
 .canvas-course-badge {
   font-size: 0.75em;
   padding: 2px 6px;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .canvas-badge-active {
@@ -59,6 +107,8 @@
   border-radius: 4px;
   background-color: var(--background-modifier-success);
   color: var(--text-on-accent);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .canvas-badge-inactive {
@@ -67,8 +117,165 @@
   border-radius: 4px;
   background-color: var(--background-modifier-border);
   color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
+/* Modal Footer & Buttons */
+.canvas-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.canvas-modal-selection-count {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.canvas-modal-button-container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.canvas-modal-button-container button {
+  white-space: nowrap;
+}
+
+/* Mobile & Small Screen Adaptations (iOS / Phones) */
+@media (max-width: 600px) {
+  .canvas-course-list-container {
+    max-height: 38vh;
+    min-height: 120px;
+  }
+
+  .canvas-modal-controls .setting-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .canvas-modal-controls .setting-item-control {
+    width: 100%;
+    margin-top: 6px;
+  }
+
+  .canvas-modal-controls .setting-item-control input[type="text"] {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .canvas-modal-controls .setting-item-control select.dropdown {
+    flex: 1 1 auto;
+  }
+
+  .canvas-modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 10px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .canvas-modal-selection-count {
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .canvas-modal-button-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .canvas-modal-button-container button {
+    width: 100%;
+    min-height: 38px;
+    font-size: 0.95em;
+  }
+
+  /* Make primary sync CTA prominent at the top of the button stack on mobile */
+  .canvas-modal-button-container .canvas-btn-sync {
+    order: 1;
+  }
+
+  .canvas-modal-button-container .canvas-btn-save-schedule {
+    order: 2;
+  }
+
+  .canvas-modal-button-container .canvas-btn-cancel {
+    order: 3;
+  }
+}
+
+.is-phone .canvas-course-list-container {
+  max-height: 38vh;
+  min-height: 120px;
+}
+
+.is-phone .canvas-modal-controls .setting-item {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.is-phone .canvas-modal-controls .setting-item-control {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.is-phone .canvas-modal-controls .setting-item-control input[type="text"] {
+  flex: 1 1 100%;
+  width: 100%;
+}
+
+.is-phone .canvas-modal-controls .setting-item-control select.dropdown {
+  flex: 1 1 auto;
+}
+
+.is-phone .canvas-modal-footer {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 10px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.is-phone .canvas-modal-selection-count {
+  text-align: center;
+  font-weight: 500;
+}
+
+.is-phone .canvas-modal-button-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.is-phone .canvas-modal-button-container button {
+  width: 100%;
+  min-height: 38px;
+  font-size: 0.95em;
+}
+
+.is-phone .canvas-modal-button-container .canvas-btn-sync {
+  order: 1;
+}
+
+.is-phone .canvas-modal-button-container .canvas-btn-save-schedule {
+  order: 2;
+}
+
+.is-phone .canvas-modal-button-container .canvas-btn-cancel {
+  order: 3;
+}
+
+/* Status & General Utility */
 .canvas-sync-progress-title {
   font-weight: bold;
 }
@@ -76,7 +283,7 @@
 .canvas-no-courses {
   color: var(--text-muted);
   text-align: center;
-  padding: 12px 0;
+  padding: 16px 0;
 }
 
 .canvas-connection-status {
@@ -103,4 +310,3 @@
 .canvas-sync-error {
   color: var(--text-error);
 }
-

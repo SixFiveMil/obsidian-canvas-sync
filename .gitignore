@@ -27,6 +27,7 @@ Course-Export/
 *.local
 *.pem
 *.key
+src/
 
 # Logs & Diagnostics
 *.log
@@ -54,4 +55,9 @@ Desktop.ini
 venv/
 .venv/
 __pycache__/
+
+# Agent Tooling & Custom Skills
+.agents/
+skills-lock.json
+
 

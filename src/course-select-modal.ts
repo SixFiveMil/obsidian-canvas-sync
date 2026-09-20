@@ -175,14 +175,29 @@ export class CourseSelectModal extends Modal {
 
     // Footer actions
     const footerEl = contentEl.createDiv("canvas-modal-footer");
-    const countSpan = footerEl.createSpan({ text: `${this.selectedCourseIds.size} course(s) selected` });
+    const countSpan = footerEl.createSpan({
+      text: `${this.selectedCourseIds.size} course(s) selected`,
+      cls: "canvas-modal-selection-count"
+    });
 
     const btnContainer = footerEl.createDiv("canvas-modal-button-container");
 
-    const cancelBtn = btnContainer.createEl("button", { text: "Cancel" });
+    const syncBtn = btnContainer.createEl("button", {
+      text: "Sync Selected",
+      cls: "mod-cta canvas-btn-sync"
+    });
+
+    const saveScheduledBtn = btnContainer.createEl("button", {
+      text: "Save for Auto-Sync",
+      cls: "canvas-btn-save-schedule"
+    });
+
+    const cancelBtn = btnContainer.createEl("button", {
+      text: "Cancel",
+      cls: "canvas-btn-cancel"
+    });
     cancelBtn.onclick = () => this.close();
 
-    const saveScheduledBtn = btnContainer.createEl("button", { text: "Save for Auto-Sync" });
     saveScheduledBtn.onclick = async () => {
       const selectedIds = Array.from(this.selectedCourseIds);
       await this.plugin.updateSettings({
@@ -199,10 +214,6 @@ export class CourseSelectModal extends Modal {
       this.close();
     };
 
-    const syncBtn = btnContainer.createEl("button", {
-      text: "Sync Selected",
-      cls: "mod-cta"
-    });
     syncBtn.onclick = async () => {
       if (this.selectedCourseIds.size === 0) {
         new Notice("Please select at least one course to sync.");
@@ -255,13 +266,30 @@ export class CourseSelectModal extends Modal {
       const cb = leftContainer.createEl("input", { type: "checkbox" });
       cb.checked = this.selectedCourseIds.has(course.id);
 
-      cb.onchange = () => {
+      const toggleSelection = () => {
+        if (this.selectedCourseIds.has(course.id)) {
+          this.selectedCourseIds.delete(course.id);
+          cb.checked = false;
+        } else {
+          this.selectedCourseIds.add(course.id);
+          cb.checked = true;
+        }
+        this.onSelectionChanged();
+      };
+
+      cb.onchange = (e) => {
+        e.stopPropagation();
         if (cb.checked) {
           this.selectedCourseIds.add(course.id);
         } else {
           this.selectedCourseIds.delete(course.id);
         }
         this.onSelectionChanged();
+      };
+
+      row.onclick = (e) => {
+        if (e.target === cb) return;
+        toggleSelection();
       };
 
       const info = leftContainer.createDiv("canvas-course-info");

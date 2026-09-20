@@ -14,6 +14,7 @@ import {
 import { createCourseManifest, mergePreservedContent } from "./note-utils";
 import { isAllowedOrigin, sanitizeFileName, validateEnvelopeShape } from "./security-utils";
 import { formatCourseFolderName, formatSyncTimestamp } from "./template-utils";
+import { LicenseManager } from "./license-manager";
 import type {
   AssetSyncDiagnostics,
   CanvasAssignmentPayload,
@@ -57,7 +58,9 @@ export const DEFAULT_SETTINGS: CanvasSyncSettings = {
   scheduledSyncIntervalMinutes: 60,
   scheduledSyncSelectionMode: "all_active",
   scheduledCourseIds: [],
-  silentScheduledSync: true
+  silentScheduledSync: true,
+  licenseKey: "",
+  isPro: false
 };
 
 export default class CanvasSyncBridgePlugin extends Plugin {
@@ -417,14 +420,15 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const attachmentsFolder = normalizePath(`${courseFolder}/${attachmentsSubfolder}`);
 
     const syncedFiles: string[] = [];
+    const shouldDownloadAssets = this.settings.downloadAssets && this.settings.isPro;
 
-    if (this.settings.downloadAssets) {
+    if (shouldDownloadAssets) {
       await this.ensureFolder(filesFolder);
       await this.ensureFolder(attachmentsFolder);
     }
 
-    // Step 1: Download allowed static assets if enabled
-    if (this.settings.downloadAssets && Array.isArray(payload.files) && payload.files.length > 0) {
+    // Step 1: Download allowed static assets if enabled (Pro Tier)
+    if (shouldDownloadAssets && Array.isArray(payload.files) && payload.files.length > 0) {
       const client = this.getApiClient();
       const filesToDownload: CanvasFileAssetPayload[] = [];
       const diagnostics: AssetSyncDiagnostics = payload.assetDiagnostics || {
@@ -1752,7 +1756,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   public initBackgroundSyncScheduler(): void {
     this.stopBackgroundSyncScheduler();
 
-    if (!this.settings.enableScheduledSync) {
+    if (!this.settings.enableScheduledSync || !this.settings.isPro) {
       return;
     }
 
@@ -2027,6 +2031,87 @@ class CanvasSyncSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+
+    // 🔑 Canvas Sync Pro Licensing Section
+    new Setting(containerEl).setName("Canvas Sync Pro License").setHeading();
+
+    const isPro = this.plugin.getSettings().isPro;
+    const licenseKey = this.plugin.getSettings().licenseKey || "";
+    const activationsUsed = this.plugin.getSettings().licenseActivationsUsed;
+    const activationsMax = this.plugin.getSettings().licenseActivationsMax || 5;
+
+    const licenseSetting = new Setting(containerEl)
+      .setName(isPro ? "✨ Canvas Sync Pro (Active)" : "Canvas Sync Free Edition")
+      .setDesc(
+        isPro
+          ? `Lifetime license active! Registered on this device (${activationsUsed ? `${activationsUsed}/${activationsMax} devices` : "Active"}). Full asset downloading, deep discussion threads, and auto-sync are unlocked.`
+          : "Upgrade to Canvas Sync Pro ($3 lifetime) to unlock bulk document/PDF downloads, multi-tier discussion reply trees, and automatic scheduled background sync."
+      );
+
+    if (isPro) {
+      licenseSetting.addButton((btn) =>
+        btn
+          .setButtonText("Deactivate Device")
+          .setWarning()
+          .onClick(async () => {
+            const res = await LicenseManager.deactivateLicense(this.plugin.getSettings());
+            if (res.success) {
+              new Notice("Device deactivated successfully.");
+              await this.plugin.updateSettings({
+                isPro: false,
+                licenseKey: "",
+                licenseActivationsUsed: undefined
+              });
+              this.display();
+            } else {
+              new Notice(res.error || "Failed to deactivate license.");
+            }
+          })
+      );
+    } else {
+      let enteredKey = licenseKey;
+      licenseSetting
+        .addText((text) =>
+          text
+            .setPlaceholder("Enter license key (CSPRO-XXXX...)")
+            .setValue(licenseKey)
+            .onChange((val) => {
+              enteredKey = val.trim();
+            })
+        )
+        .addButton((btn) =>
+          btn
+            .setButtonText("Activate Pro")
+            .setCta()
+            .onClick(async () => {
+              const currentSettings = this.plugin.getSettings();
+              currentSettings.licenseKey = enteredKey;
+              const result = await LicenseManager.activateLicense(
+                enteredKey,
+                this.app.vault.getName(),
+                currentSettings
+              );
+              if (result.success && result.valid) {
+                new Notice("✨ " + result.message);
+                await this.plugin.updateSettings({
+                  isPro: true,
+                  licenseKey: enteredKey,
+                  licenseActivationsUsed: result.activationsCount,
+                  licenseActivationsMax: result.activationsMax,
+                  lastLicenseCheck: Date.now()
+                });
+                this.display();
+              } else {
+                new Notice("❌ " + (result.error || "Activation failed."));
+              }
+            })
+        )
+        .addButton((btn) =>
+          btn.setButtonText("Buy Pro ($3)").onClick(() => {
+            void LicenseManager.openCheckout(this.plugin.getSettings());
+          })
+        );
+    }
 
     new Setting(containerEl).setName("Canvas API integration").setHeading();
 

@@ -2,13 +2,15 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "*.*.*"
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Existing tag to package and publish"
-        required: true
+        description: "Existing tag to package and publish (leave blank for automatic)"
+        required: false
         type: string
 
 permissions:
@@ -17,17 +19,17 @@ permissions:
   attestations: write
 
 jobs:
-  build-validate-and-release:
+  auto-version-and-release:
+    # Skip if commit was already an automated release commit
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
-    env:
-      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.release_tag) || github.ref }}
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,6 +40,38 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Bump version & Tag (on merge to main)
+        id: bump_version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Increment patch version
+          npm version patch --no-git-tag-version
+
+          # Ensure manifest.json and versions.json are synchronized
+          node scripts/sync-version.mjs
+
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_TAG=$NEW_VERSION" >> "$GITHUB_ENV"
+
+          # Commit updated version files and create matching tag
+          git add package.json manifest.json versions.json
+          git commit -m "chore(release): bump version to ${NEW_VERSION} [skip ci]"
+          git tag "${NEW_VERSION}"
+
+          # Push commit and new tag to main
+          git push origin main
+          git push origin "${NEW_VERSION}"
+
+      - name: Determine Release Tag
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+        run: |
+          TAG="${{ github.event.inputs.release_tag || github.ref_name }}"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+
       - name: Verify tag matches Obsidian plugin version
         run: |
           node -e "const fs = require('fs'); const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8')); if (manifest.version !== process.env.RELEASE_TAG) { console.error('Tag (' + process.env.RELEASE_TAG + ') does not match manifest.json version (' + manifest.version + ')'); process.exit(1); }"
@@ -47,6 +81,9 @@ jobs:
 
       - name: Type check Obsidian plugin
         run: npm run typecheck
+
+      - name: Build Obsidian plugin
+        run: npm run build
 
       - name: Validate, attest, and draft release with Obsidian official workflow
         uses: obsidianmd/obsidian-workflows@v1
