@@ -175,7 +175,6 @@ export class CourseCapabilityModal extends Modal {
       this.isProbing = false;
       loading.empty();
       const msg = err instanceof Error ? err.message : String(err);
-      resultsEl.createDiv({ text: `Diagnostic probe failed: ${msg}`, cls: "canvas-status-error" });
     }
   }
 
@@ -185,6 +184,10 @@ export class CourseCapabilityModal extends Modal {
     const header = container.createDiv("canvas-report-header");
     header.createEl("h3", { text: `Report: ${report.courseName}` });
     header.createEl("p", { text: `Course ID: ${report.courseId} • Tested at: ${new Date(report.testedAt).toLocaleString()}`, cls: "canvas-meta-item" });
+    header.createEl("p", {
+      text: "💡 Note: 'Restricted (403)' on Files or Roster is standard when instructors hide those global tabs. Embedded module items, lecture slides, and assignment attachments still download normally during sync.",
+      cls: "canvas-diagnostics-desc"
+    });
 
     const tableWrap = container.createDiv("canvas-diagnostics-table-wrap");
     const table = tableWrap.createEl("table", { cls: "canvas-diagnostics-table" });

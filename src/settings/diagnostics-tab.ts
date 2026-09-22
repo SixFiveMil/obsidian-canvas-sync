@@ -123,6 +123,10 @@ export function renderDiagnosticsTab(
 
           const summary = probeResultsEl.createDiv("canvas-diagnostics-summary");
           summary.createEl("h4", { text: `Diagnostics: ${report.courseName}` });
+          summary.createEl("p", {
+            text: "💡 Note: 'Restricted (403)' on Files or Roster is standard when instructors hide those global tabs. Embedded module items, lecture slides, and assignment attachments still download normally during sync.",
+            cls: "canvas-diagnostics-desc"
+          });
 
           const tableWrap = probeResultsEl.createDiv("canvas-diagnostics-table-wrap");
           const table = tableWrap.createEl("table", { cls: "canvas-diagnostics-table" });
