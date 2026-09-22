@@ -101,7 +101,7 @@ export async function probeCourseEndpoints(
     {
       key: "announcements",
       label: "Announcements",
-      path: `/api/v1/announcements?context_codes[]=course_${cId}&per_page=1`
+      path: `/api/v1/announcements?context_codes[]=course_${cId}&start_date=2000-01-01&end_date=2099-12-31&per_page=1`
     },
     {
       key: "discussions",
@@ -223,6 +223,29 @@ export async function probeCourseEndpoints(
               endpoint: path
             };
           } else {
+            if (key === "announcements") {
+              try {
+                const altResp = await requestUrl({
+                  url: `${baseUrl}/api/v1/courses/${cId}/discussion_topics?only_announcements=true&per_page=1`,
+                  method: "GET",
+                  headers: { Accept: "application/json", Authorization: `Bearer ${apiToken}` }
+                });
+                if (altResp.status >= 200 && altResp.status < 300 && Array.isArray(altResp.json) && altResp.json.length > 0) {
+                  return {
+                    key,
+                    label,
+                    status: "available",
+                    count: altResp.json.length,
+                    statusCode: altResp.status,
+                    errorMessage: "Discovered announcements via course discussion topics.",
+                    endpoint: "/api/v1/courses/:id/discussion_topics?only_announcements=true"
+                  };
+                }
+              } catch {
+                // Ignore fallback error
+              }
+            }
+
             return {
               key,
               label,

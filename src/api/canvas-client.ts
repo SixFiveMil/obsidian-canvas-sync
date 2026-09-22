@@ -615,9 +615,19 @@ export class CanvasApiClient {
 
     let list: Array<Record<string, unknown>> = [];
     try {
+      // By default Canvas /announcements restricts to the last 14 days unless start_date is specified
       list = await this.requestPaged<Record<string, unknown>>(
-        `/api/v1/announcements?context_codes[]=course_${cId}&per_page=100`
+        `/api/v1/announcements?context_codes[]=course_${cId}&start_date=2000-01-01&end_date=2099-12-31&per_page=100`
       );
+      if (list.length === 0) {
+        // Fallback to course discussion topics with only_announcements=true
+        const altList = await this.requestPaged<Record<string, unknown>>(
+          `/api/v1/courses/${cId}/discussion_topics?only_announcements=true&per_page=100`
+        );
+        if (altList.length > 0) {
+          list = altList;
+        }
+      }
     } catch {
       try {
         list = await this.requestPaged<Record<string, unknown>>(

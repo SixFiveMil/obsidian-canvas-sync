@@ -447,7 +447,7 @@ describe("CanvasApiClient", () => {
       if (url.includes("/quizzes")) {
         return { status: 404, json: { message: "Quizzes not found" }, text: "Not Found", headers: {} };
       }
-      if (url.includes("/announcements")) {
+      if (url.includes("/announcements") || url.includes("only_announcements=true")) {
         return { status: 200, json: [], text: "[]", headers: {} };
       }
       if (url.includes("/staff_contacts") || url.includes("enrollment_type[]=teacher")) {
