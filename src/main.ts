@@ -146,6 +146,7 @@ export const DEFAULT_SETTINGS: CanvasSyncSettings = {
   canvasBaseUrl: "",
   canvasApiToken: "",
   includeInactiveCourses: true,
+  syncAnnouncements: true,
   syncDiscussionReplies: true,
   syncStudentSubmissions: true,
   enableBridgeServer: false,
@@ -511,6 +512,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   ): Promise<{ isNew: boolean; courseFolder: string }> {
     const client = this.getApiClient();
     const payload = await client.fetchCompleteCoursePayload(courseId, onProgress, {
+      syncAnnouncements: this.settings.syncAnnouncements,
       syncDiscussionReplies: this.settings.syncDiscussionReplies,
       syncStudentSubmissions: this.settings.syncStudentSubmissions
     });
@@ -746,6 +748,20 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       }
     }
 
+    // Defensive Handling: Safely default so payloads from older browser extensions or restricted accounts never throw errors.
+    const announcements = Array.isArray(payload.announcements) ? payload.announcements : [];
+    const announcementMap = new Map<string, { relativePath: string; title: string }>();
+    for (const ann of announcements) {
+      const datePrefix = formatIsoDate(ann.postedAt);
+      const safeTitle = this.sanitizeFileName(ann.title || `Announcement ${ann.id}`);
+      const fileName = datePrefix ? `${datePrefix} - ${safeTitle}.md` : `${safeTitle}.md`;
+      const relPath = `Announcements/${fileName}`;
+      announcementMap.set(ann.id, { relativePath: relPath, title: ann.title });
+      if (!discussionMap.has(ann.id)) {
+        discussionMap.set(ann.id, { relativePath: relPath, title: ann.title });
+      }
+    }
+
     for (const discussion of payload.discussions) {
       if (!discussionMap.has(discussion.id)) {
         const safeTitle = this.sanitizeFileName(discussion.title || "Untitled Discussion");
@@ -776,6 +792,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       ["grades", { relativePath: "Grades.md", title: "Grades" }],
       ["assignments", { relativePath: "Tasks.md", title: "Assignments" }],
       ["discussions", { relativePath: "Discussions.md", title: "Discussions" }],
+      ["announcements", { relativePath: "Announcements.md", title: "Announcements" }],
       ["calendar", { relativePath: "Calendar.md", title: "Calendar" }],
       ["home", { relativePath: "Home.md", title: "Course Home" }],
       ["modules", { relativePath: "Course.md", title: "Modules" }]
@@ -807,7 +824,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         last_synced: formatIsoTimestamp(payload.fetchedAt),
         tags: ["canvas/course", "canvas/home", `canvas/course/${payload.courseId}`].filter(Boolean)
       };
-      await this.upsertFile(homePath, this.renderHtmlDoc("Course Home", payload.courseHomePageHtml, payload.fetchedAt, homeProps) + "\n");
+      const recentAnnouncementsCallout = this.renderRecentAnnouncementsCallout(announcements, announcementMap);
+      await this.upsertFile(homePath, this.renderHtmlDoc("Course Home", payload.courseHomePageHtml, payload.fetchedAt, homeProps, recentAnnouncementsCallout) + "\n");
       syncedFiles.push(homePath);
     }
 
@@ -858,6 +876,30 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     await this.upsertFile(gradesPath, this.renderGradesPage(payload, assignmentMap, moduleByName));
     syncedFiles.push(gradesPath);
 
+    if (announcements.length > 0) {
+      const announcementsFolder = normalizePath(`${courseFolder}/Announcements`);
+      await this.ensureFolder(announcementsFolder);
+
+      for (const announcement of announcements) {
+        const annInfo = announcementMap.get(announcement.id);
+        if (annInfo) {
+          const annPath = normalizePath(`${courseFolder}/${annInfo.relativePath}`);
+          await this.upsertFile(
+            annPath,
+            this.renderAnnouncementDoc(announcement, payload.fetchedAt, payload, fileMap)
+          );
+          syncedFiles.push(annPath);
+        }
+      }
+    }
+
+    const announcementsPath = normalizePath(`${courseFolder}/Announcements.md`);
+    await this.upsertFile(
+      announcementsPath,
+      this.renderAnnouncementsHub(announcements, payload.fetchedAt, payload, announcementMap)
+    );
+    syncedFiles.push(announcementsPath);
+
     const discussionsPath = normalizePath(`${courseFolder}/Discussions.md`);
     await this.upsertFile(discussionsPath, this.renderDiscussions(payload, discussionMap, moduleByName, payload.fetchedAt));
     syncedFiles.push(discussionsPath);
@@ -898,7 +940,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     syncedFiles.push(eventsPath);
 
     const courseIndexPath = normalizePath(`${courseFolder}/Course.md`);
-    const indexDoc = this.renderCourseIndex(payload);
+    const indexDoc = this.renderCourseIndex(payload, announcementMap);
     await this.upsertFile(courseIndexPath, indexDoc + "\n");
     syncedFiles.push(courseIndexPath);
 
@@ -927,13 +969,26 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     return `${fm}\n\n${body.trimStart()}`;
   }
 
-  private renderCourseIndex(payload: CanvasCoursePayload): string {
+  private renderCourseIndex(
+    payload: CanvasCoursePayload,
+    announcementMap?: Map<string, { relativePath: string; title: string }>
+  ): string {
+    const announcements = Array.isArray(payload.announcements) ? payload.announcements : [];
+    const recentCallout = this.renderRecentAnnouncementsCallout(announcements, announcementMap);
+
     const lines = [
       `# ${payload.courseName}`,
       "",
       `Course ID: ${payload.courseId}`,
       `Last Synced: ${formatSyncTimestamp(payload.fetchedAt)}`,
-      "",
+      ""
+    ];
+
+    if (recentCallout) {
+      lines.push(recentCallout, "");
+    }
+
+    lines.push(
       "## Notes",
       "",
       "- Module-ordered content is in ./Modules",
@@ -941,10 +996,13 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       "- Syllabus is in ./Syllabus.md (if available)",
       "- Overall grade report & gradebook is in ./Grades.md",
       "- Assignment checklist is in ./Tasks.md",
+      "- Announcements summary is in ./Announcements.md",
       "- Discussion summary is in ./Discussions.md",
       "- Events are in ./Calendar.md",
-      `- Downloaded static documents are in ./${this.settings.documentsSubfolder || "Files"}`
-    ];
+      `- Downloaded static documents are in ./${this.settings.documentsSubfolder || "Files"}`,
+      "",
+      "- **Quick Links**: [[Home.md|Course Home]] | [[Tasks.md|Tasks & Assignments]] | [[Announcements.md|Announcements]] | [[Discussions.md|Discussions]] | [[Grades.md|Grades]] | [[Calendar.md|Calendar]]"
+    );
 
     if (payload.grades && (payload.grades.currentScore != null || payload.grades.currentGrade != null || payload.grades.finalScore != null || payload.grades.finalGrade != null)) {
       lines.push("", "## Course Grades", "");
@@ -1138,11 +1196,20 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     }
   }
 
-  private renderHtmlDoc(title: string, html: string, lastSynced?: string, extraProps?: Record<string, unknown>): string {
+  private renderHtmlDoc(
+    title: string,
+    html: string,
+    lastSynced?: string,
+    extraProps?: Record<string, unknown>,
+    prependCallout?: string
+  ): string {
     const markdown = this.turndown.turndown(html).trim();
     const lines = [`# ${title}`, ""];
     if (lastSynced) {
       lines.push(`> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`, "");
+    }
+    if (prependCallout) {
+      lines.push(prependCallout, "");
     }
     lines.push(markdown || "No content available.");
     const body = lines.join("\n");
@@ -1795,7 +1862,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     if (gradedCount > 0 && totalPointsPossible > 0) {
       lines.push(`- **Total Points Earned (Graded)**: ${totalPointsEarned.toFixed(1)} / ${totalPointsPossible.toFixed(1)} pts`);
     }
-    lines.push("- **Quick Links**: [[Tasks.md|Tasks & Assignments]] | [[Discussions.md|Discussions]] | [[Calendar.md|Calendar]]");
+    lines.push("- **Quick Links**: [[Tasks.md|Tasks & Assignments]] | [[Announcements.md|Announcements]] | [[Discussions.md|Discussions]] | [[Calendar.md|Calendar]]");
     lines.push("");
 
     // 3. Assignment Gradebook Table
@@ -1998,6 +2065,181 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       last_synced: formatIsoTimestamp(lastSynced || payload?.fetchedAt),
       tags: ["canvas/course", "canvas/calendar", `canvas/course/${payload?.courseId}`].filter(Boolean)
     };
+    return this.prependFrontmatter(body, props);
+  }
+
+  private renderRecentAnnouncementsCallout(
+    announcements: CanvasDiscussionPayload[],
+    announcementMap?: Map<string, { relativePath: string; title: string }>
+  ): string {
+    if (!Array.isArray(announcements) || announcements.length === 0) {
+      return "";
+    }
+
+    const sorted = [...announcements].sort((a, b) => (b.postedAt ?? "").localeCompare(a.postedAt ?? ""));
+    const recent = sorted.slice(0, 3);
+
+    const lines: string[] = ["> [!IMPORTANT] **Recent Announcements**"];
+    for (const ann of recent) {
+      const dateStr = formatIsoDate(ann.postedAt) || "Recent";
+      const annInfo = announcementMap?.get(ann.id);
+      const cleanTitle = ann.title.replace(/\|/g, "\\|");
+      const titleLink = annInfo?.relativePath
+        ? `[[${annInfo.relativePath}|${cleanTitle}]]`
+        : cleanTitle;
+      const author = ann.author || ann.authorName || ann.userName;
+      const authorStr = author ? ` by ${author}` : "";
+      lines.push(`> - **${dateStr}**: ${titleLink}${authorStr}`);
+    }
+
+    return lines.join("\n");
+  }
+
+  private renderAnnouncementDoc(
+    announcement: CanvasDiscussionPayload,
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload,
+    fileMap?: Map<string, { relativePath: string; displayName: string }>
+  ): string {
+    const author = announcement.author || announcement.authorName || announcement.userName || "Instructor";
+    const postedDate = announcement.postedAt ? new Date(announcement.postedAt).toLocaleString() : null;
+    const replyCount = this.countDiscussionReplies(announcement.entries);
+
+    const props: Record<string, unknown> = {
+      canvas_id: announcement.id ? Number(announcement.id) || announcement.id : undefined,
+      canvas_type: "announcement",
+      title: announcement.title,
+      author: announcement.author || announcement.authorName || announcement.userName || null,
+      posted_at: formatIsoTimestamp(announcement.postedAt),
+      course: coursePayload?.courseName,
+      course_id: coursePayload?.courseId ? Number(coursePayload.courseId) || coursePayload.courseId : undefined,
+      source: announcement.htmlUrl || null,
+      last_synced: formatIsoTimestamp(lastSynced || coursePayload?.fetchedAt),
+      tags: ["canvas/announcement", `canvas/course/${coursePayload?.courseId}`].filter(Boolean)
+    };
+
+    const lines: string[] = [
+      `# ${announcement.title}`,
+      ""
+    ];
+
+    if (postedDate) {
+      lines.push(`> [!INFO] **Posted by**: ${author} on ${postedDate}`);
+    } else {
+      lines.push(`> [!INFO] **Posted by**: ${author}`);
+    }
+    lines.push("");
+
+    const bodyMarkdown = announcement.messageHtml ? this.turndown.turndown(announcement.messageHtml).trim() : "";
+    lines.push(bodyMarkdown || "No announcement content.");
+    lines.push("");
+
+    if (announcement.attachments && announcement.attachments.length > 0) {
+      lines.push("### Attachments", "");
+      for (const att of announcement.attachments) {
+        const fileInfo = att.id ? fileMap?.get(att.id) : undefined;
+        const relativePath = fileInfo?.relativePath || att.savedRelativePath;
+        const displayName = fileInfo?.displayName || att.displayName;
+        if (relativePath) {
+          lines.push(`- [[${relativePath}|${displayName}]]`);
+        } else if (att.url) {
+          lines.push(`- [${displayName}](${att.url})`);
+        } else {
+          lines.push(`- ${displayName}`);
+        }
+      }
+      lines.push("");
+    }
+
+    if (announcement.entries && announcement.entries.length > 0) {
+      const repliesBlock = this.renderDiscussionEntries(announcement.entries);
+      if (repliesBlock) {
+        lines.push(`## Discussion Replies (${replyCount})`, "");
+        lines.push(repliesBlock);
+        lines.push("");
+      }
+    }
+
+    const body = lines.join("\n").trim() + "\n";
+    return this.prependFrontmatter(body, props);
+  }
+
+  private renderAnnouncementsHub(
+    announcementsOrPayload: CanvasDiscussionPayload[] | CanvasCoursePayload,
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload,
+    announcementMap?: Map<string, { relativePath: string; title: string }>
+  ): string {
+    const payload = "courseId" in announcementsOrPayload ? announcementsOrPayload : coursePayload;
+    const announcements = "courseId" in announcementsOrPayload ? (announcementsOrPayload.announcements || []) : announcementsOrPayload;
+
+    const lines: string[] = [
+      `# Announcements - ${payload?.courseName || "Course"}`,
+      "",
+      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced || payload?.fetchedAt)}`,
+      ""
+    ];
+
+    if (announcements.length === 0) {
+      lines.push("No announcements were found for this course.", "");
+    } else {
+      const recentCallout = this.renderRecentAnnouncementsCallout(announcements, announcementMap);
+      if (recentCallout) {
+        lines.push(recentCallout, "");
+      }
+
+      lines.push("## All Announcements", "");
+      lines.push("| Date | Title | Author | Replies | Link |");
+      lines.push("| :--- | :--- | :--- | :---: | :--- |");
+
+      const sorted = [...announcements].sort((a, b) => (b.postedAt ?? "").localeCompare(a.postedAt ?? ""));
+      for (const ann of sorted) {
+        const dateStr = formatIsoDate(ann.postedAt) || "-";
+        const authorStr = (ann.author || ann.authorName || ann.userName || "Instructor").replace(/\|/g, "\\|");
+        const replyCount = this.countDiscussionReplies(ann.entries);
+        const annInfo = announcementMap?.get(ann.id);
+        const cleanTitle = ann.title.replace(/\|/g, "\\|");
+        const titleLink = annInfo?.relativePath
+          ? `[[${annInfo.relativePath}\\|${cleanTitle}]]`
+          : cleanTitle;
+        const openLink = annInfo?.relativePath
+          ? `[[${annInfo.relativePath}\\|Open Note]]`
+          : ann.htmlUrl
+            ? `[Canvas Link](${ann.htmlUrl})`
+            : "-";
+
+        lines.push(`| ${dateStr} | ${titleLink} | ${authorStr} | ${replyCount} | ${openLink} |`);
+      }
+      lines.push("");
+
+      const courseIdStr = payload?.courseId ? String(payload.courseId) : "";
+      lines.push(
+        "## Dataview Query",
+        "",
+        "```dataview",
+        'TABLE posted_at as "Posted Date", author as "Author", reply_count as "Replies"',
+        'FROM #canvas/announcement',
+        ...(courseIdStr ? [`WHERE course_id = ${courseIdStr}`] : []),
+        "SORT posted_at DESC",
+        "```",
+        ""
+      );
+    }
+
+    const body = lines.join("\n");
+    const props: Record<string, unknown> = {
+      canvas_type: "announcements",
+      course_id: payload?.courseId ? Number(payload.courseId) || payload.courseId : undefined,
+      course_name: payload?.courseName,
+      course_code: payload?.courseCode || null,
+      current_score: payload?.grades?.currentScore ?? null,
+      current_grade: payload?.grades?.currentGrade ?? null,
+      final_score: payload?.grades?.finalScore ?? null,
+      final_grade: payload?.grades?.finalGrade ?? null,
+      last_synced: formatIsoTimestamp(lastSynced || payload?.fetchedAt),
+      tags: ["canvas/course", "canvas/announcements", `canvas/course/${payload?.courseId}`].filter(Boolean)
+    };
+
     return this.prependFrontmatter(body, props);
   }
 
@@ -2283,6 +2525,14 @@ export class CanvasSyncSettingTab extends PluginSettingTab {
         }
       },
       {
+        name: "Sync announcements",
+        desc: "Fetch course announcements, instructor updates, and student replies into dedicated notes and hubs.",
+        control: {
+          type: "toggle",
+          key: "syncAnnouncements"
+        }
+      },
+      {
         name: "Sync discussion replies",
         desc: "Fetch threaded student and instructor replies for course discussion topics.",
         control: {
@@ -2564,6 +2814,15 @@ export class CanvasSyncSettingTab extends PluginSettingTab {
 
   private renderDataTypesTab(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Data types & synchronization").setHeading();
+
+    new Setting(containerEl)
+      .setName("Sync announcements")
+      .setDesc("Fetch course announcements, instructor updates, and student replies into dedicated notes and hubs.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().syncAnnouncements).onChange((value) => {
+          void this.plugin.updateSettings({ syncAnnouncements: value });
+        })
+      );
 
     new Setting(containerEl)
       .setName("Sync discussion replies")

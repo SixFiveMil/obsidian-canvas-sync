@@ -813,6 +813,113 @@ export class CanvasApiClient {
     return discussions;
   }
 
+  public async getAnnouncements(
+    courseId: string | number,
+    options?: { syncReplies?: boolean }
+  ): Promise<CanvasDiscussionPayload[]> {
+    const announcements: CanvasDiscussionPayload[] = [];
+    const syncReplies = options?.syncReplies ?? true;
+    const cId = String(courseId);
+
+    let list: Array<Record<string, unknown>> = [];
+    try {
+      list = await this.requestPaged<Record<string, unknown>>(
+        `/api/v1/announcements?context_codes[]=course_${cId}&per_page=100`
+      );
+    } catch {
+      try {
+        list = await this.requestPaged<Record<string, unknown>>(
+          `/api/v1/courses/${cId}/discussion_topics?only_announcements=true&per_page=100`
+        );
+      } catch {
+        return [];
+      }
+    }
+
+    if (!Array.isArray(list)) {
+      return [];
+    }
+
+    for (const item of list) {
+      if (!item || item.id == null) continue;
+      const id = String(item.id);
+      const title = typeof item.title === "string" && item.title.trim() ? item.title.trim() : `Announcement ${id}`;
+      const htmlUrl =
+        typeof item.html_url === "string" && item.html_url.trim()
+          ? item.html_url.trim()
+          : `${this.baseUrl}/courses/${cId}/announcements/${id}`;
+      const messageHtml = typeof item.message === "string" ? item.message : undefined;
+      const postedAt = typeof item.posted_at === "string" ? item.posted_at : typeof item.created_at === "string" ? item.created_at : null;
+      const updatedAt = typeof item.updated_at === "string" ? item.updated_at : null;
+
+      let authorName: string | undefined = undefined;
+      if (typeof item.user_name === "string" && item.user_name.trim()) {
+        authorName = item.user_name.trim();
+      } else if (item.author && typeof item.author === "object" && typeof (item.author as Record<string, unknown>).display_name === "string") {
+        authorName = ((item.author as Record<string, unknown>).display_name as string).trim();
+      } else if (item.user && typeof item.user === "object" && typeof (item.user as Record<string, unknown>).display_name === "string") {
+        authorName = ((item.user as Record<string, unknown>).display_name as string).trim();
+      }
+
+      let attachments: CanvasSubmissionAttachment[] | undefined = undefined;
+      const rawAttachments = Array.isArray(item.attachments)
+        ? (item.attachments as Array<Record<string, unknown>>)
+        : item.attachment && typeof item.attachment === "object"
+          ? [item.attachment as Record<string, unknown>]
+          : [];
+
+      if (rawAttachments.length > 0) {
+        attachments = rawAttachments
+          .filter((att) => att && (att.id != null || att.url != null || att.display_name != null || att.filename != null))
+          .map((att) => ({
+            id: String(att.id ?? ""),
+            displayName:
+              typeof att.display_name === "string" && att.display_name.trim()
+                ? att.display_name.trim()
+                : typeof att.filename === "string" && att.filename.trim()
+                  ? att.filename.trim()
+                  : `attachment_${att.id || "file"}`,
+            url:
+              typeof att.url === "string"
+                ? att.url
+                : `${this.baseUrl}/files/${att.id}/download`,
+            size: typeof att.size === "number" ? att.size : undefined,
+            contentType: typeof att["content-type"] === "string" ? att["content-type"] : undefined
+          }));
+      }
+
+      let entries: CanvasDiscussionEntryPayload[] | undefined = undefined;
+      if (syncReplies) {
+        try {
+          const fetchedEntries = await this.getDiscussionEntries(cId, id);
+          if (fetchedEntries.length > 0) {
+            entries = fetchedEntries;
+          }
+        } catch {
+          // Ignore entries fetch error for individual announcement
+        }
+      }
+
+      announcements.push({
+        id,
+        title,
+        htmlUrl,
+        messageHtml,
+        postedAt,
+        updatedAt,
+        author: authorName,
+        authorName,
+        userName: authorName,
+        attachments,
+        unreadCount: typeof item.unread_count === "number" ? item.unread_count : null,
+        discussionSubentryCount: typeof item.discussion_subentry_count === "number" ? item.discussion_subentry_count : null,
+        entries
+      });
+    }
+
+    return announcements;
+  }
+
   public async getCalendarEvents(
     courseId: string | number,
     assignments?: CanvasAssignmentPayload[]
@@ -951,42 +1058,52 @@ export class CanvasApiClient {
   public async fetchCompleteCoursePayload(
     courseId: string | number,
     onProgress?: (step: string, current: number, total: number) => void,
-    options?: { syncDiscussionReplies?: boolean; syncStudentSubmissions?: boolean }
+    options?: { syncDiscussionReplies?: boolean; syncStudentSubmissions?: boolean; syncAnnouncements?: boolean }
   ): Promise<CanvasCoursePayload> {
     const cId = String(courseId);
     const syncDiscussionReplies = options?.syncDiscussionReplies ?? true;
     const syncStudentSubmissions = options?.syncStudentSubmissions ?? true;
+    const syncAnnouncements = options?.syncAnnouncements ?? true;
+    const totalSteps = 9;
 
-    onProgress?.("Fetching course details & grades...", 1, 8);
+    onProgress?.("Fetching course details & grades...", 1, totalSteps);
     const details = await this.getCourseSummary(cId);
     const courseName = details.name || `Course ${cId}`;
     const courseCode = details.course_code || undefined;
     const syllabusHtml = details.syllabus_body || undefined;
     const grades = details.grades;
 
-    onProgress?.("Fetching home page...", 2, 8);
+    onProgress?.("Fetching home page...", 2, totalSteps);
     const courseHomePageHtml = (await this.getCourseFrontPage(cId)) || undefined;
 
-    onProgress?.("Fetching course modules...", 3, 8);
+    onProgress?.("Fetching course modules...", 3, totalSteps);
     const moduleIndex = await this.getModules(cId);
 
-    onProgress?.("Fetching pages...", 4, 8);
+    onProgress?.("Fetching pages...", 4, totalSteps);
     const pages = await this.getPages(cId, moduleIndex.pagesBySlug);
 
-    onProgress?.("Fetching assignments, submissions & rubrics...", 5, 8);
+    onProgress?.("Fetching assignments, submissions & rubrics...", 5, totalSteps);
     const assignments = await this.getAssignments(cId, moduleIndex.assignmentsById, {
       syncSubmissions: syncStudentSubmissions
     });
 
-    onProgress?.("Fetching discussions & replies...", 6, 8);
+    onProgress?.("Fetching discussions & replies...", 6, totalSteps);
     const discussions = await this.getDiscussions(cId, moduleIndex.discussionsById, {
       syncReplies: syncDiscussionReplies
     });
 
-    onProgress?.("Fetching calendar events & milestones...", 7, 8);
+    onProgress?.("Fetching announcements...", 7, totalSteps);
+    let announcements: CanvasDiscussionPayload[] = [];
+    if (syncAnnouncements) {
+      announcements = await this.getAnnouncements(cId, {
+        syncReplies: syncDiscussionReplies
+      });
+    }
+
+    onProgress?.("Fetching calendar events & milestones...", 8, totalSteps);
     const events = await this.getCalendarEvents(cId, assignments);
 
-    onProgress?.("Discovering course files & attachments...", 8, 8);
+    onProgress?.("Discovering course files & attachments...", 9, totalSteps);
     const filesResult = await this.getFiles(cId);
 
     // Merge discovered files from modules and API files endpoint
@@ -1027,13 +1144,31 @@ export class CanvasApiClient {
       }
     }
 
+    // Also include announcement attachments if available
+    for (const ann of announcements) {
+      if (ann.attachments) {
+        for (const att of ann.attachments) {
+          if (att.id && !fileMapById.has(att.id)) {
+            fileMapById.set(att.id, {
+              id: att.id,
+              displayName: att.displayName,
+              url: att.url,
+              size: att.size,
+              contentType: att.contentType
+            });
+          }
+        }
+      }
+    }
+
     // Scan HTML content for embedded image & document links
     const allHtml = [
       courseHomePageHtml || "",
       syllabusHtml || "",
       ...pages.map((p) => p.html),
       ...assignments.map((a) => a.descriptionHtml || ""),
-      ...discussions.map((d) => d.messageHtml || "")
+      ...discussions.map((d) => d.messageHtml || ""),
+      ...announcements.map((a) => a.messageHtml || "")
     ];
 
     for (const html of allHtml) {
@@ -1096,6 +1231,7 @@ export class CanvasApiClient {
       pages,
       assignments,
       discussions,
+      announcements,
       events,
       files,
       assetDiagnostics: {
