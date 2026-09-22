@@ -255,6 +255,7 @@ export interface CanvasSyncSettings {
   syncStudentSubmissions: boolean;
   enableBridgeServer: boolean;
   listenPort: number;
+  bridgePairingToken: string;
   rootFolder: string;
   courseFolderTemplate: string;
   enableYamlFrontmatter: boolean;

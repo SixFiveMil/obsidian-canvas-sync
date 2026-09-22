@@ -8,7 +8,7 @@
 import { Notice, Platform, Plugin } from "obsidian";
 import { CanvasApiClient } from "./api";
 import { CanvasBridgeServer } from "./bridge";
-import { DEFAULT_SETTINGS, TRUSTED_CLIENT_HEADER } from "./constants";
+import { BRIDGE_PAIRING_HEADER, DEFAULT_SETTINGS, TRUSTED_CLIENT_HEADER } from "./constants";
 import { CourseCapabilityModal, CourseSelectModal } from "./modals";
 import {
   renderAnnouncementDoc,
@@ -50,6 +50,7 @@ import {
 
 // Re-export public utilities, settings tab, and defaults for external consumers & unit tests
 export {
+  BRIDGE_PAIRING_HEADER,
   CanvasSyncSettingTab,
   DEFAULT_SETTINGS,
   formatIsoDate,
@@ -64,6 +65,7 @@ export {
  */
 export default class CanvasSyncBridgePlugin extends Plugin {
   public static readonly TRUSTED_CLIENT_HEADER = TRUSTED_CLIENT_HEADER;
+  public static readonly BRIDGE_PAIRING_HEADER = BRIDGE_PAIRING_HEADER;
 
   private settings: CanvasSyncSettings = DEFAULT_SETTINGS;
   private apiClient: CanvasApiClient | null = null;

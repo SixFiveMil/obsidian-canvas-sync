@@ -59,6 +59,23 @@ describe("Tabbed Settings Navigation UI", () => {
     expect(nav).toBeDefined();
     expect(nav.children).toHaveLength(6);
   });
+
+  it("renders bridge pairing token setting in connection tab", () => {
+    const app = new App();
+    const plugin = new CanvasSyncBridgePlugin(app, {} as any);
+    const settingTab = new CanvasSyncSettingTab(app, plugin);
+
+    settingTab.display();
+    const container = settingTab.containerEl as any;
+    const tabContent = container.children.find((c: any) => c.className?.includes("canvas-settings-tab-content"));
+    expect(tabContent).toBeDefined();
+
+    const settingNames = tabContent.children
+      .map((c: any) => c.children?.find((sc: any) => sc.className === "setting-item-info")?.children?.find((n: any) => n.className === "setting-item-name")?.textContent)
+      .filter(Boolean);
+
+    expect(settingNames).toContain("Bridge pairing token (optional)");
+  });
 });
 
 describe("Course Capability Diagnostics & Reporting", () => {

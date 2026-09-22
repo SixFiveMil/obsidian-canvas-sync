@@ -8,7 +8,7 @@
  */
 
 import { Notice, Platform } from "obsidian";
-import { TRUSTED_CLIENT_HEADER } from "../constants";
+import { BRIDGE_PAIRING_HEADER, TRUSTED_CLIENT_HEADER } from "../constants";
 import { isAllowedOrigin, validateEnvelopeShape } from "../utils";
 import type { CanvasCoursePayload, CanvasSyncSettings, CourseSyncResult } from "../types";
 
@@ -166,7 +166,7 @@ export class CanvasBridgeServer {
       res.writeHead(204, {
         "Access-Control-Allow-Origin": corsOrigin,
         "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
-        "Access-Control-Allow-Headers": "Content-Type, X-Canvas-Sync-Client",
+        "Access-Control-Allow-Headers": "Content-Type, X-Canvas-Sync-Client, X-Canvas-Bridge-Token, Authorization",
         "Vary": "Origin"
       });
       res.end();
@@ -197,6 +197,36 @@ export class CanvasBridgeServer {
       res.writeHead(403, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, message: "Untrusted client header." }));
       return;
+    }
+
+    // Validate optional bridge pairing token if configured
+    const configuredToken = this.settings.bridgePairingToken ? this.settings.bridgePairingToken.trim() : "";
+    if (configuredToken) {
+      const rawHeaderToken = req.headers[BRIDGE_PAIRING_HEADER];
+      const headerToken = typeof rawHeaderToken === "string" ? rawHeaderToken.trim() : undefined;
+
+      const rawAuthHeader = req.headers["authorization"];
+      const authHeaderStr = typeof rawAuthHeader === "string" ? rawAuthHeader.trim() : undefined;
+      let authBearerToken: string | undefined;
+      if (authHeaderStr) {
+        if (authHeaderStr.startsWith("Bearer ") || authHeaderStr.startsWith("bearer ")) {
+          authBearerToken = authHeaderStr.slice(7).trim();
+        } else {
+          authBearerToken = authHeaderStr;
+        }
+      }
+
+      const providedToken = headerToken || authBearerToken;
+
+      if (!providedToken || providedToken !== configuredToken) {
+        res.writeHead(401, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": corsOrigin
+        });
+        res.end(JSON.stringify({ ok: false, message: "Unauthorized: Invalid or missing bridge pairing token." }));
+        new Notice("Canvas sync bridge: Unauthorized request blocked (invalid or missing pairing token).");
+        return;
+      }
     }
 
     // Accumulate payload body with 50MB safety limit
