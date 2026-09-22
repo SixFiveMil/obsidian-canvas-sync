@@ -1,0 +1,16 @@
+#!/bin/sh
+# Git pre-push hook to prevent breaking develop/main branches
+# Runs full test & build validation before push
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+echo "🔍 Running pre-push checks on branch: $branch..."
+npm run check:all
+
+if [ $? -ne 0 ]; then
+  echo "❌ Push blocked: Quality checks failed. Fix errors and try again."
+  exit 1
+fi
+
+echo "✅ Pre-push checks passed."
+exit 0

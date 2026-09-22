@@ -36,11 +36,14 @@ Canvas Sync provides two flexible sync workflows depending on your institutional
 
 Both ingestion pathways feed into a unified rendering engine:
 * **Course & Home**: Course overview, home page banners/navigation, and full syllabus formatting.
+* **📢 Course Announcements**: Ingests instructor announcements, timestamps, and full multi-tier reply trees into a dedicated `Announcements.md` hub with formatted Obsidian callouts (`> [!NOTE]`).
+* **🏷️ YAML Frontmatter Metadata**: Generates structured, typed YAML frontmatter for all assignments, pages, and announcements — fully compatible with **Obsidian Dataview, Tasks, and Canvas cards**.
 * **Modules**: Hierarchical module folders, lecture wiki pages, readings, and embedded assets.
 * **Assignments & Rubrics**: Due dates, points possible, submission instructions, and structured rubric criteria tables.
 * **Student Submissions & Grades**: Live gradebook standing (`Grades.md`), score breakdowns, submitted files, and instructor feedback comments.
-* **Discussions**: Full discussion topics, announcements, and complete multi-tier student reply trees (`Discussions.md`).
+* **Discussions**: Full discussion topics and complete multi-tier student reply trees (`Discussions.md`).
 * **Calendar & Milestones**: Schedule events, assignment due date milestones, and Zoom meeting links (`Calendar.md`).
+* **🔍 Capability Probing & Diagnostics**: Built-in diagnostics tab to test token permissions, verify module file downloads, and perform automatic fallback discovery for institutions with locked API endpoints.
 * **📝 Student Personal Notes Preservation**: Type student notes and annotations freely under `## 📝 Personal Notes` on any course note — personal content is automatically preserved across all future syncs without tag clutter.
 * **⏱️ Per-Page "Last Synced" Timestamps**: Every generated note and hub displays a localized timestamp showing exactly when the note was fetched.
 * **🛡️ Safe Filename Capping**: Automatically sanitizes and caps oversized module item titles (up to 100 chars) while preserving extensions to prevent OS `ENAMETOOLONG` errors.
@@ -52,13 +55,25 @@ Both ingestion pathways feed into a unified rendering engine:
 
 ## 📸 Screenshots
 
-| 1. Interactive Course Selector (REST API) | 2. Companion Browser Extension (Zero-Token) |
+| 1. Interactive Course Selector & Auto-Sync | 2. Real-Time Sync & Asset Download Progress |
 | :---: | :---: |
-| ![Course Selector Modal](docs/assets/screenshot_course_selector.png) | ![Extension Popup](docs/assets/screenshot_extension_popup.png) |
+| ![Course Selector Modal](docs/assets/screenshot_course_selector.png) | ![Live Sync Progress](docs/assets/screenshot_sync_progress.png) |
 
-| 3. Canvas API & Bridge Settings | 4. Granular Asset & File Downloads |
+| 3. Scheduled Background Sync Automation | 4. Course Capability & Permissions Diagnostics |
 | :---: | :---: |
-| ![Plugin Settings](docs/assets/screenshot_plugin_settings.png) | ![Asset Settings](docs/assets/screenshot_asset_settings.png) |
+| ![Scheduled Sync Settings](docs/assets/screenshot_schedule_settings.png) | ![Diagnostics Probe](docs/assets/screenshot_diagnostics_probe.png) |
+
+| 5. Connection & Browser Bridge Settings | 6. Data Types & Announcements Settings |
+| :---: | :---: |
+| ![Connection Settings](docs/assets/screenshot_plugin_settings.png) | ![Data Types Settings](docs/assets/screenshot_datatypes_settings.png) |
+
+| 7. YAML Frontmatter & Formatting Settings | 8. Granular Asset & File Downloads |
+| :---: | :---: |
+| ![Formatting Settings](docs/assets/screenshot_formatting_settings.png) | ![Asset Settings](docs/assets/screenshot_asset_settings.png) |
+
+| 9. Companion Browser Extension (Zero-Token Bridge) |
+| :---: |
+| ![Extension Popup](docs/assets/screenshot_extension_popup.png) |
 
 ---
 
@@ -108,6 +123,7 @@ Canvas/
     ├── Course.md         # Master course index, metadata, and quick navigation
     ├── Home.md           # Course home page with banner and graphic links
     ├── Syllabus.md       # Complete course syllabus and policies
+    ├── Announcements.md  # Course announcements hub with callouts and replies
     ├── Tasks.md          # Assignment checklists, due dates, points, and submissions
     ├── Grades.md         # Gradebook table with scores, percentages, and status
     ├── Discussions.md    # Discussion board topics with full student reply trees

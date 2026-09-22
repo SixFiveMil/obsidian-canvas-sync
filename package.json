@@ -30,6 +30,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:bridge": "node scripts/test-bridge.mjs",
+    "runbook": "node scripts/runbook.mjs status",
+    "check:all": "node scripts/runbook.mjs check",
+    "release:check": "node scripts/runbook.mjs release-check",
+    "setup:hooks": "git config core.hooksPath .githooks",
     "version": "node scripts/sync-version.mjs",
     "version:sync": "node scripts/sync-version.mjs"
   },

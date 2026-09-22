@@ -55,3 +55,8 @@ venv/
 .venv/
 __pycache__/
 
+# AI Assistant Context
+AGENTS.md
+GEMINI.md
+.agents/
+

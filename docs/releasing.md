@@ -4,16 +4,25 @@ This repository maintains the **Canvas Sync** Obsidian community plugin.
 
 ---
 
-## 1. Local Build Commands
+> [!TIP]
+> For the complete 4-stage engineering lifecycle (Feature Branch -> Develop Testing -> Docs/Screenshots -> Main Release), see the primary [RUNBOOK.md](../RUNBOOK.md).
+
+---
+
+## 1. Local Build & Quality Commands
 
 All commands can be run from the repository root:
 
 | Command | Description |
 |---|---|
+| `npm run runbook` | Inspects current branch and displays recommended next steps. |
+| `npm run check:all` | Runs strict linter, TypeScript check, unit tests, and production build. |
+| `npm run release:check` | Verifies version synchronization and release asset readiness. |
 | `npm run build` | Builds the production Obsidian plugin bundle (`main.js`). |
 | `npm run dev` | Runs `esbuild` in watch mode for active plugin development. |
 | `npm test` | Runs the full Vitest unit test suite. |
 | `npm run typecheck` | Type-checks all TypeScript source and test files (`tsc --noEmit`). |
+| `npm run version:sync` | Synchronizes `manifest.json` and `versions.json` with `package.json`. |
 
 ---
 

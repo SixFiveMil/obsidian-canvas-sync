@@ -64,10 +64,12 @@ All high-resolution screenshot assets are located in [`docs/store-assets/`](./st
 | Asset | File Path | Description |
 |---|---|---|
 | **Add-on Icon** | `docs/store-assets/icon128.png` | 128x128 PNG extension icon |
-| **Screenshot 1** | `docs/store-assets/screenshot1_sync_popup.jpg` | Extension popup open over Canvas course dashboard |
-| **Screenshot 2** | `docs/store-assets/screenshot2_obsidian_notes.jpg` | Synced course notes, checklist & syllabus in Obsidian |
-| **Screenshot 3** | `docs/store-assets/screenshot3_privacy_architecture.jpg` | Localhost loopback architecture diagram |
-| **Promo Banner** | `docs/store-assets/promo_marquee_1400x560.jpg` | 1400x560 marquee graphic |
+| **Screenshot 1** | `docs/store-assets/screenshot1_sync_popup_1280x800.png` | Extension popup open over Canvas course dashboard |
+| **Screenshot 2** | `docs/store-assets/screenshot2_course_selector_1280x800.png` | Obsidian course selector modal with multi-course selection & auto-sync |
+| **Screenshot 3** | `docs/store-assets/screenshot3_obsidian_notes_1280x800.png` | Synced course notes, gradebook standing & announcements in Obsidian |
+| **Screenshot 4** | `docs/store-assets/screenshot4_settings_assets_1280x800.png` | Tabbed settings UI and local asset download filters |
+| **Screenshot 5** | `docs/store-assets/screenshot5_privacy_architecture_1280x800.png` | 100% Local-first zero telemetry architecture diagram |
+| **Promo Banner** | `docs/store-assets/promo_marquee_1400x560.png` | 1400x560 marquee graphic |
 
 ---
 

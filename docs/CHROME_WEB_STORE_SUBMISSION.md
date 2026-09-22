@@ -35,8 +35,11 @@ All assets are located in [`docs/store-assets/`](./store-assets/) and comply wit
   - `docs/store-assets/promo_marquee_1400x560.jpg` (JPEG)
   - `docs/store-assets/promo_marquee_1400x560.png` (24-bit RGB PNG, no alpha)
 - **Screenshots (1280x800):**
-  - Screenshot 1 (Sync Flow & Popup): `docs/store-assets/screenshot_1280x800.jpg` / `.png`
-  - Screenshot 2 (Rendered Obsidian Notes & GFM Tables): `docs/store-assets/screenshot2_obsidian_notes_1280x800.jpg` / `.png`
+  - Screenshot 1 (Sync Flow & Extension Popup): `docs/store-assets/screenshot1_sync_popup_1280x800.png` (or `.jpg`)
+  - Screenshot 2 (Course Selector Modal & Auto-Sync): `docs/store-assets/screenshot2_course_selector_1280x800.png` (or `.jpg`)
+  - Screenshot 3 (Rendered Notes, Grades & Announcements): `docs/store-assets/screenshot3_obsidian_notes_1280x800.png` (or `.jpg`)
+  - Screenshot 4 (Comprehensive Settings & Local Downloads): `docs/store-assets/screenshot4_settings_assets_1280x800.png` (or `.jpg`)
+  - Screenshot 5 (100% Local-First Privacy Architecture): `docs/store-assets/screenshot5_privacy_architecture_1280x800.png` (or `.jpg`)
 
 ---
 
