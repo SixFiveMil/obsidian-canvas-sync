@@ -68,6 +68,47 @@ describe("note-utils", () => {
 
       expect(extractPersonalNotes(content)).toBeNull();
     });
+    it("extracts personal notes from notes starting with YAML frontmatter", () => {
+      const content = [
+        "---",
+        "canvas_id: 123",
+        "canvas_type: assignment",
+        'title: "Kerckhoffs\' Principle"',
+        "due: 2026-09-30T23:59:00Z",
+        'tags: ["canvas/assignment"]',
+        "---",
+        "",
+        "# Assignment 1: Kerckhoffs' Principle",
+        "",
+        "Instructions here...",
+        "",
+        "---",
+        "",
+        PERSONAL_NOTES_HEADER,
+        "",
+        "- My note on cipher security",
+        "- Review chapter 4"
+      ].join("\n");
+
+      const notes = extractPersonalNotes(content);
+      expect(notes).toBe("- My note on cipher security\n- Review chapter 4");
+    });
+
+    it("returns null when note with YAML frontmatter has no personal notes", () => {
+      const content = [
+        "---",
+        "canvas_id: 123",
+        "canvas_type: assignment",
+        'title: "Kerckhoffs\' Principle"',
+        "---",
+        "",
+        "# Assignment 1",
+        "",
+        "Instructions without personal notes."
+      ].join("\n");
+
+      expect(extractPersonalNotes(content)).toBeNull();
+    });
   });
 
   describe("mergePreservedContent", () => {
@@ -100,6 +141,43 @@ describe("note-utils", () => {
       expect(merged).not.toContain("Old instructions");
       expect(merged).toContain("- Need to cite section 4 of textbook.");
       expect(merged).not.toContain("canvas-sync:user-notes");
+    });
+
+    it("preserves YAML frontmatter at top while merging personal notes at bottom", () => {
+      const existing = [
+        "---",
+        "canvas_id: 501",
+        "status: unsubmitted",
+        "---",
+        "",
+        "# Assignment 5 - Old body",
+        "",
+        "---",
+        "",
+        PERSONAL_NOTES_HEADER,
+        "",
+        "- Consult professor during office hours on Thursday."
+      ].join("\n");
+
+      const updatedWithNewFrontmatter = [
+        "---",
+        "canvas_id: 501",
+        "status: graded",
+        "score: 95",
+        "---",
+        "",
+        "# Assignment 5 - New body",
+        "",
+        "Updated instructions."
+      ].join("\n");
+
+      const merged = mergePreservedContent(updatedWithNewFrontmatter, existing);
+
+      expect(merged.startsWith("---\ncanvas_id: 501\nstatus: graded\nscore: 95\n---")).toBe(true);
+      expect(merged).toContain("# Assignment 5 - New body");
+      expect(merged).not.toContain("Old body");
+      expect(merged).toContain(PERSONAL_NOTES_HEADER);
+      expect(merged).toContain("- Consult professor during office hours on Thursday.");
     });
   });
 
