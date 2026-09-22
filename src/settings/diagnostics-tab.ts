@@ -5,7 +5,7 @@
  */
 
 import { Notice, Platform, Setting } from "obsidian";
-import { CourseCapabilityModal, generateCapabilityMarkdownReport } from "../modals";
+import { generateCapabilityMarkdownReport } from "../modals";
 import type CanvasSyncBridgePlugin from "../main";
 import type { CanvasCourseSummary } from "../types";
 
@@ -35,7 +35,7 @@ export function renderDiagnosticsTab(
     .setName("Export debug logs & diagnostics")
     .setDesc("Export system diagnostics, plugin configuration summary (secrets masked), and platform metadata.")
     .addButton((btn) =>
-      btn.setButtonText("Copy Diagnostics").onClick(() => {
+      btn.setButtonText("Copy diagnostics").onClick(() => {
         const s = plugin.getSettings();
         const maskedToken = s.canvasApiToken ? `${s.canvasApiToken.slice(0, 4)}...${s.canvasApiToken.slice(-4)}` : "None";
         const diag = [
@@ -100,7 +100,7 @@ export function renderDiagnosticsTab(
 
     probeSetting.addButton((btn) => {
       btn
-        .setButtonText("Probe Course")
+        .setButtonText("Probe course")
         .setCta()
         .onClick(async () => {
         if (!state.selectedProbeCourseId) return;
@@ -115,7 +115,7 @@ export function renderDiagnosticsTab(
           const summary = probeResultsEl.createDiv("canvas-diagnostics-summary");
           summary.createEl("h4", { text: `Diagnostics: ${report.courseName}` });
           summary.createEl("p", {
-            text: "💡 Note: 'Restricted (403)' on Files or Roster is standard when instructors hide those global tabs. Embedded module items, lecture slides, and assignment attachments still download normally during sync.",
+            text: "💡 Note: 'Restricted (403)' on files or roster is standard when instructors hide those global tabs. Embedded module items, lecture slides, and assignment attachments still download normally during sync.",
             cls: "canvas-diagnostics-desc"
           });
 
@@ -123,7 +123,7 @@ export function renderDiagnosticsTab(
           const table = tableWrap.createEl("table", { cls: "canvas-diagnostics-table" });
           const thead = table.createEl("thead");
           const trHead = thead.createEl("tr");
-          trHead.createEl("th", { text: "Data Category" });
+          trHead.createEl("th", { text: "Data category" });
           trHead.createEl("th", { text: "Status" });
           trHead.createEl("th", { text: "Endpoint" });
           trHead.createEl("th", { text: "Details" });
@@ -141,7 +141,7 @@ export function renderDiagnosticsTab(
           }
 
           const actions = probeResultsEl.createDiv("canvas-diagnostics-actions");
-          const copyBtn = actions.createEl("button", { text: "📋 Copy Markdown Report" });
+          const copyBtn = actions.createEl("button", { text: "📋 Copy Markdown report" });
           copyBtn.addEventListener("click", () => {
             const md = generateCapabilityMarkdownReport(report);
             void navigator.clipboard.writeText(md).then(() => {

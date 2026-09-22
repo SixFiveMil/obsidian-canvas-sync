@@ -45,7 +45,7 @@ export function renderScheduleTab(
           .addOption("240", "Every 4 hours")
           .addOption("360", "Every 6 hours")
           .addOption("720", "Every 12 hours")
-          .addOption("1440", "Every 24 hours (Daily)")
+          .addOption("1440", "Every 24 hours (daily)")
           .setValue(String(plugin.getSettings().scheduledSyncIntervalMinutes || 60))
           .onChange((value) => {
             const minutes = Number.parseInt(value, 10);
@@ -77,7 +77,7 @@ export function renderScheduleTab(
         .setName("Manage auto-sync courses")
         .setDesc(`${count} course(s) currently configured for auto-sync.`)
         .addButton((btn) =>
-          btn.setButtonText("Select Courses...").onClick(() => {
+          btn.setButtonText("Select courses...").onClick(() => {
             new CourseSelectModal(plugin.app, plugin).open();
           })
         );
@@ -100,7 +100,7 @@ export function renderScheduleTab(
       .setDesc(`Last background sync: ${lastSyncText}`)
       .addButton((btn) =>
         btn
-          .setButtonText("Sync Now")
+          .setButtonText("Sync now")
           .setCta()
           .onClick(async () => {
             await plugin.runScheduledSync(true);

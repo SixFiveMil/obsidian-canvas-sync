@@ -18,7 +18,7 @@ export function renderFormattingTab(containerEl: HTMLElement, plugin: CanvasSync
 
   new Setting(containerEl)
     .setName("Enable YAML frontmatter")
-    .setDesc("Generate YAML frontmatter (Properties) with typed dates, scores, and status for Dataview, Tasks, and Canvas cards.")
+    .setDesc("Generate YAML frontmatter (properties) with typed dates, scores, and status for Dataview, Tasks, and Canvas cards.")
     .addToggle((toggle) =>
       toggle.setValue(plugin.getSettings().enableYamlFrontmatter ?? true).onChange((value) => {
         void plugin.updateSettings({ enableYamlFrontmatter: value });
@@ -53,7 +53,7 @@ export function renderFormattingTab(containerEl: HTMLElement, plugin: CanvasSync
 
   new Setting(containerEl)
     .setName("Preserve student personal notes")
-    .setDesc("Retain personal annotations written in '## 📝 Personal Notes' section across course resyncs.")
+    .setDesc("Retain personal annotations written in '## 📝 personal notes' section across course resyncs.")
     .addToggle((toggle) =>
       toggle.setValue(plugin.getSettings().preservePersonalNotes ?? true).onChange((value) => {
         void plugin.updateSettings({ preservePersonalNotes: value });

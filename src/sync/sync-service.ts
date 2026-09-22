@@ -227,7 +227,7 @@ export class CanvasSyncService {
    */
   public async syncAllCourses(): Promise<void> {
     if (!this.settings.canvasBaseUrl || !this.settings.canvasApiToken) {
-      new Notice("Please configure your Canvas URL and API Token in settings first.");
+      new Notice("Please configure your Canvas URL and API token in settings first.");
       return;
     }
 

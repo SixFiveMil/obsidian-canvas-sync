@@ -6,7 +6,7 @@
 
 import { App, Modal, Notice, Setting, normalizePath } from "obsidian";
 import type CanvasSyncBridgePlugin from "../main";
-import type { CanvasCourseSummary, CourseCapabilityReport, DataCategoryCapability } from "../types";
+import type { CanvasCourseSummary, CourseCapabilityReport } from "../types";
 
 /**
  * Generates a structured Markdown diagnostic report from a CourseCapabilityReport object.
@@ -73,11 +73,11 @@ export class CourseCapabilityModal extends Modal {
     contentEl.empty();
     contentEl.addClass("canvas-capability-modal");
 
-    contentEl.createEl("h2", { text: "Canvas Course Capability Diagnostics" });
+    contentEl.createEl("h2", { text: "Canvas course capability diagnostics" });
 
     if (!this.plugin.getSettings().canvasBaseUrl || !this.plugin.getSettings().canvasApiToken) {
       contentEl.createEl("p", {
-        text: "Please configure your Canvas Base URL and API Token in settings before running diagnostics.",
+        text: "Please configure your Canvas base URL and API token in settings before running diagnostics.",
         cls: "canvas-sync-error"
       });
       new Setting(contentEl).addButton((btn) => btn.setButtonText("Close").setCta().onClick(() => this.close()));
@@ -141,7 +141,7 @@ export class CourseCapabilityModal extends Modal {
 
     setting.addButton((btn) =>
       btn
-        .setButtonText("Run Diagnostic Probe")
+        .setButtonText("Run diagnostic probe")
         .setCta()
         .onClick(() => {
           if (this.selectedCourseId) {
@@ -175,6 +175,10 @@ export class CourseCapabilityModal extends Modal {
       this.isProbing = false;
       loading.empty();
       const msg = err instanceof Error ? err.message : String(err);
+      resultsEl.createDiv({
+        cls: "canvas-status-error",
+        text: `Probe failed: ${msg}`
+      });
     }
   }
 
@@ -185,7 +189,7 @@ export class CourseCapabilityModal extends Modal {
     header.createEl("h3", { text: `Report: ${report.courseName}` });
     header.createEl("p", { text: `Course ID: ${report.courseId} • Tested at: ${new Date(report.testedAt).toLocaleString()}`, cls: "canvas-meta-item" });
     header.createEl("p", {
-      text: "💡 Note: 'Restricted (403)' on Files or Roster is standard when instructors hide those global tabs. Embedded module items, lecture slides, and assignment attachments still download normally during sync.",
+      text: "💡 Note: 'Restricted (403)' on files or roster is standard when instructors hide those global tabs. Embedded module items, lecture slides, and assignment attachments still download normally during sync.",
       cls: "canvas-diagnostics-desc"
     });
 
@@ -194,9 +198,9 @@ export class CourseCapabilityModal extends Modal {
 
     const thead = table.createEl("thead");
     const trHead = thead.createEl("tr");
-    trHead.createEl("th", { text: "Data Category" });
+    trHead.createEl("th", { text: "Data category" });
     trHead.createEl("th", { text: "Status" });
-    trHead.createEl("th", { text: "HTTP / Count" });
+    trHead.createEl("th", { text: "HTTP / count" });
     trHead.createEl("th", { text: "Endpoint" });
     trHead.createEl("th", { text: "Details" });
 
@@ -232,15 +236,15 @@ export class CourseCapabilityModal extends Modal {
 
     // Actions
     const actions = container.createDiv("canvas-capability-actions");
-    const copyBtn = actions.createEl("button", { text: "📋 Copy Markdown Report" });
+    const copyBtn = actions.createEl("button", { text: "📋 Copy Markdown report" });
     copyBtn.addEventListener("click", () => {
       const md = generateCapabilityMarkdownReport(report);
       void navigator.clipboard.writeText(md).then(() => {
-        new Notice("Diagnostic markdown report copied to clipboard!");
+        new Notice("Diagnostic Markdown report copied to clipboard!");
       });
     });
 
-    const saveVaultBtn = actions.createEl("button", { text: "💾 Save Report to Vault", cls: "mod-cta" });
+    const saveVaultBtn = actions.createEl("button", { text: "💾 Save report to vault", cls: "mod-cta" });
     saveVaultBtn.addEventListener("click", () => {
       void (async () => {
         const md = generateCapabilityMarkdownReport(report);

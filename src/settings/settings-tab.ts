@@ -6,7 +6,6 @@
 
 import { App, PluginSettingTab } from "obsidian";
 import type CanvasSyncBridgePlugin from "../main";
-import type { CanvasCourseSummary } from "../types";
 import { renderAssetsTab } from "./assets-tab";
 import { renderConnectionTab } from "./connection-tab";
 import { renderDataTypesTab } from "./datatypes-tab";

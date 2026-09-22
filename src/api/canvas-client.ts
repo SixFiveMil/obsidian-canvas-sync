@@ -235,7 +235,7 @@ export class CanvasApiClient {
         const mod = apiModules[mIdx];
         if (!mod || typeof mod !== "object") continue;
 
-        const mId = String(mod.id ?? mIdx + 1);
+        const mId = typeof mod.id === "number" || typeof mod.id === "string" ? String(mod.id) : String(mIdx + 1);
         const mName = typeof mod.name === "string" && mod.name.trim() ? mod.name.trim() : `Module ${mIdx + 1}`;
         const items: CanvasModuleItemPayload[] = [];
 
@@ -244,9 +244,9 @@ export class CanvasApiClient {
             const item = mod.items[iIdx] as Record<string, unknown>;
             if (!item || typeof item !== "object") continue;
 
-            const itemId = String(item.id ?? `${mId}-${iIdx + 1}`);
+            const itemId = typeof item.id === "number" || typeof item.id === "string" ? String(item.id) : `${mId}-${iIdx + 1}`;
             const title = typeof item.title === "string" && item.title.trim() ? item.title.trim() : `Item ${iIdx + 1}`;
-            const rawType = String(item.type ?? "").toLowerCase();
+            const rawType = typeof item.type === "string" ? item.type.toLowerCase() : "";
             const normalizedType = this.normalizeModuleItemType(rawType);
             const position = typeof item.position === "number" ? item.position : iIdx + 1;
             const indent = typeof item.indent === "number" ? item.indent : undefined;
@@ -273,15 +273,15 @@ export class CanvasApiClient {
                 modItem.pageSlug = slug;
                 addMembership(pagesBySlug, slug, mName);
               }
-            } else if (normalizedType === "Assignment" && item.content_id != null) {
+            } else if (normalizedType === "Assignment" && (typeof item.content_id === "number" || typeof item.content_id === "string")) {
               const assignId = String(item.content_id);
               modItem.assignmentId = assignId;
               addMembership(assignmentsById, assignId, mName);
-            } else if (normalizedType === "DiscussionTopic" && item.content_id != null) {
+            } else if (normalizedType === "DiscussionTopic" && (typeof item.content_id === "number" || typeof item.content_id === "string")) {
               const discId = String(item.content_id);
               modItem.discussionId = discId;
               addMembership(discussionsById, discId, mName);
-            } else if (normalizedType === "File" && item.content_id != null) {
+            } else if (normalizedType === "File" && (typeof item.content_id === "number" || typeof item.content_id === "string")) {
               const fId = String(item.content_id);
               modItem.fileId = fId;
               addMembership(filesById, fId, mName);
@@ -397,7 +397,7 @@ export class CanvasApiClient {
       const list = await this.requestPaged<Record<string, unknown>>(endpoint);
 
       for (const item of list) {
-        if (!item || item.id == null) continue;
+        if (!item || (typeof item.id !== "number" && typeof item.id !== "string")) continue;
         const id = String(item.id);
         const name = typeof item.name === "string" && item.name.trim() ? item.name.trim() : `Assignment ${id}`;
         const dueAt = typeof item.due_at === "string" ? item.due_at : null;
@@ -439,26 +439,29 @@ export class CanvasApiClient {
 
           let attachments: CanvasSubmissionAttachment[] | undefined = undefined;
           if (Array.isArray(sub.attachments)) {
-            attachments = (sub.attachments as Array<Record<string, unknown>>).map((att) => ({
-              id: String(att.id ?? ""),
-              displayName:
-                typeof att.display_name === "string" && att.display_name.trim()
-                  ? att.display_name.trim()
-                  : typeof att.filename === "string" && att.filename.trim()
-                    ? att.filename.trim()
-                    : `submission_attachment_${att.id}`,
-              url: typeof att.url === "string" ? att.url : `${this.baseUrl}/files/${att.id}/download`,
-              size: typeof att.size === "number" ? att.size : undefined,
-              contentType: typeof att["content-type"] === "string" ? att["content-type"] : undefined
-            }));
+            attachments = (sub.attachments as Array<Record<string, unknown>>).map((att) => {
+              const attId = typeof att.id === "number" || typeof att.id === "string" ? String(att.id) : "";
+              return {
+                id: attId,
+                displayName:
+                  typeof att.display_name === "string" && att.display_name.trim()
+                    ? att.display_name.trim()
+                    : typeof att.filename === "string" && att.filename.trim()
+                      ? att.filename.trim()
+                      : `submission_attachment_${attId || "file"}`,
+                url: typeof att.url === "string" ? att.url : `${this.baseUrl}/files/${attId}/download`,
+                size: typeof att.size === "number" ? att.size : undefined,
+                contentType: typeof att["content-type"] === "string" ? att["content-type"] : undefined
+              };
+            });
           }
 
           submission = {
-            id: sub.id != null ? String(sub.id) : undefined,
+            id: typeof sub.id === "number" || typeof sub.id === "string" ? String(sub.id) : undefined,
             submittedAt: typeof sub.submitted_at === "string" ? sub.submitted_at : null,
             workflowState: typeof sub.workflow_state === "string" ? sub.workflow_state : undefined,
             score: typeof sub.score === "number" ? sub.score : null,
-            grade: sub.grade != null ? String(sub.grade) : null,
+            grade: typeof sub.grade === "string" || typeof sub.grade === "number" ? String(sub.grade) : null,
             body: typeof sub.body === "string" ? sub.body : null,
             url: typeof sub.url === "string" ? sub.url : null,
             submissionType: typeof sub.submission_type === "string" ? sub.submission_type : null,
@@ -514,9 +517,9 @@ export class CanvasApiClient {
         if (!Array.isArray(entries)) return [];
         const result: CanvasDiscussionEntryPayload[] = [];
         for (const entry of entries) {
-          if (!entry || entry.id == null) continue;
+          if (!entry || (typeof entry.id !== "number" && typeof entry.id !== "string")) continue;
           const id = String(entry.id);
-          const userId = entry.user_id != null ? String(entry.user_id) : undefined;
+          const userId = typeof entry.user_id === "number" || typeof entry.user_id === "string" ? String(entry.user_id) : undefined;
           const numUserId = entry.user_id != null ? Number(entry.user_id) : undefined;
           const userName =
             (numUserId != null && participantMap.get(numUserId)) ||
@@ -561,7 +564,7 @@ export class CanvasApiClient {
       );
 
       for (const item of list) {
-        if (!item || item.id == null) continue;
+        if (!item || (typeof item.id !== "number" && typeof item.id !== "string")) continue;
         const id = String(item.id);
         const title = typeof item.title === "string" && item.title.trim() ? item.title.trim() : `Discussion ${id}`;
         const htmlUrl = typeof item.html_url === "string" ? item.html_url : `${this.baseUrl}/courses/${courseId}/discussion_topics/${id}`;
@@ -569,9 +572,9 @@ export class CanvasApiClient {
         const postedAt = typeof item.posted_at === "string" ? item.posted_at : null;
         const updatedAt = typeof item.updated_at === "string" ? item.updated_at : null;
         const rawAssignmentId =
-          item.assignment_id != null
+          typeof item.assignment_id === "number" || typeof item.assignment_id === "string"
             ? String(item.assignment_id)
-            : item.assignment && typeof item.assignment === "object" && (item.assignment as Record<string, unknown>).id != null
+            : item.assignment && typeof item.assignment === "object" && ((item.assignment as Record<string, unknown>).id != null)
               ? String((item.assignment as Record<string, unknown>).id)
               : undefined;
 
@@ -660,7 +663,7 @@ export class CanvasApiClient {
     }
 
     for (const item of list) {
-      if (!item || item.id == null) continue;
+      if (!item || (typeof item.id !== "number" && typeof item.id !== "string")) continue;
       const id = String(item.id);
       const title = typeof item.title === "string" && item.title.trim() ? item.title.trim() : `Announcement ${id}`;
       const htmlUrl =
@@ -690,21 +693,24 @@ export class CanvasApiClient {
       if (rawAttachments.length > 0) {
         attachments = rawAttachments
           .filter((att) => att && (att.id != null || att.url != null || att.display_name != null || att.filename != null))
-          .map((att) => ({
-            id: String(att.id ?? ""),
-            displayName:
-              typeof att.display_name === "string" && att.display_name.trim()
-                ? att.display_name.trim()
-                : typeof att.filename === "string" && att.filename.trim()
-                  ? att.filename.trim()
-                  : `attachment_${att.id || "file"}`,
-            url:
-              typeof att.url === "string"
-                ? att.url
-                : `${this.baseUrl}/files/${att.id}/download`,
-            size: typeof att.size === "number" ? att.size : undefined,
-            contentType: typeof att["content-type"] === "string" ? att["content-type"] : undefined
-          }));
+          .map((att) => {
+            const attId = typeof att.id === "number" || typeof att.id === "string" ? String(att.id) : "";
+            return {
+              id: attId,
+              displayName:
+                typeof att.display_name === "string" && att.display_name.trim()
+                  ? att.display_name.trim()
+                  : typeof att.filename === "string" && att.filename.trim()
+                    ? att.filename.trim()
+                    : `attachment_${attId || "file"}`,
+              url:
+                typeof att.url === "string"
+                  ? att.url
+                  : `${this.baseUrl}/files/${attId}/download`,
+              size: typeof att.size === "number" ? att.size : undefined,
+              contentType: typeof att["content-type"] === "string" ? att["content-type"] : undefined
+            };
+          });
       }
 
       let entries: CanvasDiscussionEntryPayload[] | undefined = undefined;
@@ -769,14 +775,14 @@ export class CanvasApiClient {
       );
 
       for (const item of list) {
-        if (!item || item.id == null) continue;
+        if (!item || (typeof item.id !== "number" && typeof item.id !== "string")) continue;
         const id = String(item.id);
         const title = typeof item.title === "string" && item.title.trim() ? item.title.trim() : `Event ${id}`;
         const startAt = typeof item.start_at === "string" ? item.start_at : null;
         const endAt = typeof item.end_at === "string" ? item.end_at : null;
         const htmlUrl = typeof item.html_url === "string" ? item.html_url : undefined;
         const description = typeof item.description === "string" ? item.description : undefined;
-        const assignmentId = item.assignment_id != null ? String(item.assignment_id) : undefined;
+        const assignmentId = typeof item.assignment_id === "number" || typeof item.assignment_id === "string" ? String(item.assignment_id) : undefined;
         const eventType = assignmentId ? "assignment" : "event";
 
         const key = assignmentId ? `assign-${assignmentId}` : `event-${id}-${startAt ?? ""}`;
@@ -830,7 +836,7 @@ export class CanvasApiClient {
       const files: CanvasFileAssetPayload[] = [];
 
       for (const item of list) {
-        if (!item || item.id == null) continue;
+        if (!item || (typeof item.id !== "number" && typeof item.id !== "string")) continue;
         const id = String(item.id);
         const displayName =
           typeof item.display_name === "string" && item.display_name.trim()
@@ -1108,8 +1114,9 @@ export class CanvasApiClient {
         for (const rating of r.ratings) {
           if (!rating || typeof rating !== "object" || typeof (rating as Record<string, unknown>).points !== "number") continue;
           const rat = rating as Record<string, unknown>;
+          const ratDesc = typeof rat.description === "string" && rat.description.trim() ? rat.description.trim() : "Unnamed Rating";
           ratings.push({
-            description: String(rat.description ?? "Unnamed Rating"),
+            description: ratDesc,
             longDescription: typeof rat.long_description === "string" && rat.long_description.trim() ? rat.long_description : undefined,
             points: Number(rat.points)
           });
@@ -1118,9 +1125,12 @@ export class CanvasApiClient {
 
       if (typeof r.points !== "number") continue;
 
+      const rId = typeof r.id === "number" || typeof r.id === "string" ? String(r.id) : "unknown";
+      const rDesc = typeof r.description === "string" && r.description.trim() ? r.description.trim() : "Unnamed Criterion";
+
       criteria.push({
-        id: String(r.id ?? "unknown"),
-        description: String(r.description ?? "Unnamed Criterion"),
+        id: rId,
+        description: rDesc,
         longDescription: typeof r.long_description === "string" && r.long_description.trim() ? r.long_description : undefined,
         points: Number(r.points),
         ratings

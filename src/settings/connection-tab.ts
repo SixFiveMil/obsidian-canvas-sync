@@ -30,7 +30,7 @@ export function renderConnectionTab(containerEl: HTMLElement, plugin: CanvasSync
 
   const tokenSetting = new Setting(containerEl)
     .setName("Canvas API token")
-    .setDesc("Personal access token generated from your Canvas Profile (Settings > Approved Integrations > + New Access Token).");
+    .setDesc("Personal access token generated from your Canvas profile (settings > approved integrations > + new access token).");
 
   tokenSetting.addText((text) => {
     text.inputEl.type = "password";
@@ -46,10 +46,10 @@ export function renderConnectionTab(containerEl: HTMLElement, plugin: CanvasSync
 
   new Setting(containerEl)
     .setName("Test connection")
-    .setDesc("Verify that your Canvas URL and API Token are valid.")
+    .setDesc("Verify that your Canvas URL and API token are valid.")
     .addButton((btn) =>
       btn
-        .setButtonText("Test Connection")
+        .setButtonText("Test connection")
         .setCta()
         .onClick(async () => {
           statusContainer.empty();

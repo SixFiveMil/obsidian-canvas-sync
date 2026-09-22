@@ -9,8 +9,7 @@ import type {
   CanvasAssignmentPayload,
   CanvasCoursePayload,
   CanvasModuleItemPayload,
-  CanvasRubricCriterionPayload,
-  CanvasSubmissionPayload
+  CanvasRubricCriterionPayload
 } from "../types";
 import { formatIsoDate, formatIsoTimestamp, formatSyncTimestamp } from "../utils";
 import { formatModuleLinks, prependFrontmatter } from "./doc-renderer";
