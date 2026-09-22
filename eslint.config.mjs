@@ -24,7 +24,6 @@ export default [
       }
     },
     rules: {
-      "obsidianmd/settings-tab/prefer-setting-definitions": "off",
       "obsidianmd/ui/sentence-case": [
         "error",
         {
