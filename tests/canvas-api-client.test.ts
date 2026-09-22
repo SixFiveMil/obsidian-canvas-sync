@@ -326,6 +326,86 @@ describe("CanvasApiClient", () => {
     expect(payload.files).toBeDefined();
     expect(payload.files!.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("probes course capabilities across all 13 data categories", async () => {
+    const report = await client.probeCourseCapabilities(28335);
+    expect(report.courseId).toBe("28335");
+    expect(report.courseName).toBe("Applied Cryptography");
+    expect(report.testedAt).toBeDefined();
+
+    const expectedKeys = [
+      "course_info",
+      "modules",
+      "pages",
+      "assignments",
+      "submissions",
+      "announcements",
+      "discussions",
+      "quizzes",
+      "assignment_groups",
+      "files",
+      "calendar_events",
+      "staff_contacts",
+      "todo_items"
+    ];
+
+    for (const key of expectedKeys) {
+      expect(report.capabilities[key]).toBeDefined();
+      expect(report.capabilities[key].key).toBe(key);
+      expect(report.capabilities[key].label).toBeDefined();
+      expect(report.capabilities[key].endpoint).toBeDefined();
+      expect(report.capabilities[key].status).toBeDefined();
+    }
+
+    // Check specific available statuses from mocked 200 endpoints
+    expect(report.capabilities.course_info.status).toBe("available");
+    expect(report.capabilities.modules.status).toBe("available");
+    expect(report.capabilities.assignments.status).toBe("available");
+    expect(report.capabilities.files.status).toBe("available");
+  });
+
+  it("gracefully maps HTTP 403, 404, empty, and 500 responses without throwing", async () => {
+    const restrictedClient = new CanvasApiClient("https://canvas.example.edu", "test-token-12345");
+
+    // Temporarily mock requestUrl for a test course with mixed error responses
+    const { requestUrl } = await import("obsidian");
+    const mockRequestUrl = vi.mocked(requestUrl);
+
+    (mockRequestUrl as any).mockImplementation(async (params: any) => {
+      const url = params.url;
+      if (url.includes("/api/v1/courses/99999?include[]=syllabus_body")) {
+        return { status: 200, json: { id: 99999, name: "Restricted Course" }, text: "", headers: {} };
+      }
+      if (url.includes("/modules")) {
+        return { status: 403, json: { message: "User not authorized" }, text: "Forbidden", headers: {} };
+      }
+      if (url.includes("/quizzes")) {
+        return { status: 404, json: { message: "Quizzes not found" }, text: "Not Found", headers: {} };
+      }
+      if (url.includes("/announcements")) {
+        return { status: 200, json: [], text: "[]", headers: {} };
+      }
+      if (url.includes("/staff_contacts") || url.includes("enrollment_type[]=teacher")) {
+        throw new Error("Canvas API returned status 500: Internal Server Error");
+      }
+      return { status: 200, json: [{ id: 1 }], text: "", headers: {} };
+    });
+
+    const report = await restrictedClient.probeCourseCapabilities(99999);
+    expect(report.courseId).toBe("99999");
+    expect(report.courseName).toBe("Restricted Course");
+
+    expect(report.capabilities.modules.status).toBe("restricted");
+    expect(report.capabilities.modules.statusCode).toBe(403);
+
+    expect(report.capabilities.quizzes.status).toBe("unsupported");
+    expect(report.capabilities.quizzes.statusCode).toBe(404);
+
+    expect(report.capabilities.announcements.status).toBe("empty");
+    expect(report.capabilities.announcements.count).toBe(0);
+
+    expect(report.capabilities.staff_contacts.status).toBe("error");
+  });
 });
 
 
