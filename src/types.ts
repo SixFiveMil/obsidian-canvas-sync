@@ -265,3 +265,22 @@ export interface CanvasSyncSettings {
   lastScheduledSyncTimestamp?: number;
 }
 
+export type EndpointStatus = "available" | "empty" | "restricted" | "unsupported" | "error";
+
+export interface DataCategoryCapability {
+  key: string;
+  label: string;
+  status: EndpointStatus;
+  count?: number;
+  statusCode?: number;
+  errorMessage?: string;
+  endpoint: string;
+}
+
+export interface CourseCapabilityReport {
+  courseId: string | number;
+  courseName: string;
+  testedAt: string;
+  capabilities: Record<string, DataCategoryCapability>;
+}
+

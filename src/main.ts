@@ -1,6 +1,7 @@
 import { App, Notice, Platform, Plugin, PluginSettingTab, Setting, TFile, normalizePath } from "obsidian";
 import type TurndownService from "turndown";
 import { CanvasApiClient } from "./canvas-api-client";
+import { CourseCapabilityModal, generateCapabilityMarkdownReport } from "./course-capability-modal";
 import { CourseSelectModal } from "./course-select-modal";
 import {
   cleanFileName,
@@ -18,6 +19,7 @@ import type {
   AssetSyncDiagnostics,
   CanvasAssignmentPayload,
   CanvasCoursePayload,
+  CanvasCourseSummary,
   CanvasDiscussionPayload,
   CanvasEventPayload,
   CanvasFileAssetPayload,
@@ -108,6 +110,14 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       name: "Run scheduled background sync now",
       callback: () => {
         void this.runScheduledSync(true);
+      }
+    });
+
+    this.addCommand({
+      id: "canvas-sync-run-diagnostics",
+      name: "Run course capability diagnostics",
+      callback: () => {
+        new CourseCapabilityModal(this.app, this).open();
       }
     });
 
@@ -1662,7 +1672,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     }
   }
 
-  private async upsertFile(
+  public async upsertFile(
     path: string,
     content: string,
     preserveUserNotes = this.settings.preservePersonalNotes
@@ -1858,8 +1868,28 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 }
 
-class CanvasSyncSettingTab extends PluginSettingTab {
+type SettingsTabId = "connection" | "datatypes" | "formatting" | "assets" | "schedule" | "diagnostics";
+
+interface SettingsTabDef {
+  id: SettingsTabId;
+  label: string;
+  icon: string;
+}
+
+const SETTINGS_TABS: SettingsTabDef[] = [
+  { id: "connection", label: "Connection", icon: "🔑" },
+  { id: "datatypes", label: "Data Types", icon: "📋" },
+  { id: "formatting", label: "Formatting", icon: "📝" },
+  { id: "assets", label: "Assets", icon: "📦" },
+  { id: "schedule", label: "Schedule", icon: "⏱️" },
+  { id: "diagnostics", label: "Diagnostics", icon: "🔍" }
+];
+
+export class CanvasSyncSettingTab extends PluginSettingTab {
   plugin: CanvasSyncBridgePlugin;
+  private activeTab: SettingsTabId = "connection";
+  private selectedProbeCourseId: string | number | null = null;
+  private probeCourses: CanvasCourseSummary[] = [];
 
   constructor(app: App, plugin: CanvasSyncBridgePlugin) {
     super(app, plugin);
@@ -2030,6 +2060,44 @@ class CanvasSyncSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
+    // Responsive tabbed navigation bar
+    const navEl = containerEl.createDiv("canvas-settings-nav");
+    for (const tab of SETTINGS_TABS) {
+      const btn = navEl.createEl("button", {
+        cls: `canvas-settings-tab-btn ${this.activeTab === tab.id ? "is-active" : ""}`,
+        text: `${tab.icon} ${tab.label}`
+      });
+      btn.addEventListener("click", () => {
+        this.activeTab = tab.id;
+        this.display();
+      });
+    }
+
+    const tabContentEl = containerEl.createDiv("canvas-settings-tab-content");
+
+    switch (this.activeTab) {
+      case "connection":
+        this.renderConnectionTab(tabContentEl);
+        break;
+      case "datatypes":
+        this.renderDataTypesTab(tabContentEl);
+        break;
+      case "formatting":
+        this.renderFormattingTab(tabContentEl);
+        break;
+      case "assets":
+        this.renderAssetsTab(tabContentEl);
+        break;
+      case "schedule":
+        this.renderScheduleTab(tabContentEl);
+        break;
+      case "diagnostics":
+        this.renderDiagnosticsTab(tabContentEl);
+        break;
+    }
+  }
+
+  private renderConnectionTab(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Canvas API integration").setHeading();
 
     new Setting(containerEl)
@@ -2057,33 +2125,6 @@ class CanvasSyncSettingTab extends PluginSettingTab {
           void this.plugin.updateSettings({ canvasApiToken: value.trim() });
         });
     });
-
-    new Setting(containerEl)
-      .setName("Include inactive & past courses")
-      .setDesc("Fetch completed, concluded, and past term courses in addition to active courses.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().includeInactiveCourses).onChange((value) => {
-          void this.plugin.updateSettings({ includeInactiveCourses: value });
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Sync discussion replies")
-      .setDesc("Fetch threaded student and instructor replies for course discussion topics.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().syncDiscussionReplies).onChange((value) => {
-          void this.plugin.updateSettings({ syncDiscussionReplies: value });
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Sync student submissions & grades")
-      .setDesc("Fetch submitted assignments, scores, feedback comments, and rubric grading details.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().syncStudentSubmissions).onChange((value) => {
-          void this.plugin.updateSettings({ syncStudentSubmissions: value });
-        })
-      );
 
     const statusContainer = containerEl.createDiv("canvas-connection-status");
 
@@ -2156,7 +2197,40 @@ class CanvasSyncSettingTab extends PluginSettingTab {
         .setName("Direct REST API active")
         .setDesc("The local browser extension bridge requires a Node.js desktop environment. Mobile Obsidian uses direct Canvas REST API synchronization seamlessly.");
     }
+  }
 
+  private renderDataTypesTab(containerEl: HTMLElement): void {
+    new Setting(containerEl).setName("Data types & synchronization").setHeading();
+
+    new Setting(containerEl)
+      .setName("Sync discussion replies")
+      .setDesc("Fetch threaded student and instructor replies for course discussion topics.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().syncDiscussionReplies).onChange((value) => {
+          void this.plugin.updateSettings({ syncDiscussionReplies: value });
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Sync student submissions & grades")
+      .setDesc("Fetch submitted assignments, scores, feedback comments, and rubric grading details.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().syncStudentSubmissions).onChange((value) => {
+          void this.plugin.updateSettings({ syncStudentSubmissions: value });
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Include inactive & past courses")
+      .setDesc("Fetch completed, concluded, and past term courses in addition to active courses.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().includeInactiveCourses).onChange((value) => {
+          void this.plugin.updateSettings({ includeInactiveCourses: value });
+        })
+      );
+  }
+
+  private renderFormattingTab(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Vault & organization").setHeading();
 
     new Setting(containerEl)
@@ -2194,6 +2268,93 @@ class CanvasSyncSettingTab extends PluginSettingTab {
         })
       );
 
+    new Setting(containerEl)
+      .setName("Store raw payload")
+      .setDesc("Save incoming JSON payload for debugging.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().includeRawPayload).onChange((value) => {
+          void this.plugin.updateSettings({ includeRawPayload: value });
+        })
+      );
+  }
+
+  private renderAssetsTab(containerEl: HTMLElement): void {
+    new Setting(containerEl).setName("Asset downloads & attachments").setHeading();
+
+    new Setting(containerEl)
+      .setName("Download static assets")
+      .setDesc("Download course attachments, documents, and images locally into the vault.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().downloadAssets).onChange((value) => {
+          void this.plugin.updateSettings({ downloadAssets: value });
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Download documents")
+      .setDesc("Preset for .pdf, .docx, .pptx, .xlsx, .txt, .csv, .rtf.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().downloadDocuments).onChange((value) => {
+          void this.plugin.updateSettings({ downloadDocuments: value });
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Download images")
+      .setDesc("Preset for .png, .jpg, .jpeg, .gif, .svg, .webp.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().downloadImages).onChange((value) => {
+          void this.plugin.updateSettings({ downloadImages: value });
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Download archives & code")
+      .setDesc("Preset for .zip, .tar, .py, .java, .cpp, .js, .ts, .ipynb.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().downloadArchivesAndCode).onChange((value) => {
+          void this.plugin.updateSettings({ downloadArchivesAndCode: value });
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Download audio & video")
+      .setDesc("Download audio and direct video files (can use significant vault storage).")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().downloadMedia).onChange((value) => {
+          void this.plugin.updateSettings({ downloadMedia: value });
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Custom allowed extensions")
+      .setDesc("Comma-separated list of allowed file extensions (e.g. 'pdf, docx, pptx, zip').")
+      .addText((text) =>
+        text
+          .setPlaceholder("pdf, docx, pptx, xlsx, png, jpg, zip")
+          .setValue(this.plugin.getSettings().allowedExtensions)
+          .onChange((value) => {
+            void this.plugin.updateSettings({ allowedExtensions: value });
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Max file size limit (MB)")
+      .setDesc("Maximum size in megabytes for any single downloaded asset (prevents vault bloat).")
+      .addText((text) =>
+        text
+          .setPlaceholder("50")
+          .setValue(String(this.plugin.getSettings().maxAssetSizeMb))
+          .onChange((value) => {
+            const parsed = Number.parseInt(value, 10);
+            if (Number.isFinite(parsed) && parsed >= 1) {
+              void this.plugin.updateSettings({ maxAssetSizeMb: parsed });
+            }
+          })
+      );
+  }
+
+  private renderScheduleTab(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Scheduled background sync & automation").setHeading();
 
     new Setting(containerEl)
@@ -2282,88 +2443,147 @@ class CanvasSyncSettingTab extends PluginSettingTab {
             })
         );
     }
+  }
 
-    new Setting(containerEl).setName("Asset downloads & attachments").setHeading();
-
-    new Setting(containerEl)
-      .setName("Download static assets")
-      .setDesc("Download course attachments, documents, and images locally into the vault.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().downloadAssets).onChange((value) => {
-          void this.plugin.updateSettings({ downloadAssets: value });
-        })
-      );
+  private renderDiagnosticsTab(containerEl: HTMLElement): void {
+    new Setting(containerEl).setName("Course capability & diagnostics").setHeading();
 
     new Setting(containerEl)
-      .setName("Download documents")
-      .setDesc("Preset for .pdf, .docx, .pptx, .xlsx, .txt, .csv, .rtf.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().downloadDocuments).onChange((value) => {
-          void this.plugin.updateSettings({ downloadDocuments: value });
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Download images")
-      .setDesc("Preset for .png, .jpg, .jpeg, .gif, .svg, .webp.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().downloadImages).onChange((value) => {
-          void this.plugin.updateSettings({ downloadImages: value });
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Download archives & code")
-      .setDesc("Preset for .zip, .tar, .py, .java, .cpp, .js, .ts, .ipynb.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().downloadArchivesAndCode).onChange((value) => {
-          void this.plugin.updateSettings({ downloadArchivesAndCode: value });
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Download audio & video")
-      .setDesc("Download audio and direct video files (can use significant vault storage).")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().downloadMedia).onChange((value) => {
-          void this.plugin.updateSettings({ downloadMedia: value });
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Custom allowed extensions")
-      .setDesc("Comma-separated list of allowed file extensions (e.g. 'pdf, docx, pptx, zip').")
-      .addText((text) =>
-        text
-          .setPlaceholder("pdf, docx, pptx, xlsx, png, jpg, zip")
-          .setValue(this.plugin.getSettings().allowedExtensions)
-          .onChange((value) => {
-            void this.plugin.updateSettings({ allowedExtensions: value });
+      .setName("Run course capability diagnostics")
+      .setDesc("Open full diagnostic modal to probe course endpoints, check permissions, and view status badges.")
+      .addButton((btn) =>
+        btn
+          .setButtonText("Open Capability Modal")
+          .setCta()
+          .onClick(() => {
+            new CourseCapabilityModal(this.app, this.plugin).open();
           })
       );
 
     new Setting(containerEl)
-      .setName("Max file size limit (MB)")
-      .setDesc("Maximum size in megabytes for any single downloaded asset (prevents vault bloat).")
-      .addText((text) =>
-        text
-          .setPlaceholder("50")
-          .setValue(String(this.plugin.getSettings().maxAssetSizeMb))
-          .onChange((value) => {
-            const parsed = Number.parseInt(value, 10);
-            if (Number.isFinite(parsed) && parsed >= 1) {
-              void this.plugin.updateSettings({ maxAssetSizeMb: parsed });
+      .setName("Export debug logs & diagnostics")
+      .setDesc("Export system diagnostics, plugin configuration summary (secrets masked), and platform metadata.")
+      .addButton((btn) =>
+        btn.setButtonText("Copy Diagnostics").onClick(() => {
+          const s = this.plugin.getSettings();
+          const maskedToken = s.canvasApiToken ? `${s.canvasApiToken.slice(0, 4)}...${s.canvasApiToken.slice(-4)}` : "None";
+          const diag = [
+            "# Obsidian Canvas Sync Debug Diagnostics",
+            "",
+            `- Platform Desktop: ${Platform.isDesktop}`,
+            `- Platform Mobile: ${Platform.isMobile}`,
+            `- Platform OS: ${Platform.isWin ? "Windows" : Platform.isMacOS ? "macOS" : Platform.isLinux ? "Linux" : "Other"}`,
+            `- Canvas URL: ${s.canvasBaseUrl || "Not configured"}`,
+            `- Canvas Token: ${maskedToken}`,
+            `- Root Folder: ${s.rootFolder}`,
+            `- Folder Template: ${s.courseFolderTemplate}`,
+            `- Asset Downloads: ${s.downloadAssets}`,
+            `- Scheduled Sync: ${s.enableScheduledSync} (Interval: ${s.scheduledSyncIntervalMinutes}m, Mode: ${s.scheduledSyncSelectionMode})`,
+            `- Bridge Listener: ${s.enableBridgeServer} (Port: ${s.listenPort})`,
+            `- Preserved Personal Notes: ${s.preservePersonalNotes}`,
+            `- Generated At: ${new Date().toISOString()}`
+          ].join("\n");
+
+          void navigator.clipboard.writeText(diag).then(() => {
+            new Notice("Debug diagnostics copied to clipboard!");
+          });
+        })
+      );
+
+    const probeSection = containerEl.createDiv("canvas-inline-probe-section");
+    const probeResultsEl = containerEl.createDiv("canvas-diagnostics-results");
+
+    const probeSetting = new Setting(probeSection)
+      .setName("Quick course capability probe")
+      .setDesc("Select a course and probe permissions directly.");
+
+    if (!this.plugin.getSettings().canvasBaseUrl || !this.plugin.getSettings().canvasApiToken) {
+      probeSection.createDiv({
+        cls: "canvas-status-error",
+        text: "⚠️ Canvas base URL and API token must be configured to run capability probe."
+      });
+      return;
+    }
+
+    void this.plugin.getApiClient().listCourses({ includeInactive: true }).then((courses) => {
+      this.probeCourses = courses;
+      if (courses.length === 0) {
+        probeSection.createDiv({ cls: "canvas-no-courses", text: "No courses found." });
+        return;
+      }
+      if (!this.selectedProbeCourseId && courses.length > 0) {
+        this.selectedProbeCourseId = courses[0].id;
+      }
+
+      probeSetting.addDropdown((dropdown) => {
+        for (const c of courses) {
+          dropdown.addOption(String(c.id), `${c.name} (${c.course_code || c.id})`);
+        }
+        if (this.selectedProbeCourseId) {
+          dropdown.setValue(String(this.selectedProbeCourseId));
+        }
+        dropdown.onChange((val) => {
+          this.selectedProbeCourseId = val;
+        });
+      });
+
+      probeSetting.addButton((btn) => {
+        btn.setButtonText("Probe Course").onClick(async () => {
+          if (!this.selectedProbeCourseId) return;
+          probeResultsEl.empty();
+          const loading = probeResultsEl.createDiv("canvas-diagnostics-loading");
+          loading.createSpan({ text: "⏳ Probing endpoints..." });
+
+          try {
+            const report = await this.plugin.getApiClient().probeCourseCapabilities(this.selectedProbeCourseId);
+            probeResultsEl.empty();
+
+            const summary = probeResultsEl.createDiv("canvas-diagnostics-summary");
+            summary.createEl("h4", { text: `Diagnostics: ${report.courseName}` });
+
+            const tableWrap = probeResultsEl.createDiv("canvas-diagnostics-table-wrap");
+            const table = tableWrap.createEl("table", { cls: "canvas-diagnostics-table" });
+            const thead = table.createEl("thead");
+            const trHead = thead.createEl("tr");
+            trHead.createEl("th", { text: "Data Category" });
+            trHead.createEl("th", { text: "Status" });
+            trHead.createEl("th", { text: "Endpoint" });
+            trHead.createEl("th", { text: "Details" });
+
+            const tbody = table.createEl("tbody");
+            for (const cap of Object.values(report.capabilities)) {
+              const row = tbody.createEl("tr");
+              row.createEl("td", { text: cap.label, cls: "canvas-diag-cat" });
+              const statusTd = row.createEl("td", { cls: "canvas-diag-status" });
+              const badge = statusTd.createSpan({ cls: `canvas-badge-diag canvas-badge-${cap.status}` });
+              badge.setText(cap.status === "available" ? "🟢 Available" : cap.status === "restricted" ? `🔒 Restricted (${cap.statusCode || 403})` : cap.status === "empty" ? "⚪ Empty" : cap.status === "unsupported" ? `⚠️ Unsupported (${cap.statusCode || 404})` : "❌ Error");
+              row.createEl("td", { cls: "canvas-diag-endpoint" }).createEl("code", { text: cap.endpoint });
+              const detailsTd = row.createEl("td", { cls: "canvas-diag-details" });
+              detailsTd.setText(cap.status === "available" ? `${cap.count ?? 1} item(s)` : (cap.errorMessage || `HTTP ${cap.statusCode ?? "N/A"}`));
             }
-          })
-      );
 
-    new Setting(containerEl)
-      .setName("Store raw payload")
-      .setDesc("Save incoming JSON payload for debugging.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().includeRawPayload).onChange((value) => {
-          void this.plugin.updateSettings({ includeRawPayload: value });
-        })
-      );
+            const actions = probeResultsEl.createDiv("canvas-diagnostics-actions");
+            const copyBtn = actions.createEl("button", { text: "📋 Copy Markdown Report" });
+            copyBtn.addEventListener("click", () => {
+              const md = generateCapabilityMarkdownReport(report);
+              void navigator.clipboard.writeText(md).then(() => {
+                new Notice("Diagnostics report copied to clipboard!");
+              });
+            });
+          } catch (e) {
+            probeResultsEl.empty();
+            probeResultsEl.createDiv({
+              cls: "canvas-status-error",
+              text: `Probe failed: ${e instanceof Error ? e.message : String(e)}`
+            });
+          }
+        });
+      });
+    }).catch((err) => {
+      probeSection.createDiv({
+        cls: "canvas-status-error",
+        text: `Failed to load courses: ${err instanceof Error ? err.message : String(err)}`
+      });
+    });
   }
 }
