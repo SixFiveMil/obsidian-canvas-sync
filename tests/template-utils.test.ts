@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatCourseFolderName, formatSyncTimestamp } from "../src/template-utils";
+import { formatCourseFolderName, formatSyncTimestamp } from "../src/utils";
 
 describe("formatCourseFolderName", () => {
   it("renders default template with courseCode and courseName", () => {

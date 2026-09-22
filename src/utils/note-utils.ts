@@ -1,4 +1,10 @@
-import type { CanvasCoursePayload } from "./types";
+/**
+ * @module utils/note-utils
+ * @description Note preservation engine and course sync manifest generator.
+ * Retains personal student notes across re-syncs and maintains sync history records.
+ */
+
+import type { CanvasCoursePayload } from "../types";
 
 export const PERSONAL_NOTES_HEADER = "## 📝 Personal Notes";
 export const PERSONAL_NOTES_START_TAG = "<!-- %% canvas-sync:user-notes-start %% -->";

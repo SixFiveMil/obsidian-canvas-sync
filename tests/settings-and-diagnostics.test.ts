@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { App } from "obsidian";
 import CanvasSyncBridgePlugin, { CanvasSyncSettingTab, DEFAULT_SETTINGS } from "../src/main";
-import { CourseCapabilityModal, generateCapabilityMarkdownReport } from "../src/course-capability-modal";
+import { CourseCapabilityModal, generateCapabilityMarkdownReport } from "../src/modals";
 import type { CourseCapabilityReport } from "../src/types";
 
 describe("Tabbed Settings Navigation UI", () => {

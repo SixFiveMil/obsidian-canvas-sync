@@ -1,7 +1,13 @@
+/**
+ * @module utils/link-utils
+ * @description Link rewriting engine, URL extraction, HTML-to-wikilink resolution,
+ * and asset download decision logic.
+ */
+
 import TurndownService from "turndown";
 import { highlightedCodeBlock, strikethrough, taskListItems } from "turndown-plugin-gfm";
+import type { AssetSyncFilterConfig } from "../types";
 import { canvasTablePlugin } from "./table-utils";
-import type { AssetSyncFilterConfig } from "./types";
 
 export const DOCUMENT_EXTENSIONS = [
   "pdf",
@@ -46,6 +52,9 @@ export const ARCHIVE_CODE_EXTENSIONS = [
 ];
 export const MEDIA_EXTENSIONS = ["mp4", "mov", "webm", "mkv", "avi", "mp3", "m4a", "wav", "aac", "ogg", "flac"];
 
+/**
+ * Sanitizes a file name for safe filesystem storage and truncates excessive lengths.
+ */
 export function cleanFileName(input: string, maxLength = 100): string {
   if (!input || typeof input !== "string") {
     return "file";
@@ -68,12 +77,18 @@ export function cleanFileName(input: string, maxLength = 100): string {
   return truncated || "file";
 }
 
+/**
+ * Parses the filename parameter from an HTTP Content-Disposition response header.
+ */
 export function parseContentDispositionFilename(header: string): string | null {
   if (!header) return null;
   const match = header.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
   return match ? decodeURIComponent(match[1].trim()) : null;
 }
 
+/**
+ * Maps standard MIME content types to typical file extensions.
+ */
 export function mimeToExtension(mime: string): string {
   const cleanMime = mime.toLowerCase().split(";")[0].trim();
   const map: Record<string, string> = {
@@ -99,6 +114,9 @@ export function mimeToExtension(mime: string): string {
   return map[cleanMime] || "";
 }
 
+/**
+ * Extracts the file extension (lowercase, without leading dot) from a filename or URL path.
+ */
 export function extractFileExtension(filename: string): string {
   if (!filename || typeof filename !== "string") {
     return "";
@@ -111,6 +129,9 @@ export function extractFileExtension(filename: string): string {
   return clean.substring(lastDot + 1).toLowerCase();
 }
 
+/**
+ * Computes a Set of all permitted file extensions based on user filter configuration.
+ */
 export function parseAllowedExtensions(config: Partial<AssetSyncFilterConfig>): Set<string> {
   const allowed = new Set<string>();
 
@@ -138,6 +159,9 @@ export function parseAllowedExtensions(config: Partial<AssetSyncFilterConfig>): 
   return allowed;
 }
 
+/**
+ * Determines whether an asset file should be downloaded based on user settings and size limits.
+ */
 export function shouldDownloadAsset(
   filename: string,
   sizeBytes: number | undefined,
@@ -164,6 +188,9 @@ export function shouldDownloadAsset(
   return { allowed: true };
 }
 
+/**
+ * Extracts a Canvas file ID from a URL string.
+ */
 export function extractCanvasFileId(url: string): string | null {
   if (!url || typeof url !== "string") {
     return null;
@@ -172,6 +199,9 @@ export function extractCanvasFileId(url: string): string | null {
   return match ? match[1] : null;
 }
 
+/**
+ * Extracts a Canvas page slug from a URL string.
+ */
 export function extractCanvasPageSlug(url: string): string | null {
   if (!url || typeof url !== "string") {
     return null;
@@ -180,6 +210,9 @@ export function extractCanvasPageSlug(url: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+/**
+ * Extracts a Canvas module ID from a URL string.
+ */
 export function extractCanvasModuleId(url: string): string | null {
   if (!url || typeof url !== "string") {
     return null;
@@ -199,18 +232,20 @@ export function extractCanvasModuleId(url: string): string | null {
   return null;
 }
 
+/**
+ * Extracts a Canvas assignment ID from a URL string.
+ */
 export function extractCanvasAssignmentId(url: string): string | null {
   if (!url || typeof url !== "string") {
-    return null;
-  }
-  // Avoid matching /assignments/syllabus
-  if (/\/assignments\/syllabus\b/i.test(url)) {
     return null;
   }
   const match = url.match(/\/courses\/\d+\/assignments\/(\d+)/i);
   return match ? match[1] : null;
 }
 
+/**
+ * Extracts a Canvas discussion topic ID from a URL string.
+ */
 export function extractCanvasDiscussionId(url: string): string | null {
   if (!url || typeof url !== "string") {
     return null;
@@ -219,7 +254,12 @@ export function extractCanvasDiscussionId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-export function extractCanvasSpecialRoute(url: string): "syllabus" | "assignments" | "discussions" | "calendar" | "home" | "modules" | "grades" | null {
+/**
+ * Extracts a special Canvas route type (syllabus, assignments, discussions, calendar, etc.).
+ */
+export function extractCanvasSpecialRoute(
+  url: string
+): "syllabus" | "assignments" | "discussions" | "calendar" | "home" | "modules" | "grades" | null {
   if (!url || typeof url !== "string") {
     return null;
   }
@@ -247,23 +287,22 @@ export function extractCanvasSpecialRoute(url: string): "syllabus" | "assignment
   return null;
 }
 
+/**
+ * Resolution context containing lookup maps for rewriting Canvas URLs into vault internal notes.
+ */
 export interface LinkRewriteContext {
-  // Map of fileId or file URL -> relative path in vault
   fileMap?: Map<string, { relativePath: string; displayName: string }>;
-  // Map of module ID -> relative path in vault
   moduleMap?: Map<string, { relativePath: string; title: string }>;
-  // Map of page slug or title -> relative path in vault
   pageMap?: Map<string, { relativePath: string; title: string }>;
-  // Map of assignment ID -> relative path in vault
   assignmentMap?: Map<string, { relativePath: string; title: string }>;
-  // Map of discussion ID -> relative path in vault
   discussionMap?: Map<string, { relativePath: string; title: string }>;
-  // Map of image URL or fileId -> relative path in vault
   imageMap?: Map<string, { relativePath: string; displayName?: string }>;
-  // Map of special routes (syllabus, tasks, etc.)
   specialRouteMap?: Map<string, { relativePath: string; title: string }>;
 }
 
+/**
+ * Creates the Turndown link rewriting plugin using the given context maps.
+ */
 export function canvasLinkRewritePlugin(context?: LinkRewriteContext): (service: TurndownService) => void {
   return (turndownService: TurndownService) => {
     turndownService.addRule("canvasLinkRewrite", {
@@ -403,9 +442,17 @@ export function canvasLinkRewritePlugin(context?: LinkRewriteContext): (service:
   };
 }
 
+/**
+ * Creates a fully configured TurndownService instance with custom table formatting and Canvas link rewriting.
+ */
 export function createConfiguredTurndown(context?: LinkRewriteContext): TurndownService {
   const service = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
-  service.use([highlightedCodeBlock, strikethrough, taskListItems, canvasTablePlugin, canvasLinkRewritePlugin(context)]);
+  service.use([
+    highlightedCodeBlock,
+    strikethrough,
+    taskListItems,
+    canvasTablePlugin,
+    canvasLinkRewritePlugin(context)
+  ]);
   return service;
 }
-

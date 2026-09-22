@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAllowedExtensionOrigin, isAllowedOrigin, sanitizeFileName, sanitizePath } from "../src/security-utils";
+import { getAllowedExtensionOrigin, isAllowedOrigin, sanitizeFileName, sanitizePath } from "../src/utils";
 
 describe("sanitizeFileName", () => {
   it("replaces invalid filename characters and trims trailing dashes", () => {

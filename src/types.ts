@@ -20,7 +20,10 @@ export interface CanvasCourseSummary {
   term?: {
     id: number;
     name: string;
+    start_at?: string | null;
+    end_at?: string | null;
   };
+  total_students?: number;
   workflow_state?: string;
   start_at?: string | null;
   end_at?: string | null;
@@ -292,4 +295,13 @@ export interface CourseCapabilityReport {
   testedAt: string;
   capabilities: Record<string, DataCategoryCapability>;
 }
+
+/**
+ * Result returned after a course payload is synchronized into the vault.
+ */
+export interface CourseSyncResult {
+  isNew: boolean;
+  courseFolder: string;
+}
+
 

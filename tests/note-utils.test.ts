@@ -7,7 +7,7 @@ import {
   PERSONAL_NOTES_END_TAG,
   PERSONAL_NOTES_HEADER,
   PERSONAL_NOTES_START_TAG
-} from "../src/note-utils";
+} from "../src/utils";
 
 describe("note-utils", () => {
   describe("extractPersonalNotes", () => {

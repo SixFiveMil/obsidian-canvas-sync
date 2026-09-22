@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CanvasSyncEnvelope } from "../src/types";
-import { validateEnvelopeShape } from "../src/security-utils";
+import { validateEnvelopeShape } from "../src/utils";
 
 describe("CanvasSyncEnvelope bridge protocol v1 compatibility", () => {
   it("validates well-formed v1 envelope structure without announcements (legacy backwards-compatibility)", () => {

@@ -1,8 +1,19 @@
+/**
+ * @module utils/template-utils
+ * @description Course folder template resolver and date formatting helpers.
+ */
+
+import type { CanvasCoursePayload } from "../types";
 import { sanitizeFileName } from "./security-utils";
-import type { CanvasCoursePayload } from "./types";
 
 export type CourseFolderPayload = Pick<CanvasCoursePayload, "courseId" | "courseName" | "courseCode">;
 
+/**
+ * Resolves a course folder name using user-defined template variables (`{{courseCode}}`, `{{courseName}}`, `{{courseId}}`).
+ *
+ * @param template - Template string with placeholders.
+ * @param payload - Course metadata payload.
+ */
 export function formatCourseFolderName(template: string, payload: CourseFolderPayload): string {
   let courseName = payload.courseName?.trim() || "";
   const courseId = payload.courseId?.trim() || "";
@@ -19,7 +30,6 @@ export function formatCourseFolderName(template: string, payload: CourseFolderPa
   }
 
   const fallbackFolder = `${sanitizeFileName(courseName)} (${courseId})`;
-
   const effectiveTemplate = template?.trim() || "{{courseCode}} - {{courseName}}";
 
   // Fallback to '${courseName} (${courseId})' if courseCode is empty and template requires courseCode
@@ -66,6 +76,9 @@ export function formatCourseFolderName(template: string, payload: CourseFolderPa
   return segments.join("/");
 }
 
+/**
+ * Formats an ISO date-time string into a human-readable local timestamp for note badges.
+ */
 export function formatSyncTimestamp(isoTimestamp?: string): string {
   if (!isoTimestamp) {
     return new Date().toLocaleString();
@@ -73,4 +86,3 @@ export function formatSyncTimestamp(isoTimestamp?: string): string {
   const date = new Date(isoTimestamp);
   return Number.isNaN(date.getTime()) ? isoTimestamp : date.toLocaleString();
 }
-

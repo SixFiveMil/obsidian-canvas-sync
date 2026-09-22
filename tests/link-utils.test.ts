@@ -11,7 +11,7 @@ import {
   parseAllowedExtensions,
   shouldDownloadAsset,
   type LinkRewriteContext
-} from "../src/link-utils";
+} from "../src/utils";
 
 describe("link-utils", () => {
   describe("extractFileExtension", () => {

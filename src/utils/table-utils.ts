@@ -1,6 +1,15 @@
+/**
+ * @module utils/table-utils
+ * @description Markdown table transformer for Turndown. Handles pipe escaping,
+ * table alignment, caption formatting, colspan expansion, and thead/tbody structuring.
+ */
+
 import TurndownService from "turndown";
 import { highlightedCodeBlock, strikethrough, taskListItems } from "turndown-plugin-gfm";
 
+/**
+ * Turndown plugin for cleaning HTML tables into formatted GitHub Flavored Markdown (GFM) tables.
+ */
 export function canvasTablePlugin(turndownService: TurndownService): void {
   turndownService.addRule("cleanTableCaption", {
     filter: "caption",
@@ -143,6 +152,9 @@ export function canvasTablePlugin(turndownService: TurndownService): void {
   }
 }
 
+/**
+ * Creates a pre-configured TurndownService with GFM and Canvas table formatting rules.
+ */
 export function createCustomTurndown(): TurndownService {
   const service = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
   service.use([highlightedCodeBlock, strikethrough, taskListItems, canvasTablePlugin]);
