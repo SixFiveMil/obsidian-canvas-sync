@@ -607,17 +607,61 @@ export class CanvasApiClient {
 
   public async getAnnouncements(
     courseId: string | number,
-    options?: { syncReplies?: boolean }
+    options?: {
+      syncReplies?: boolean;
+      startDate?: string;
+      endDate?: string;
+      courseSummary?: {
+        start_at?: string | null;
+        end_at?: string | null;
+        term?: { start_at?: string | null; end_at?: string | null };
+        created_at?: string | null;
+      };
+    }
   ): Promise<CanvasDiscussionPayload[]> {
     const announcements: CanvasDiscussionPayload[] = [];
     const syncReplies = options?.syncReplies ?? true;
     const cId = String(courseId);
 
+    // Compute dynamic date range from course metadata (with 60-day buffer for early welcome / wrap-up posts)
+    let startDateParam = options?.startDate;
+    let endDateParam = options?.endDate;
+
+    if (!startDateParam && options?.courseSummary) {
+      const summary = options.courseSummary;
+      const rawStart = summary.start_at || summary.term?.start_at || summary.created_at;
+      if (rawStart) {
+        try {
+          const d = new Date(rawStart);
+          d.setDate(d.getDate() - 60);
+          startDateParam = d.toISOString().slice(0, 10);
+        } catch {
+          // Ignore parse failure
+        }
+      }
+      const rawEnd = summary.end_at || summary.term?.end_at;
+      if (rawEnd) {
+        try {
+          const d = new Date(rawEnd);
+          d.setDate(d.getDate() + 60);
+          endDateParam = d.toISOString().slice(0, 10);
+        } catch {
+          // Ignore parse failure
+        }
+      }
+    }
+
+    if (!startDateParam) {
+      startDateParam = "2000-01-01";
+    }
+    if (!endDateParam) {
+      endDateParam = "2099-12-31";
+    }
+
     let list: Array<Record<string, unknown>> = [];
     try {
-      // By default Canvas /announcements restricts to the last 14 days unless start_date is specified
       list = await this.requestPaged<Record<string, unknown>>(
-        `/api/v1/announcements?context_codes[]=course_${cId}&start_date=2000-01-01&end_date=2099-12-31&per_page=100`
+        `/api/v1/announcements?context_codes[]=course_${cId}&start_date=${encodeURIComponent(startDateParam)}&end_date=${encodeURIComponent(endDateParam)}&per_page=100`
       );
       if (list.length === 0) {
         // Fallback to course discussion topics with only_announcements=true
@@ -898,7 +942,8 @@ export class CanvasApiClient {
     let announcements: CanvasDiscussionPayload[] = [];
     if (syncAnnouncements) {
       announcements = await this.getAnnouncements(cId, {
-        syncReplies: syncDiscussionReplies
+        syncReplies: syncDiscussionReplies,
+        courseSummary: details
       });
     }
 
