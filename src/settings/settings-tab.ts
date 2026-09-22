@@ -62,6 +62,13 @@ export class CanvasSyncSettingTab extends PluginSettingTab {
   }
 
   /**
+   * Declarative setting definitions for Obsidian 1.13+ search indexing.
+   */
+  getSettingDefinitions(): unknown[] {
+    return [];
+  }
+
+  /**
    * Renders the tab navigation and active tab pane.
    */
   display(): void {
