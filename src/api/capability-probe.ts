@@ -174,7 +174,7 @@ export async function probeCourseEndpoints(
 
       const statusCode = response.status;
       if (statusCode >= 200 && statusCode < 300) {
-        const json = response.json;
+        const json: unknown = response.json;
 
         // Custom inspection for module files discovery
         if (key === "module_files" && Array.isArray(json)) {

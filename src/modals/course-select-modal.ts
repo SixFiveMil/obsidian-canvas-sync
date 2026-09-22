@@ -50,13 +50,13 @@ export class CourseSelectModal extends Modal {
     contentEl.empty();
     contentEl.addClass("canvas-course-select-modal");
 
-    contentEl.createEl("h2", { text: "Canvas Course Sync" });
+    contentEl.createEl("h2", { text: "Canvas course sync" });
 
     this.syncStatusEl = contentEl.createDiv("canvas-sync-status");
 
     if (!this.plugin.getSettings().canvasBaseUrl || !this.plugin.getSettings().canvasApiToken) {
       this.syncStatusEl.createEl("p", {
-        text: "Please configure your Canvas Base URL and API Token in the plugin settings before syncing.",
+        text: "Please configure your Canvas base URL and API token in the plugin settings before syncing.",
         cls: "canvas-sync-error"
       });
       new Setting(contentEl).addButton((btn) =>
@@ -109,7 +109,7 @@ export class CourseSelectModal extends Modal {
   private renderUI(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "Canvas Course Sync" });
+    contentEl.createEl("h2", { text: "Canvas course sync" });
 
     this.syncStatusEl = contentEl.createDiv("canvas-sync-status");
 
@@ -130,9 +130,9 @@ export class CourseSelectModal extends Modal {
 
     searchSetting.addDropdown((dropdown) =>
       dropdown
-        .addOption("all", "All Courses")
-        .addOption("active", "Active Only")
-        .addOption("inactive", "Past / Concluded")
+        .addOption("all", "All courses")
+        .addOption("active", "Active only")
+        .addOption("inactive", "Past / concluded")
         .setValue(this.filterStatus)
         .onChange((val) => {
           this.filterStatus = val as "all" | "active" | "inactive";
@@ -143,7 +143,7 @@ export class CourseSelectModal extends Modal {
     // Select All / Deselect All actions
     const selectActions = toolbar.createDiv("canvas-select-actions");
     const selectAllBtn = selectActions.createEl("button", {
-      text: "Select All Visible",
+      text: "Select all visible",
       cls: "canvas-btn-sm"
     });
     selectAllBtn.addEventListener("click", () => {
@@ -153,7 +153,7 @@ export class CourseSelectModal extends Modal {
     });
 
     const deselectAllBtn = selectActions.createEl("button", {
-      text: "Deselect All",
+      text: "Deselect all",
       cls: "canvas-btn-sm"
     });
     deselectAllBtn.addEventListener("click", () => {
@@ -198,7 +198,7 @@ export class CourseSelectModal extends Modal {
     cancelBtn.addEventListener("click", () => this.close());
 
     const syncBtn = footer.createEl("button", {
-      text: "Sync Selected Courses",
+      text: "Sync selected courses",
       cls: "mod-cta"
     });
     syncBtn.addEventListener("click", () => {
@@ -264,17 +264,17 @@ export class CourseSelectModal extends Modal {
 
       const infoWrap = row.createDiv("canvas-course-info");
       const titleLine = infoWrap.createDiv("canvas-course-title-line");
-      titleLine.createEl("span", { text: course.name, cls: "canvas-course-name" });
+      titleLine.createSpan({ text: course.name, cls: "canvas-course-name" });
 
       if (course.course_code) {
-        titleLine.createEl("span", { text: course.course_code, cls: "canvas-course-code-badge" });
+        titleLine.createSpan({ text: course.course_code, cls: "canvas-course-code-badge" });
       }
 
       const isConcluded =
         course.concluded ||
         course.workflow_state === "completed" ||
         (course.term?.end_at ? new Date(course.term.end_at).getTime() < Date.now() : false);
-      titleLine.createEl("span", {
+      titleLine.createSpan({
         text: isConcluded ? "Concluded" : "Active",
         cls: `canvas-status-badge ${isConcluded ? "status-inactive" : "status-active"}`
       });
@@ -288,7 +288,7 @@ export class CourseSelectModal extends Modal {
         metaParts.push(`Students: ${course.total_students}`);
       }
       if (metaParts.length > 0) {
-        metaLine.createEl("span", { text: metaParts.join("  •  "), cls: "canvas-meta-item" });
+        metaLine.createSpan({ text: metaParts.join("  •  "), cls: "canvas-meta-item" });
       }
     }
   }
@@ -328,7 +328,7 @@ export class CourseSelectModal extends Modal {
       const course = selectedList[i];
       if (this.syncStatusEl) {
         this.syncStatusEl.empty();
-        const p = this.syncStatusEl.createEl("p", {
+        this.syncStatusEl.createEl("p", {
           text: `[${i + 1}/${total}] Syncing ${course.name}...`,
           cls: "canvas-sync-progress-active"
         });
@@ -337,7 +337,7 @@ export class CourseSelectModal extends Modal {
         try {
           const result = await this.plugin.syncCourseById(course.id, (step, current, stepTotal) => {
             subProgress.empty();
-            subProgress.createEl("span", {
+            subProgress.createSpan({
               text: `${step} (${current}/${stepTotal})`,
               cls: "canvas-step-text"
             });

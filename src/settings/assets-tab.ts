@@ -27,7 +27,7 @@ export function renderAssetsTab(containerEl: HTMLElement, plugin: CanvasSyncBrid
 
   new Setting(containerEl)
     .setName("Download documents")
-    .setDesc("Preset for .pdf, .docx, .pptx, .xlsx, .txt, .csv, .rtf.")
+    .setDesc("Preset for .PDF, .DOCX, .PPTX, .XLSX, .TXT, .CSV, .RTF.")
     .addToggle((toggle) =>
       toggle.setValue(plugin.getSettings().downloadDocuments).onChange((value) => {
         void plugin.updateSettings({ downloadDocuments: value });
@@ -36,7 +36,7 @@ export function renderAssetsTab(containerEl: HTMLElement, plugin: CanvasSyncBrid
 
   new Setting(containerEl)
     .setName("Download images")
-    .setDesc("Preset for .png, .jpg, .jpeg, .gif, .svg, .webp.")
+    .setDesc("Preset for .PNG, .JPG, .JPEG, .GIF, .SVG, .WEBP.")
     .addToggle((toggle) =>
       toggle.setValue(plugin.getSettings().downloadImages).onChange((value) => {
         void plugin.updateSettings({ downloadImages: value });
@@ -45,7 +45,7 @@ export function renderAssetsTab(containerEl: HTMLElement, plugin: CanvasSyncBrid
 
   new Setting(containerEl)
     .setName("Download archives & code")
-    .setDesc("Preset for .zip, .tar, .py, .java, .cpp, .js, .ts, .ipynb.")
+    .setDesc("Preset for .ZIP, .TAR, .PY, .JAVA, .CPP, .JS, .TS, .IPYNB.")
     .addToggle((toggle) =>
       toggle.setValue(plugin.getSettings().downloadArchivesAndCode).onChange((value) => {
         void plugin.updateSettings({ downloadArchivesAndCode: value });
@@ -63,10 +63,10 @@ export function renderAssetsTab(containerEl: HTMLElement, plugin: CanvasSyncBrid
 
   new Setting(containerEl)
     .setName("Custom allowed extensions")
-    .setDesc("Comma-separated list of allowed file extensions (e.g. 'pdf, docx, pptx, zip').")
+    .setDesc("Comma-separated list of allowed file extensions (e.g. 'PDF, DOCX, PPTX, ZIP').")
     .addText((text) =>
       text
-        .setPlaceholder("pdf, docx, pptx, xlsx, png, jpg, zip")
+        .setPlaceholder("PDF, DOCX, PPTX, XLSX, PNG, JPG, ZIP")
         .setValue(plugin.getSettings().allowedExtensions)
         .onChange((value) => {
           void plugin.updateSettings({ allowedExtensions: value });

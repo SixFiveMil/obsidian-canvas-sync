@@ -86,14 +86,14 @@ export class CanvasSyncScheduler {
   public async runScheduledSync(isManual = false): Promise<void> {
     if (this.isSyncing) {
       if (isManual) {
-        new Notice("Canvas Sync is already in progress.");
+        new Notice("Canvas sync is already in progress.");
       }
       return;
     }
 
     if (!this.settings.canvasBaseUrl || !this.settings.canvasApiToken) {
       if (isManual) {
-        new Notice("Canvas URL and API Token are not configured in settings.");
+        new Notice("Canvas URL and API token are not configured in settings.");
       }
       return;
     }
@@ -103,7 +103,7 @@ export class CanvasSyncScheduler {
 
     try {
       if (!isSilent) {
-        new Notice("Canvas Sync: Starting scheduled course sync...");
+        new Notice("Canvas sync: Starting scheduled course sync...");
       }
 
       const client = this.getApiClient();
@@ -111,7 +111,7 @@ export class CanvasSyncScheduler {
 
       if (!courses || courses.length === 0) {
         if (!isSilent) {
-          new Notice("Canvas Sync: No courses found to sync.");
+          new Notice("Canvas sync: No courses found to sync.");
         }
         return;
       }
@@ -124,7 +124,7 @@ export class CanvasSyncScheduler {
 
       if (targetCourses.length === 0) {
         if (!isSilent) {
-          new Notice("Canvas Sync: No matching courses selected for scheduled sync.");
+          new Notice("Canvas sync: No matching courses selected for scheduled sync.");
         }
         return;
       }
@@ -145,18 +145,18 @@ export class CanvasSyncScheduler {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`Failed to sync course ${course.name}:`, err);
-          new Notice(`Canvas Sync error on ${course.name}: ${msg}`, 10000);
+          new Notice(`Canvas sync error on ${course.name}: ${msg}`, 10000);
         }
       }
 
       await this.updateSettings({ lastScheduledSyncTimestamp: Date.now() });
 
       if (!isSilent) {
-        new Notice(`Canvas Sync: Successfully synced ${successCount}/${targetCourses.length} course(s).`);
+        new Notice(`Canvas sync: Successfully synced ${successCount}/${targetCourses.length} course(s).`);
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error("Scheduled Canvas Sync error:", error);
+      console.error("Scheduled Canvas sync error:", error);
       new Notice(`Canvas background sync failed: ${msg}`, 10000);
     } finally {
       this.isSyncing = false;

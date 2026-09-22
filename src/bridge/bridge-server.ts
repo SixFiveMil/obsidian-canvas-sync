@@ -92,7 +92,7 @@ export class CanvasBridgeServer {
 
     const http = this.getHttpModule();
     if (!http) {
-      new Notice("Canvas Sync Bridge: HTTP module unavailable on this platform.");
+      new Notice("Canvas sync bridge: HTTP module unavailable on this platform.");
       return;
     }
 
@@ -101,7 +101,7 @@ export class CanvasBridgeServer {
         void this.handleBridgeRequest(req, res);
       });
     } catch (err) {
-      new Notice(`Canvas Sync Bridge: Failed to initialize listener: ${err instanceof Error ? err.message : String(err)}`);
+      new Notice(`Canvas sync bridge: Failed to initialize listener: ${err instanceof Error ? err.message : String(err)}`);
       return;
     }
 

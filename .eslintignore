@@ -1,6 +1,0 @@
-# ESLint ignore rules for Obsidian plugin reviews
-apps/browser-extension/
-dist/
-release/
-node_modules/
-

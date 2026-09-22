@@ -94,13 +94,13 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     this.addSettingTab(new CanvasSyncSettingTab(this.app, this));
 
     // Ribbon icon for quick access to course selection modal
-    this.addRibbonIcon("graduation-cap", "Canvas Sync: Select & Sync Courses", () => {
+    this.addRibbonIcon("graduation-cap", "Canvas sync: Select & sync courses", () => {
       new CourseSelectModal(this.app, this).open();
     });
 
     // Register Command Palette actions
     this.addCommand({
-      id: "canvas-sync-open-course-picker",
+      id: "open-course-picker",
       name: "Select & sync courses",
       callback: () => {
         new CourseSelectModal(this.app, this).open();
@@ -108,7 +108,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "canvas-sync-all-courses",
+      id: "sync-all-courses",
       name: "Sync all courses",
       callback: () => {
         void this.syncAllCourses();
@@ -116,7 +116,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "canvas-sync-run-scheduled-sync",
+      id: "run-scheduled-sync",
       name: "Run scheduled background sync now",
       callback: () => {
         void this.runScheduledSync(true);
@@ -124,7 +124,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "canvas-sync-run-diagnostics",
+      id: "run-diagnostics",
       name: "Run course capability diagnostics",
       callback: () => {
         new CourseCapabilityModal(this.app, this).open();
@@ -133,14 +133,14 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
     if (!Platform.isMobile) {
       this.addCommand({
-        id: "canvas-sync-restart-bridge-server",
+        id: "restart-bridge-server",
         name: "Restart browser bridge listener",
         callback: () => {
           void this.restartServer().then(() => {
             if (this.settings.enableBridgeServer) {
-              new Notice(`Canvas Sync Bridge listening on localhost:${this.settings.listenPort}`);
+              new Notice(`Canvas sync bridge listening on localhost:${this.settings.listenPort}`);
             } else {
-              new Notice("Canvas Sync Bridge is currently disabled in settings.");
+              new Notice("Canvas sync bridge is currently disabled in settings.");
             }
           });
         }
@@ -161,8 +161,9 @@ export default class CanvasSyncBridgePlugin extends Plugin {
    * Loads saved plugin configuration from Obsidian's data store.
    */
   async loadSettings(): Promise<void> {
-    const loaded = await this.loadData();
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+    const loaded: unknown = await this.loadData();
+    const loadedObj = loaded && typeof loaded === "object" ? (loaded as Partial<CanvasSyncSettings>) : {};
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedObj);
   }
 
   /**

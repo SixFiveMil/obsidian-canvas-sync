@@ -9,7 +9,6 @@ import type {
   CanvasCoursePayload,
   CanvasFileAssetPayload,
   CanvasModuleItemPayload,
-  CanvasModulePayload,
   CanvasPagePayload
 } from "../types";
 import { formatIsoTimestamp, formatSyncTimestamp } from "../utils";
