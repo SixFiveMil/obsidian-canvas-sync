@@ -131,7 +131,7 @@ export async function probeCourseEndpoints(
     {
       key: "calendar_events",
       label: "Calendar Events",
-      path: `/api/v1/calendar_events?context_codes[]=course_${cId}&per_page=1`
+      path: `/api/v1/calendar_events?context_codes[]=course_${cId}&all_events=true&start_date=2000-01-01&end_date=2099-12-31&per_page=1`
     },
     {
       key: "staff_contacts",
@@ -141,7 +141,7 @@ export async function probeCourseEndpoints(
     {
       key: "todo_items",
       label: "To-Do Items",
-      path: `/api/v1/users/self/todo?per_page=1`
+      path: `/api/v1/courses/${cId}/todo?per_page=1`
     }
   ];
 
@@ -239,6 +239,29 @@ export async function probeCourseEndpoints(
                     statusCode: altResp.status,
                     errorMessage: "Discovered announcements via course discussion topics.",
                     endpoint: "/api/v1/courses/:id/discussion_topics?only_announcements=true"
+                  };
+                }
+              } catch {
+                // Ignore fallback error
+              }
+            }
+
+            if (key === "todo_items") {
+              try {
+                const todoResp = await requestUrl({
+                  url: `${baseUrl}/api/v1/users/self/todo?per_page=1`,
+                  method: "GET",
+                  headers: { Accept: "application/json", Authorization: `Bearer ${apiToken}` }
+                });
+                if (todoResp.status >= 200 && todoResp.status < 300 && Array.isArray(todoResp.json) && todoResp.json.length > 0) {
+                  return {
+                    key,
+                    label,
+                    status: "available",
+                    count: todoResp.json.length,
+                    statusCode: todoResp.status,
+                    errorMessage: "Discovered to-do items via global user to-do feed.",
+                    endpoint: "/api/v1/users/self/todo"
                   };
                 }
               } catch {
@@ -383,6 +406,30 @@ export async function probeCourseEndpoints(
           } catch {
             // All fallbacks exhausted
           }
+        }
+      }
+
+      // Fallback for todo_items if course-scoped endpoint errors or returns 404
+      if (key === "todo_items") {
+        try {
+          const todoResp = await requestUrl({
+            url: `${baseUrl}/api/v1/users/self/todo?per_page=1`,
+            method: "GET",
+            headers: { Accept: "application/json", Authorization: `Bearer ${apiToken}` }
+          });
+          if (todoResp.status >= 200 && todoResp.status < 300 && Array.isArray(todoResp.json) && todoResp.json.length > 0) {
+            return {
+              key,
+              label,
+              status: "available",
+              count: todoResp.json.length,
+              statusCode: todoResp.status,
+              errorMessage: "Discovered to-do items via global user to-do feed.",
+              endpoint: "/api/v1/users/self/todo"
+            };
+          }
+        } catch {
+          // Ignore fallback error
         }
       }
 
