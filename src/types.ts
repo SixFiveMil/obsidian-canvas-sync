@@ -166,6 +166,10 @@ export interface CanvasDiscussionPayload {
   submission?: CanvasSubmissionPayload;
   unreadCount?: number | null;
   discussionSubentryCount?: number | null;
+  author?: string;
+  authorName?: string;
+  userName?: string;
+  attachments?: CanvasSubmissionAttachment[];
 }
 
 export interface CanvasEventPayload {
@@ -227,6 +231,7 @@ export interface CanvasCoursePayload {
   pages: CanvasPagePayload[];
   assignments: CanvasAssignmentPayload[];
   discussions: CanvasDiscussionPayload[];
+  announcements?: CanvasDiscussionPayload[];
   events: CanvasEventPayload[];
   files?: CanvasFileAssetPayload[];
   assetDiagnostics?: AssetSyncDiagnostics;
@@ -242,6 +247,7 @@ export interface CanvasSyncSettings {
   canvasBaseUrl: string;
   canvasApiToken: string;
   includeInactiveCourses: boolean;
+  syncAnnouncements: boolean;
   syncDiscussionReplies: boolean;
   syncStudentSubmissions: boolean;
   enableBridgeServer: boolean;
