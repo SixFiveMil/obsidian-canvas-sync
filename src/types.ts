@@ -164,6 +164,8 @@ export interface CanvasDiscussionPayload {
   entries?: CanvasDiscussionEntryPayload[];
   assignment?: CanvasAssignmentPayload;
   submission?: CanvasSubmissionPayload;
+  unreadCount?: number | null;
+  discussionSubentryCount?: number | null;
 }
 
 export interface CanvasEventPayload {
@@ -246,6 +248,7 @@ export interface CanvasSyncSettings {
   listenPort: number;
   rootFolder: string;
   courseFolderTemplate: string;
+  enableYamlFrontmatter: boolean;
   includeRawPayload: boolean;
   downloadAssets: boolean;
   downloadDocuments: boolean;

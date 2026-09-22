@@ -34,6 +34,114 @@ type HttpServer = import("http").Server;
 type HttpIncomingMessage = import("http").IncomingMessage;
 type HttpServerResponse = import("http").ServerResponse;
 
+export function formatIsoTimestamp(val?: string | null): string | null {
+  if (!val) return null;
+  const trimmed = val.trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed)) {
+    return trimmed;
+  }
+  try {
+    const d = new Date(trimmed);
+    return isNaN(d.getTime()) ? trimmed : d.toISOString();
+  } catch {
+    return trimmed;
+  }
+}
+
+export function formatIsoDate(val?: string | null): string | null {
+  if (!val) return null;
+  const trimmed = val.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  try {
+    const d = new Date(trimmed);
+    return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  } catch {
+    return null;
+  }
+}
+
+export function formatYamlString(val: string, inArray = false): string {
+  if (inArray) {
+    const escaped = val
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\r?\n/g, " ");
+    return `"${escaped}"`;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$/i.test(val)) {
+    return val;
+  }
+
+  const needsQuotes =
+    val === "" ||
+    /^[\s\t]|[\s\t]$/.test(val) ||
+    /[:[\]{}&*#?|<>!=%@\\"'`~,/]/.test(val) ||
+    /^-\s/.test(val) ||
+    /[-+]\s*$/.test(val) ||
+    /^(true|false|yes|no|on|off|null|~)$/i.test(val) ||
+    /^-?\d+(\.\d+)?$/.test(val);
+
+  if (needsQuotes) {
+    const escaped = val
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\r?\n/g, " ");
+    return `"${escaped}"`;
+  }
+  return val;
+}
+
+export function formatYamlValue(val: unknown, inArray = false): string {
+  if (val === null || val === undefined) {
+    return "null";
+  }
+  if (typeof val === "boolean") {
+    return val ? "true" : "false";
+  }
+  if (typeof val === "number") {
+    return Number.isFinite(val) ? String(val) : "null";
+  }
+  if (typeof val === "string") {
+    return formatYamlString(val, inArray);
+  }
+  if (Array.isArray(val)) {
+    const items = val
+      .filter((item) => item !== undefined && item !== null)
+      .map((item) => formatYamlValue(item, true));
+    return `[${items.join(", ")}]`;
+  }
+  return JSON.stringify(val);
+}
+
+export function generateYamlFrontmatter(props: Record<string, unknown>): string {
+  const entries = Object.entries(props).filter(
+    ([_, val]) => val !== undefined && val !== null && (!Array.isArray(val) || val.length > 0)
+  );
+
+  if (entries.length === 0) {
+    return "";
+  }
+
+  const lines: string[] = ["---"];
+  for (const [key, val] of entries) {
+    if (Array.isArray(val)) {
+      const items = val
+        .filter((item) => item !== undefined && item !== null)
+        .map((item) => formatYamlValue(item, true));
+      if (items.length > 0) {
+        lines.push(`${key}: [${items.join(", ")}]`);
+      }
+    } else {
+      lines.push(`${key}: ${formatYamlValue(val, false)}`);
+    }
+  }
+  lines.push("---");
+  return lines.join("\n");
+}
+
 export const DEFAULT_SETTINGS: CanvasSyncSettings = {
   canvasBaseUrl: "",
   canvasApiToken: "",
@@ -44,6 +152,7 @@ export const DEFAULT_SETTINGS: CanvasSyncSettings = {
   listenPort: 27125,
   rootFolder: "Canvas",
   courseFolderTemplate: "{{courseCode}} - {{courseName}}",
+  enableYamlFrontmatter: true,
   includeRawPayload: false,
   downloadAssets: true,
   downloadDocuments: true,
@@ -686,13 +795,37 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     // Step 3: Write Markdown Notes to Vault
     if (payload.courseHomePageHtml) {
       const homePath = normalizePath(`${courseFolder}/Home.md`);
-      await this.upsertFile(homePath, this.renderHtmlDoc("Course Home", payload.courseHomePageHtml, payload.fetchedAt) + "\n");
+      const homeProps: Record<string, unknown> = {
+        canvas_type: "course_home",
+        course_id: payload.courseId ? Number(payload.courseId) || payload.courseId : undefined,
+        course_name: payload.courseName,
+        course_code: payload.courseCode || null,
+        current_score: payload.grades?.currentScore ?? null,
+        current_grade: payload.grades?.currentGrade ?? null,
+        final_score: payload.grades?.finalScore ?? null,
+        final_grade: payload.grades?.finalGrade ?? null,
+        last_synced: formatIsoTimestamp(payload.fetchedAt),
+        tags: ["canvas/course", "canvas/home", `canvas/course/${payload.courseId}`].filter(Boolean)
+      };
+      await this.upsertFile(homePath, this.renderHtmlDoc("Course Home", payload.courseHomePageHtml, payload.fetchedAt, homeProps) + "\n");
       syncedFiles.push(homePath);
     }
 
     if (payload.syllabusHtml) {
       const syllabusPath = normalizePath(`${courseFolder}/Syllabus.md`);
-      await this.upsertFile(syllabusPath, this.renderHtmlDoc("Syllabus", payload.syllabusHtml, payload.fetchedAt) + "\n");
+      const syllabusProps: Record<string, unknown> = {
+        canvas_type: "syllabus",
+        course_id: payload.courseId ? Number(payload.courseId) || payload.courseId : undefined,
+        course_name: payload.courseName,
+        course_code: payload.courseCode || null,
+        current_score: payload.grades?.currentScore ?? null,
+        current_grade: payload.grades?.currentGrade ?? null,
+        final_score: payload.grades?.finalScore ?? null,
+        final_grade: payload.grades?.finalGrade ?? null,
+        last_synced: formatIsoTimestamp(payload.fetchedAt),
+        tags: ["canvas/course", "canvas/syllabus", `canvas/course/${payload.courseId}`].filter(Boolean)
+      };
+      await this.upsertFile(syllabusPath, this.renderHtmlDoc("Syllabus", payload.syllabusHtml, payload.fetchedAt, syllabusProps) + "\n");
       syncedFiles.push(syllabusPath);
     }
 
@@ -712,12 +845,13 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         fileMap,
         moduleByName,
         syncedFiles,
-        payload.fetchedAt
+        payload.fetchedAt,
+        payload
       );
     }
 
     const tasksPath = normalizePath(`${courseFolder}/Tasks.md`);
-    await this.upsertFile(tasksPath, this.renderAssignments(payload.assignments, assignmentMap, moduleByName, fileMap, payload.fetchedAt));
+    await this.upsertFile(tasksPath, this.renderAssignments(payload, assignmentMap, moduleByName, fileMap, payload.fetchedAt));
     syncedFiles.push(tasksPath);
 
     const gradesPath = normalizePath(`${courseFolder}/Grades.md`);
@@ -725,7 +859,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     syncedFiles.push(gradesPath);
 
     const discussionsPath = normalizePath(`${courseFolder}/Discussions.md`);
-    await this.upsertFile(discussionsPath, this.renderDiscussions(payload.discussions, discussionMap, moduleByName, payload.fetchedAt));
+    await this.upsertFile(discussionsPath, this.renderDiscussions(payload, discussionMap, moduleByName, payload.fetchedAt));
     syncedFiles.push(discussionsPath);
 
     // Ensure events include synthesized milestones from assignments if not already present
@@ -760,7 +894,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     payload.events = finalEvents;
 
     const eventsPath = normalizePath(`${courseFolder}/Calendar.md`);
-    await this.upsertFile(eventsPath, this.renderEvents(payload.events, assignmentMap, payload.fetchedAt));
+    await this.upsertFile(eventsPath, this.renderEvents(payload, assignmentMap, payload.fetchedAt));
     syncedFiles.push(eventsPath);
 
     const courseIndexPath = normalizePath(`${courseFolder}/Course.md`);
@@ -780,6 +914,17 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     await this.upsertFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", false);
 
     return { isNew, courseFolder };
+  }
+
+  private prependFrontmatter(body: string, props: Record<string, unknown>): string {
+    if (!this.settings.enableYamlFrontmatter) {
+      return body;
+    }
+    const fm = generateYamlFrontmatter(props);
+    if (!fm) {
+      return body;
+    }
+    return `${fm}\n\n${body.trimStart()}`;
   }
 
   private renderCourseIndex(payload: CanvasCoursePayload): string {
@@ -856,7 +1001,20 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       }
     }
 
-    return lines.join("\n");
+    const body = lines.join("\n");
+    const props: Record<string, unknown> = {
+      canvas_type: "course",
+      course_id: payload.courseId ? Number(payload.courseId) || payload.courseId : undefined,
+      course_name: payload.courseName,
+      course_code: payload.courseCode || null,
+      current_score: payload.grades?.currentScore ?? null,
+      current_grade: payload.grades?.currentGrade ?? null,
+      final_score: payload.grades?.finalScore ?? null,
+      final_grade: payload.grades?.finalGrade ?? null,
+      last_synced: formatIsoTimestamp(payload.fetchedAt),
+      tags: ["canvas/course", "canvas/hub", `canvas/course/${payload.courseId}`].filter(Boolean)
+    };
+    return this.prependFrontmatter(body, props);
   }
 
   private async writeModuleFolder(
@@ -870,7 +1028,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     fileMap: Map<string, { relativePath: string; displayName: string }>,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
     syncedFiles?: string[],
-    lastSynced?: string
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload
   ): Promise<void> {
     const moduleFolder = normalizePath(
       `${modulesFolder}/${this.padPosition(module.position)} - ${this.sanitizeFileName(module.name)}`
@@ -878,8 +1037,19 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const moduleOverviewPath = normalizePath(`${moduleFolder}/00 - Module Overview.md`);
     const items = [...module.items].sort((a, b) => a.position - b.position);
 
+    const overviewProps: Record<string, unknown> = {
+      canvas_id: module.id ? Number(module.id) || module.id : null,
+      canvas_type: "module",
+      title: module.name,
+      course: coursePayload?.courseName,
+      course_id: coursePayload?.courseId ? Number(coursePayload.courseId) || coursePayload.courseId : undefined,
+      position: module.position,
+      last_synced: formatIsoTimestamp(lastSynced),
+      tags: ["canvas/module", `canvas/course/${coursePayload?.courseId}`].filter(Boolean)
+    };
+
     if (module.summaryHtml) {
-      await this.upsertFile(moduleOverviewPath, this.renderHtmlDoc(module.name, module.summaryHtml, lastSynced) + "\n");
+      await this.upsertFile(moduleOverviewPath, this.renderHtmlDoc(module.name, module.summaryHtml, lastSynced, overviewProps) + "\n");
       syncedFiles?.push(moduleOverviewPath);
     } else {
       const itemLinks: string[] = [];
@@ -910,7 +1080,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         itemLinks.length > 0 ? itemLinks.join("\n") : "_No items in this module._",
         ""
       ].join("\n");
-      await this.upsertFile(moduleOverviewPath, overviewDoc);
+      await this.upsertFile(moduleOverviewPath, this.prependFrontmatter(overviewDoc, overviewProps));
       syncedFiles?.push(moduleOverviewPath);
     }
 
@@ -923,7 +1093,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
           (item.pageSlug ? pageBySlug.get(item.pageSlug) : undefined) ||
           pageByTitle.get(item.title.trim().toLowerCase());
         const pagePath = normalizePath(`${moduleFolder}/${filePrefix} - Page - ${safeTitle}.md`);
-        await this.upsertFile(pagePath, this.renderModulePageDoc(item, page, moduleByName, lastSynced));
+        await this.upsertFile(pagePath, this.renderModulePageDoc(item, page, moduleByName, lastSynced, coursePayload));
         syncedFiles?.push(pagePath);
         continue;
       }
@@ -931,7 +1101,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       if (item.type === "Assignment") {
         const assignment = item.assignmentId ? assignmentById.get(item.assignmentId) : undefined;
         const assignmentPath = normalizePath(`${moduleFolder}/${filePrefix} - Assignment - ${safeTitle}.md`);
-        await this.upsertFile(assignmentPath, this.renderModuleAssignmentDoc(item, assignment, moduleByName, fileMap, lastSynced));
+        await this.upsertFile(assignmentPath, this.renderModuleAssignmentDoc(item, assignment, moduleByName, fileMap, lastSynced, coursePayload));
         syncedFiles?.push(assignmentPath);
         continue;
       }
@@ -939,7 +1109,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       if (item.type === "DiscussionTopic") {
         const discussion = item.discussionId ? discussionById.get(item.discussionId) : undefined;
         const discussionPath = normalizePath(`${moduleFolder}/${filePrefix} - Discussion - ${safeTitle}.md`);
-        await this.upsertFile(discussionPath, this.renderModuleDiscussionDoc(item, discussion, moduleByName, fileMap, lastSynced));
+        await this.upsertFile(discussionPath, this.renderModuleDiscussionDoc(item, discussion, moduleByName, fileMap, lastSynced, coursePayload));
         syncedFiles?.push(discussionPath);
         continue;
       }
@@ -947,35 +1117,39 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       if (item.type === "File") {
         const file = item.fileId ? fileById.get(item.fileId) : undefined;
         const filePath = normalizePath(`${moduleFolder}/${filePrefix} - File - ${safeTitle}.md`);
-        await this.upsertFile(filePath, this.renderModuleFileDoc(item, file, lastSynced));
+        await this.upsertFile(filePath, this.renderModuleFileDoc(item, file, lastSynced, coursePayload));
         syncedFiles?.push(filePath);
         continue;
       }
 
       if (item.type === "ExternalUrl" || item.type === "ContextExternalTool") {
         const linkPath = normalizePath(`${moduleFolder}/${filePrefix} - Link - ${safeTitle}.md`);
-        await this.upsertFile(linkPath, this.renderModuleLinkDoc(item, lastSynced));
+        await this.upsertFile(linkPath, this.renderModuleLinkDoc(item, lastSynced, coursePayload));
         syncedFiles?.push(linkPath);
         continue;
       }
 
       if (item.type === "ContextModuleSubHeader") {
         const subHeaderPath = normalizePath(`${moduleFolder}/${filePrefix} - Section - ${safeTitle}.md`);
-        await this.upsertFile(subHeaderPath, this.renderSubHeaderDoc(item, lastSynced));
+        await this.upsertFile(subHeaderPath, this.renderSubHeaderDoc(item, lastSynced, coursePayload));
         syncedFiles?.push(subHeaderPath);
         continue;
       }
     }
   }
 
-  private renderHtmlDoc(title: string, html: string, lastSynced?: string): string {
+  private renderHtmlDoc(title: string, html: string, lastSynced?: string, extraProps?: Record<string, unknown>): string {
     const markdown = this.turndown.turndown(html).trim();
     const lines = [`# ${title}`, ""];
     if (lastSynced) {
       lines.push(`> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`, "");
     }
     lines.push(markdown || "No content available.");
-    return lines.join("\n");
+    const body = lines.join("\n");
+    if (extraProps) {
+      return this.prependFrontmatter(body, extraProps);
+    }
+    return body;
   }
 
   private formatModuleLinks(
@@ -996,10 +1170,26 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     item: CanvasModuleItemPayload,
     page?: CanvasPagePayload,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
-    lastSynced?: string
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload
   ): string {
+    const modLinks = this.formatModuleLinks(page?.moduleNames, moduleByName);
+    const props: Record<string, unknown> = {
+      canvas_id: item.id ? Number(item.id) || item.id : null,
+      canvas_type: "page",
+      title: page?.title || item.title,
+      course: coursePayload?.courseName,
+      course_id: coursePayload?.courseId ? Number(coursePayload.courseId) || coursePayload.courseId : undefined,
+      slug: page?.slug || item.pageSlug || null,
+      canvas_updated: formatIsoTimestamp(page?.updatedAt),
+      modules: modLinks.length > 0 ? modLinks : null,
+      source: page?.url || null,
+      last_synced: formatIsoTimestamp(lastSynced),
+      tags: ["canvas/page", `canvas/course/${coursePayload?.courseId}`].filter(Boolean)
+    };
+
     if (!page) {
-      return [
+      const body = [
         `# ${item.title}`,
         "",
         `Type: ${item.type}`,
@@ -1011,11 +1201,11 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         .filter((line): line is string => line !== null)
         .join("\n")
         .trim() + "\n";
+      return this.prependFrontmatter(body, props);
     }
 
     const pageBody = this.turndown.turndown(page.html).trim();
-    const modLinks = this.formatModuleLinks(page.moduleNames, moduleByName);
-    return [
+    const body = [
       `# ${page.title}`,
       "",
       `Source: ${page.url}`,
@@ -1028,9 +1218,15 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       .filter((line): line is string => line !== null)
       .join("\n")
       .trim() + "\n";
+    return this.prependFrontmatter(body, props);
   }
 
-  private renderModuleFileDoc(item: CanvasModuleItemPayload, file?: CanvasFileAssetPayload, lastSynced?: string): string {
+  private renderModuleFileDoc(
+    item: CanvasModuleItemPayload,
+    file?: CanvasFileAssetPayload,
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload
+  ): string {
     const lines = [`# ${item.title}`, "", `Type: File`, `Last Synced: ${formatSyncTimestamp(lastSynced)}`];
 
     if (file?.downloaded && file.savedRelativePath) {
@@ -1047,7 +1243,21 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       lines.push(`Source: ${item.externalUrl}`);
     }
 
-    return lines.join("\n") + "\n";
+    const fileSizeMb = file?.size ? +(file.size / (1024 * 1024)).toFixed(2) : null;
+    const props: Record<string, unknown> = {
+      canvas_id: file?.id ? Number(file.id) || file.id : (item.fileId ? Number(item.fileId) || item.fileId : Number(item.id) || item.id),
+      canvas_type: "file",
+      title: file?.displayName || item.title,
+      course: coursePayload?.courseName,
+      course_id: coursePayload?.courseId ? Number(coursePayload.courseId) || coursePayload.courseId : undefined,
+      file_size_mb: fileSizeMb,
+      source: file?.url || item.externalUrl || null,
+      last_synced: formatIsoTimestamp(lastSynced),
+      tags: ["canvas/file", `canvas/course/${coursePayload?.courseId}`].filter(Boolean)
+    };
+
+    const body = lines.join("\n") + "\n";
+    return this.prependFrontmatter(body, props);
   }
 
   private renderModuleAssignmentDoc(
@@ -1055,10 +1265,44 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     assignment?: CanvasAssignmentPayload,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
     fileMap?: Map<string, { relativePath: string; displayName: string }>,
-    lastSynced?: string
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload
   ): string {
+    let status = "unsubmitted";
+    const sub = assignment?.submission;
+    if (sub?.excused) {
+      status = "excused";
+    } else if (sub?.missing) {
+      status = "missing";
+    } else if (sub?.late && sub?.workflowState === "graded") {
+      status = "late";
+    } else if (sub?.workflowState) {
+      status = sub.workflowState;
+    }
+
+    const modLinks = this.formatModuleLinks(assignment?.moduleNames, moduleByName);
+    const props: Record<string, unknown> = {
+      canvas_id: assignment?.id ? Number(assignment.id) || assignment.id : (item.assignmentId ? Number(item.assignmentId) || item.assignmentId : Number(item.id) || item.id),
+      canvas_type: "assignment",
+      title: assignment?.name || item.title,
+      course: coursePayload?.courseName,
+      course_id: coursePayload?.courseId ? Number(coursePayload.courseId) || coursePayload.courseId : undefined,
+      due: formatIsoTimestamp(assignment?.dueAt),
+      due_date: formatIsoDate(assignment?.dueAt),
+      points_possible: assignment?.pointsPossible ?? null,
+      points: assignment?.pointsPossible ?? null,
+      status,
+      score: sub?.score ?? null,
+      grade: sub?.grade ?? null,
+      submitted_at: formatIsoTimestamp(sub?.submittedAt),
+      modules: modLinks.length > 0 ? modLinks : null,
+      source: assignment?.htmlUrl || null,
+      last_synced: formatIsoTimestamp(lastSynced),
+      tags: ["canvas/assignment", `canvas/course/${coursePayload?.courseId}`].filter(Boolean)
+    };
+
     if (!assignment) {
-      return [
+      const body = [
         `# ${item.title}`,
         "",
         `Type: ${item.type}`,
@@ -1070,6 +1314,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         .filter((line): line is string => line !== null)
         .join("\n")
         .trim() + "\n";
+      return this.prependFrontmatter(body, props);
     }
 
     const due = assignment.dueAt ? new Date(assignment.dueAt).toISOString() : "No due date";
@@ -1080,9 +1325,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const hasRubricTableInHtml =
       typeof assignment.descriptionHtml === "string" &&
       /class=["'][^"']*\brubric_table\b/.test(assignment.descriptionHtml);
-    const modLinks = this.formatModuleLinks(assignment.moduleNames, moduleByName);
 
-    return [
+    const body = [
       `# ${assignment.name}`,
       "",
       `Assignment ID: ${assignment.id}`,
@@ -1106,6 +1350,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       .filter((line): line is string => line !== null)
       .join("\n")
       .trim() + "\n";
+
+    return this.prependFrontmatter(body, props);
   }
 
   private renderAssignmentSubmission(
@@ -1288,10 +1534,34 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     discussion?: CanvasDiscussionPayload,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
     fileMap?: Map<string, { relativePath: string; displayName: string }>,
-    lastSynced?: string
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload
   ): string {
+    const assignment = discussion?.assignment;
+    const replyCount = this.countDiscussionReplies(discussion?.entries);
+    const modLinks = this.formatModuleLinks(discussion?.moduleNames, moduleByName);
+
+    const props: Record<string, unknown> = {
+      canvas_id: discussion?.id ? Number(discussion.id) || discussion.id : (item.discussionId ? Number(item.discussionId) || item.discussionId : Number(item.id) || item.id),
+      canvas_type: "discussion",
+      title: discussion?.title || item.title,
+      course: coursePayload?.courseName,
+      course_id: coursePayload?.courseId ? Number(coursePayload.courseId) || coursePayload.courseId : undefined,
+      posted_at: formatIsoTimestamp(discussion?.postedAt),
+      updated_at: formatIsoTimestamp(discussion?.updatedAt),
+      due: formatIsoTimestamp(assignment?.dueAt),
+      due_date: formatIsoDate(assignment?.dueAt),
+      points_possible: assignment?.pointsPossible ?? null,
+      reply_count: replyCount,
+      unread_count: discussion?.unreadCount ?? null,
+      modules: modLinks.length > 0 ? modLinks : null,
+      source: discussion?.htmlUrl || null,
+      last_synced: formatIsoTimestamp(lastSynced),
+      tags: ["canvas/discussion", `canvas/course/${coursePayload?.courseId}`].filter(Boolean)
+    };
+
     if (!discussion) {
-      return [
+      const body = [
         `# ${item.title}`,
         "",
         `Type: ${item.type}`,
@@ -1303,15 +1573,14 @@ export default class CanvasSyncBridgePlugin extends Plugin {
         .filter((line): line is string => line !== null)
         .join("\n")
         .trim() + "\n";
+      return this.prependFrontmatter(body, props);
     }
 
-    const assignment = discussion.assignment;
     const submission = discussion.submission ?? assignment?.submission;
     const due = assignment?.dueAt ? new Date(assignment.dueAt).toISOString() : null;
     const points = assignment?.pointsPossible != null ? `${assignment.pointsPossible}` : null;
 
     const discussionBody = discussion.messageHtml ? this.turndown.turndown(discussion.messageHtml).trim() : "";
-    const replyCount = this.countDiscussionReplies(discussion.entries);
     const repliesBlock =
       discussion.entries && discussion.entries.length > 0
         ? this.renderDiscussionEntries(discussion.entries)
@@ -1321,9 +1590,8 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     const structuredRubric = assignment?.rubric
       ? this.renderStructuredRubric(assignment.rubric, submission?.rubricAssessment)
       : null;
-    const modLinks = this.formatModuleLinks(discussion.moduleNames, moduleByName);
 
-    return [
+    const body = [
       `# ${discussion.title}`,
       "",
       `Discussion ID: ${discussion.id}`,
@@ -1351,86 +1619,125 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       .filter((line): line is string => line !== null)
       .join("\n")
       .trim() + "\n";
+
+    return this.prependFrontmatter(body, props);
   }
 
-  private renderModuleLinkDoc(item: CanvasModuleItemPayload, lastSynced?: string): string {
-    return [
+  private renderModuleLinkDoc(item: CanvasModuleItemPayload, lastSynced?: string, coursePayload?: CanvasCoursePayload): string {
+    const props: Record<string, unknown> = {
+      canvas_id: item.id ? Number(item.id) || item.id : null,
+      canvas_type: "link",
+      title: item.title,
+      course: coursePayload?.courseName,
+      course_id: coursePayload?.courseId ? Number(coursePayload.courseId) || coursePayload.courseId : undefined,
+      url: item.externalUrl || null,
+      last_synced: formatIsoTimestamp(lastSynced),
+      tags: ["canvas/link", `canvas/course/${coursePayload?.courseId}`].filter(Boolean)
+    };
+    const body = [
       `# ${item.title}`,
       "",
       `Type: ${item.type}`,
       `Last Synced: ${formatSyncTimestamp(lastSynced)}`,
       item.externalUrl ? `URL: ${item.externalUrl}` : "URL: Not provided by Canvas API"
     ].join("\n") + "\n";
+    return this.prependFrontmatter(body, props);
   }
 
-  private renderSubHeaderDoc(item: CanvasModuleItemPayload, lastSynced?: string): string {
-    return [`# ${item.title}`, "", `Type: Section Header`, `Last Synced: ${formatSyncTimestamp(lastSynced)}`, "", "Module section header."].join("\n") + "\n";
+  private renderSubHeaderDoc(item: CanvasModuleItemPayload, lastSynced?: string, coursePayload?: CanvasCoursePayload): string {
+    const props: Record<string, unknown> = {
+      canvas_id: item.id ? Number(item.id) || item.id : null,
+      canvas_type: "section_header",
+      title: item.title,
+      course: coursePayload?.courseName,
+      course_id: coursePayload?.courseId ? Number(coursePayload.courseId) || coursePayload.courseId : undefined,
+      last_synced: formatIsoTimestamp(lastSynced),
+      tags: ["canvas/section_header", `canvas/course/${coursePayload?.courseId}`].filter(Boolean)
+    };
+    const body = [`# ${item.title}`, "", `Type: Section Header`, `Last Synced: ${formatSyncTimestamp(lastSynced)}`, "", "Module section header."].join("\n") + "\n";
+    return this.prependFrontmatter(body, props);
   }
 
   private renderAssignments(
-    assignments: CanvasAssignmentPayload[],
+    assignmentsOrPayload: CanvasAssignmentPayload[] | CanvasCoursePayload,
     assignmentMap?: Map<string, { relativePath: string; title: string }>,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
     fileMap?: Map<string, { relativePath: string; displayName: string }>,
-    lastSynced?: string
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload
   ): string {
+    const payload = "courseId" in assignmentsOrPayload ? assignmentsOrPayload : coursePayload;
+    const assignments = "courseId" in assignmentsOrPayload ? (assignmentsOrPayload.assignments || []) : assignmentsOrPayload;
+
     const lines: string[] = [
       "# Tasks & Assignments",
       "",
-      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced || payload?.fetchedAt)}`,
       ""
     ];
 
     if (assignments.length === 0) {
       lines.push("No assignments were found in this sync.", "");
-      return lines.join("\n");
-    }
+    } else {
+      const sorted = [...assignments].sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""));
+      for (const assignment of sorted) {
+        const due = assignment.dueAt ? new Date(assignment.dueAt).toISOString().slice(0, 10) : "No due date";
+        const points = assignment.pointsPossible ?? "?";
+        const sub = assignment.submission;
+        const isDone = sub?.workflowState === "graded" || sub?.workflowState === "submitted";
+        const check = isDone ? "x" : " ";
+        let scoreInfo = "";
+        if (sub?.score != null) {
+          scoreInfo = `, score: ${sub.score}/${points}`;
+        } else {
+          scoreInfo = `, points: ${points}`;
+        }
+        if (sub?.grade) {
+          scoreInfo += ` [Grade: ${sub.grade}]`;
+        }
 
-    const sorted = [...assignments].sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""));
-    for (const assignment of sorted) {
-      const due = assignment.dueAt ? new Date(assignment.dueAt).toISOString().slice(0, 10) : "No due date";
-      const points = assignment.pointsPossible ?? "?";
-      const sub = assignment.submission;
-      const isDone = sub?.workflowState === "graded" || sub?.workflowState === "submitted";
-      const check = isDone ? "x" : " ";
-      let scoreInfo = "";
-      if (sub?.score != null) {
-        scoreInfo = `, score: ${sub.score}/${points}`;
-      } else {
-        scoreInfo = `, points: ${points}`;
-      }
-      if (sub?.grade) {
-        scoreInfo += ` [Grade: ${sub.grade}]`;
-      }
+        const assignInfo = assignmentMap?.get(assignment.id);
+        const titleDisplay =
+          assignInfo?.relativePath && !assignInfo.relativePath.startsWith("Tasks.md")
+            ? `[[${assignInfo.relativePath}|${assignment.name}]]`
+            : assignment.name;
 
-      const assignInfo = assignmentMap?.get(assignment.id);
-      const titleDisplay =
-        assignInfo?.relativePath && !assignInfo.relativePath.startsWith("Tasks.md")
-          ? `[[${assignInfo.relativePath}|${assignment.name}]]`
-          : assignment.name;
-
-      lines.push(`- [${check}] ${titleDisplay} (due: ${due}${scoreInfo})`);
-      
-      const modLinks = this.formatModuleLinks(assignment.moduleNames, moduleByName);
-      if (modLinks.length > 0) {
-        lines.push(`  - Modules: ${modLinks.join(", ")}`);
-      }
-      if (sub?.attachments && sub.attachments.length > 0) {
-        for (const att of sub.attachments) {
-          const fileInfo = att.id ? fileMap?.get(att.id) : undefined;
-          const relativePath = fileInfo?.relativePath || att.savedRelativePath;
-          if (relativePath) {
-            lines.push(`  - Submitted File: [[${relativePath}|${fileInfo?.displayName || att.displayName}]]`);
+        lines.push(`- [${check}] ${titleDisplay} (due: ${due}${scoreInfo})`);
+        
+        const modLinks = this.formatModuleLinks(assignment.moduleNames, moduleByName);
+        if (modLinks.length > 0) {
+          lines.push(`  - Modules: ${modLinks.join(", ")}`);
+        }
+        if (sub?.attachments && sub.attachments.length > 0) {
+          for (const att of sub.attachments) {
+            const fileInfo = att.id ? fileMap?.get(att.id) : undefined;
+            const relativePath = fileInfo?.relativePath || att.savedRelativePath;
+            if (relativePath) {
+              lines.push(`  - Submitted File: [[${relativePath}|${fileInfo?.displayName || att.displayName}]]`);
+            }
           }
         }
+        if (assignInfo?.relativePath && !assignInfo.relativePath.startsWith("Tasks.md")) {
+          lines.push(`  - Note: [[${assignInfo.relativePath}|Open Assignment Note]]`);
+        }
+        lines.push("");
       }
-      if (assignInfo?.relativePath && !assignInfo.relativePath.startsWith("Tasks.md")) {
-        lines.push(`  - Note: [[${assignInfo.relativePath}|Open Assignment Note]]`);
-      }
-      lines.push("");
     }
 
-    return lines.join("\n");
+    const body = lines.join("\n");
+    const props: Record<string, unknown> = {
+      canvas_type: "tasks",
+      course_id: payload?.courseId ? Number(payload.courseId) || payload.courseId : undefined,
+      course_name: payload?.courseName,
+      course_code: payload?.courseCode || null,
+      current_score: payload?.grades?.currentScore ?? null,
+      current_grade: payload?.grades?.currentGrade ?? null,
+      final_score: payload?.grades?.finalScore ?? null,
+      final_grade: payload?.grades?.finalGrade ?? null,
+      last_synced: formatIsoTimestamp(lastSynced || payload?.fetchedAt),
+      tags: ["canvas/course", "canvas/tasks", `canvas/course/${payload?.courseId}`].filter(Boolean)
+    };
+    return this.prependFrontmatter(body, props);
   }
 
   private renderGradesPage(
@@ -1541,109 +1848,157 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     }
 
     lines.push("");
-    return lines.join("\n");
+    const body = lines.join("\n");
+    const props: Record<string, unknown> = {
+      canvas_type: "grades",
+      course_id: payload.courseId ? Number(payload.courseId) || payload.courseId : undefined,
+      course_name: payload.courseName,
+      course_code: payload.courseCode || null,
+      current_score: payload.grades?.currentScore ?? null,
+      current_grade: payload.grades?.currentGrade ?? null,
+      final_score: payload.grades?.finalScore ?? null,
+      final_grade: payload.grades?.finalGrade ?? null,
+      last_synced: formatIsoTimestamp(payload.fetchedAt),
+      tags: ["canvas/course", "canvas/grades", `canvas/course/${payload.courseId}`].filter(Boolean)
+    };
+    return this.prependFrontmatter(body, props);
   }
 
   private renderDiscussions(
-    discussions: CanvasDiscussionPayload[],
+    discussionsOrPayload: CanvasDiscussionPayload[] | CanvasCoursePayload,
     discussionMap?: Map<string, { relativePath: string; title: string }>,
     moduleByName?: Map<string, { relativePath: string; title: string }>,
-    lastSynced?: string
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload
   ): string {
+    const payload = "courseId" in discussionsOrPayload ? discussionsOrPayload : coursePayload;
+    const discussions = "courseId" in discussionsOrPayload ? (discussionsOrPayload.discussions || []) : discussionsOrPayload;
+
     const lines: string[] = [
       "# Discussions",
       "",
-      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced || payload?.fetchedAt)}`,
       ""
     ];
 
     if (discussions.length === 0) {
       lines.push("No discussions were found in this sync.", "");
-      return lines.join("\n");
+    } else {
+      const sorted = [...discussions].sort((a, b) => a.title.localeCompare(b.title));
+      for (const discussion of sorted) {
+        const replyCount = this.countDiscussionReplies(discussion.entries);
+        const replyBadge = replyCount > 0 ? ` (${replyCount} replies)` : "";
+        const discInfo = discussionMap?.get(discussion.id);
+
+        const titleDisplay =
+          discInfo?.relativePath && !discInfo.relativePath.startsWith("Discussions.md")
+            ? `[[${discInfo.relativePath}|${discussion.title}]]`
+            : discussion.title;
+
+        lines.push(`- ${titleDisplay}${replyBadge}`);
+
+        const modLinks = this.formatModuleLinks(discussion.moduleNames, moduleByName);
+        if (modLinks.length > 0) {
+          lines.push(`  - Modules: ${modLinks.join(", ")}`);
+        }
+        if (discInfo?.relativePath && !discInfo.relativePath.startsWith("Discussions.md")) {
+          lines.push(`  - Note: [[${discInfo.relativePath}|Open Discussion Note]]`);
+        }
+        lines.push("");
+      }
     }
 
-    const sorted = [...discussions].sort((a, b) => a.title.localeCompare(b.title));
-    for (const discussion of sorted) {
-      const replyCount = this.countDiscussionReplies(discussion.entries);
-      const replyBadge = replyCount > 0 ? ` (${replyCount} replies)` : "";
-      const discInfo = discussionMap?.get(discussion.id);
-
-      const titleDisplay =
-        discInfo?.relativePath && !discInfo.relativePath.startsWith("Discussions.md")
-          ? `[[${discInfo.relativePath}|${discussion.title}]]`
-          : discussion.title;
-
-      lines.push(`- ${titleDisplay}${replyBadge}`);
-
-      const modLinks = this.formatModuleLinks(discussion.moduleNames, moduleByName);
-      if (modLinks.length > 0) {
-        lines.push(`  - Modules: ${modLinks.join(", ")}`);
-      }
-      if (discInfo?.relativePath && !discInfo.relativePath.startsWith("Discussions.md")) {
-        lines.push(`  - Note: [[${discInfo.relativePath}|Open Discussion Note]]`);
-      }
-      lines.push("");
-    }
-
-    return lines.join("\n");
+    const body = lines.join("\n");
+    const props: Record<string, unknown> = {
+      canvas_type: "discussions",
+      course_id: payload?.courseId ? Number(payload.courseId) || payload.courseId : undefined,
+      course_name: payload?.courseName,
+      course_code: payload?.courseCode || null,
+      current_score: payload?.grades?.currentScore ?? null,
+      current_grade: payload?.grades?.currentGrade ?? null,
+      final_score: payload?.grades?.finalScore ?? null,
+      final_grade: payload?.grades?.finalGrade ?? null,
+      last_synced: formatIsoTimestamp(lastSynced || payload?.fetchedAt),
+      tags: ["canvas/course", "canvas/discussions", `canvas/course/${payload?.courseId}`].filter(Boolean)
+    };
+    return this.prependFrontmatter(body, props);
   }
 
   private renderEvents(
-    events: CanvasEventPayload[],
+    eventsOrPayload: CanvasEventPayload[] | CanvasCoursePayload,
     assignmentMap?: Map<string, { relativePath: string; title: string }>,
-    lastSynced?: string
+    lastSynced?: string,
+    coursePayload?: CanvasCoursePayload
   ): string {
+    const payload = "courseId" in eventsOrPayload ? eventsOrPayload : coursePayload;
+    const events = "courseId" in eventsOrPayload ? (eventsOrPayload.events || []) : eventsOrPayload;
+
+    let body = "";
     if (events.length === 0) {
-      return [
+      body = [
         "# Calendar & Milestones",
         "",
-        `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
+        `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced || payload?.fetchedAt)}`,
         "",
         "No events or milestones were found in this sync.",
         ""
       ].join("\n");
-    }
+    } else {
+      const lines: string[] = [
+        "# Calendar & Milestones",
+        "",
+        `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced || payload?.fetchedAt)}`,
+        "",
+        "| Date | Type | Event / Milestone | Details | Link |",
+        "| :--- | :--- | :--- | :--- | :--- |"
+      ];
 
-    const lines: string[] = [
-      "# Calendar & Milestones",
-      "",
-      `> [!INFO] **Last Synced**: ${formatSyncTimestamp(lastSynced)}`,
-      "",
-      "| Date | Type | Event / Milestone | Details | Link |",
-      "| :--- | :--- | :--- | :--- | :--- |"
-    ];
+      const sorted = [...events].sort((a, b) => (a.startAt ?? "").localeCompare(b.startAt ?? ""));
+      for (const event of sorted) {
+        const dateStr = event.startAt ? new Date(event.startAt).toISOString().slice(0, 10) : "N/A";
+        const typeStr = event.eventType === "assignment" ? "📝 Assignment" : "📅 Event";
+        const assignInfo = event.assignmentId ? assignmentMap?.get(event.assignmentId) : undefined;
 
-    const sorted = [...events].sort((a, b) => (a.startAt ?? "").localeCompare(b.startAt ?? ""));
-    for (const event of sorted) {
-      const dateStr = event.startAt ? new Date(event.startAt).toISOString().slice(0, 10) : "N/A";
-      const typeStr = event.eventType === "assignment" ? "📝 Assignment" : "📅 Event";
-      const assignInfo = event.assignmentId ? assignmentMap?.get(event.assignmentId) : undefined;
+        const cleanEventTitle = event.title.replace(/\|/g, "\\|");
+        let titleStr = cleanEventTitle;
+        let linkStr = "-";
 
-      const cleanEventTitle = event.title.replace(/\|/g, "\\|");
-      let titleStr = cleanEventTitle;
-      let linkStr = "-";
+        if (assignInfo?.relativePath && !assignInfo.relativePath.startsWith("Tasks.md")) {
+          titleStr = `[[${assignInfo.relativePath}\\|${cleanEventTitle}]]`;
+          linkStr = `[[${assignInfo.relativePath}\\|View Note]]`;
+        } else if (assignInfo?.relativePath) {
+          titleStr = `[[${assignInfo.relativePath}\\|${cleanEventTitle}]]`;
+          linkStr = `[[${assignInfo.relativePath}\\|View Task]]`;
+        } else if (event.htmlUrl) {
+          linkStr = `[Canvas Link](${event.htmlUrl})`;
+        }
 
-      if (assignInfo?.relativePath && !assignInfo.relativePath.startsWith("Tasks.md")) {
-        titleStr = `[[${assignInfo.relativePath}\\|${cleanEventTitle}]]`;
-        linkStr = `[[${assignInfo.relativePath}\\|View Note]]`;
-      } else if (assignInfo?.relativePath) {
-        titleStr = `[[${assignInfo.relativePath}\\|${cleanEventTitle}]]`;
-        linkStr = `[[${assignInfo.relativePath}\\|View Task]]`;
-      } else if (event.htmlUrl) {
-        linkStr = `[Canvas Link](${event.htmlUrl})`;
+        const descStr =
+          (event.description
+            ? this.turndown.turndown(event.description).replace(/\|/g, "\\|").replace(/\n+/g, " ")
+            : ""
+          ).trim() || "-";
+
+        lines.push(`| ${dateStr} | ${typeStr} | ${titleStr} | ${descStr} | ${linkStr} |`);
       }
 
-      const descStr =
-        (event.description
-          ? this.turndown.turndown(event.description).replace(/\|/g, "\\|").replace(/\n+/g, " ")
-          : ""
-        ).trim() || "-";
-
-      lines.push(`| ${dateStr} | ${typeStr} | ${titleStr} | ${descStr} | ${linkStr} |`);
+      lines.push("");
+      body = lines.join("\n");
     }
 
-    lines.push("");
-    return lines.join("\n");
+    const props: Record<string, unknown> = {
+      canvas_type: "calendar",
+      course_id: payload?.courseId ? Number(payload.courseId) || payload.courseId : undefined,
+      course_name: payload?.courseName,
+      course_code: payload?.courseCode || null,
+      current_score: payload?.grades?.currentScore ?? null,
+      current_grade: payload?.grades?.currentGrade ?? null,
+      final_score: payload?.grades?.finalScore ?? null,
+      final_grade: payload?.grades?.finalGrade ?? null,
+      last_synced: formatIsoTimestamp(lastSynced || payload?.fetchedAt),
+      tags: ["canvas/course", "canvas/calendar", `canvas/course/${payload?.courseId}`].filter(Boolean)
+    };
+    return this.prependFrontmatter(body, props);
   }
 
   private async ensureFolder(path: string): Promise<void> {
@@ -1967,6 +2322,14 @@ export class CanvasSyncSettingTab extends PluginSettingTab {
         heading: "Vault & organization"
       },
       {
+        name: "Enable YAML frontmatter",
+        desc: "Generate YAML frontmatter (Properties) with typed dates, scores, and status for Dataview, Tasks, and Canvas cards.",
+        control: {
+          type: "toggle",
+          key: "enableYamlFrontmatter"
+        }
+      },
+      {
         name: "Root folder",
         desc: "Vault folder where course data should be written.",
         control: {
@@ -2232,6 +2595,15 @@ export class CanvasSyncSettingTab extends PluginSettingTab {
 
   private renderFormattingTab(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Vault & organization").setHeading();
+
+    new Setting(containerEl)
+      .setName("Enable YAML frontmatter")
+      .setDesc("Generate YAML frontmatter (Properties) with typed dates, scores, and status for Dataview, Tasks, and Canvas cards.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getSettings().enableYamlFrontmatter ?? true).onChange((value) => {
+          void this.plugin.updateSettings({ enableYamlFrontmatter: value });
+        })
+      );
 
     new Setting(containerEl)
       .setName("Root folder")

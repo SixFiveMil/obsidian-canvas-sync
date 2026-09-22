@@ -59,6 +59,7 @@ describe("Tabbed Settings Navigation UI", () => {
     expect(defs.some((d) => d.control?.key === "canvasApiToken")).toBe(true);
     expect(defs.some((d) => d.control?.key === "downloadAssets")).toBe(true);
     expect(defs.some((d) => d.control?.key === "rootFolder")).toBe(true);
+    expect(defs.some((d) => d.control?.key === "enableYamlFrontmatter")).toBe(true);
   });
 });
 

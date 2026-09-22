@@ -23,7 +23,7 @@ export function extractPersonalNotes(content: string): string | null {
   }
 
   // Check 1: Header match for '## 📝 Personal Notes' or '## Personal Notes'
-  const headerRegex = /##\s*(?:📝\s*)?Personal Notes[^\n]*\n([\s\S]*)$/i;
+  const headerRegex = /##\s*(?:📝\s*)?Personal Notes[^\n]*(?:\n([\s\S]*))?$/i;
   const match = content.match(headerRegex);
   if (match && match[1]) {
     // Strip out any legacy comment tags if present from earlier versions
