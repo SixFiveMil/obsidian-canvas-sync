@@ -48,18 +48,16 @@ describe("Tabbed Settings Navigation UI", () => {
     expect(newNav.children[0].className).not.toContain("is-active");
   });
 
-  it("exposes all settings definitions for search indexing", () => {
+  it("exposes all tab definitions and renders tab navigation", () => {
     const app = new App();
     const plugin = new CanvasSyncBridgePlugin(app, {} as any);
     const settingTab = new CanvasSyncSettingTab(app, plugin);
 
-    const defs = settingTab.getSettingDefinitions() as any[];
-    expect(defs.length).toBeGreaterThanOrEqual(10);
-    expect(defs.some((d) => d.control?.key === "canvasBaseUrl")).toBe(true);
-    expect(defs.some((d) => d.control?.key === "canvasApiToken")).toBe(true);
-    expect(defs.some((d) => d.control?.key === "downloadAssets")).toBe(true);
-    expect(defs.some((d) => d.control?.key === "rootFolder")).toBe(true);
-    expect(defs.some((d) => d.control?.key === "enableYamlFrontmatter")).toBe(true);
+    settingTab.display();
+    const container = settingTab.containerEl as any;
+    const nav = container.children.find((c: any) => c.className?.includes("canvas-settings-nav"));
+    expect(nav).toBeDefined();
+    expect(nav.children).toHaveLength(6);
   });
 });
 

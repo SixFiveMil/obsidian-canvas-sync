@@ -113,13 +113,15 @@ describe("Obsidian guideline guardrails", () => {
     }
   });
 
-  it("implements getSettingDefinitions for declarative settings search indexing", () => {
+  it("implements tabbed settings navigation across all categories", () => {
     const allSource = readAllSources();
-    expect(allSource).toMatch(/getSettingDefinitions\(\)/);
-    expect(allSource).toContain('key: "canvasBaseUrl"');
-    expect(allSource).toContain('key: "canvasApiToken"');
-    expect(allSource).toContain('key: "enableBridgeServer"');
-    expect(allSource).toContain('key: "rootFolder"');
+    expect(allSource).toContain("SETTINGS_TABS");
+    expect(allSource).toContain("renderConnectionTab");
+    expect(allSource).toContain("renderDataTypesTab");
+    expect(allSource).toContain("renderFormattingTab");
+    expect(allSource).toContain("renderAssetsTab");
+    expect(allSource).toContain("renderScheduleTab");
+    expect(allSource).toContain("renderDiagnosticsTab");
   });
 
   it("avoids console.log in plugin source files per Obsidian plugin guidelines", () => {
