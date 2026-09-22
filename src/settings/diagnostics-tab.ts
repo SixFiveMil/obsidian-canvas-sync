@@ -32,18 +32,6 @@ export function renderDiagnosticsTab(
   new Setting(containerEl).setName("Course capability & diagnostics").setHeading();
 
   new Setting(containerEl)
-    .setName("Run course capability diagnostics")
-    .setDesc("Open full diagnostic modal to probe course endpoints, check permissions, and view status badges.")
-    .addButton((btn) =>
-      btn
-        .setButtonText("Open Capability Modal")
-        .setCta()
-        .onClick(() => {
-          new CourseCapabilityModal(plugin.app, plugin).open();
-        })
-    );
-
-  new Setting(containerEl)
     .setName("Export debug logs & diagnostics")
     .setDesc("Export system diagnostics, plugin configuration summary (secrets masked), and platform metadata.")
     .addButton((btn) =>
@@ -77,8 +65,8 @@ export function renderDiagnosticsTab(
   const probeResultsEl = containerEl.createDiv("canvas-diagnostics-results");
 
   const probeSetting = new Setting(probeSection)
-    .setName("Quick course capability probe")
-    .setDesc("Select a course and probe permissions directly.");
+    .setName("Course capability & permission probe")
+    .setDesc("Select a course to test API permissions, active endpoints, and available data types directly.");
 
   if (!plugin.getSettings().canvasBaseUrl || !plugin.getSettings().canvasApiToken) {
     probeSection.createDiv({
@@ -111,7 +99,10 @@ export function renderDiagnosticsTab(
     });
 
     probeSetting.addButton((btn) => {
-      btn.setButtonText("Probe Course").onClick(async () => {
+      btn
+        .setButtonText("Probe Course")
+        .setCta()
+        .onClick(async () => {
         if (!state.selectedProbeCourseId) return;
         probeResultsEl.empty();
         const loading = probeResultsEl.createDiv("canvas-diagnostics-loading");

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CanvasApiClient } from "../src/api";
+import { resolveCourseDateRange } from "../src/utils";
 
 // Mock Obsidian's requestUrl module
 vi.mock("obsidian", () => {
@@ -436,40 +437,84 @@ describe("CanvasApiClient", () => {
     const { requestUrl } = await import("obsidian");
     const mockRequestUrl = vi.mocked(requestUrl);
 
-    (mockRequestUrl as any).mockImplementation(async (params: any) => {
-      const url = params.url;
-      if (url.includes("/api/v1/courses/99999?include[]=syllabus_body")) {
-        return { status: 200, json: { id: 99999, name: "Restricted Course" }, text: "", headers: {} };
+    const origImpl = (mockRequestUrl as any).getMockImplementation();
+    try {
+      (mockRequestUrl as any).mockImplementation(async (params: any) => {
+        const url = params.url;
+        if (url.includes("/api/v1/courses/99999?include[]=syllabus_body")) {
+          return { status: 200, json: { id: 99999, name: "Restricted Course" }, text: "", headers: {} };
+        }
+        if (url.includes("/modules")) {
+          return { status: 403, json: { message: "User not authorized" }, text: "Forbidden", headers: {} };
+        }
+        if (url.includes("/quizzes")) {
+          return { status: 404, json: { message: "Quizzes not found" }, text: "Not Found", headers: {} };
+        }
+        if (url.includes("/announcements") || url.includes("only_announcements=true")) {
+          return { status: 200, json: [], text: "[]", headers: {} };
+        }
+        if (url.includes("/staff_contacts") || url.includes("enrollment_type[]=teacher")) {
+          throw new Error("Canvas API returned status 500: Internal Server Error");
+        }
+        return { status: 200, json: [{ id: 1 }], text: "", headers: {} };
+      });
+
+      const report = await restrictedClient.probeCourseCapabilities(99999);
+      expect(report.courseId).toBe("99999");
+      expect(report.courseName).toBe("Restricted Course");
+
+      expect(report.capabilities.modules.status).toBe("restricted");
+      expect(report.capabilities.modules.statusCode).toBe(403);
+
+      expect(report.capabilities.quizzes.status).toBe("unsupported");
+      expect(report.capabilities.quizzes.statusCode).toBe(404);
+
+      expect(report.capabilities.announcements.status).toBe("empty");
+      expect(report.capabilities.announcements.count).toBe(0);
+
+      expect(report.capabilities.staff_contacts.status).toBe("error");
+    } finally {
+      if (origImpl) {
+        (mockRequestUrl as any).mockImplementation(origImpl);
       }
-      if (url.includes("/modules")) {
-        return { status: 403, json: { message: "User not authorized" }, text: "Forbidden", headers: {} };
+    }
+  });
+
+  it("calculates dynamic course date ranges with 60-day buffers", () => {
+    const rangeWithDates = resolveCourseDateRange({
+      courseSummary: {
+        start_at: "2026-09-01T00:00:00Z",
+        end_at: "2026-12-15T00:00:00Z"
       }
-      if (url.includes("/quizzes")) {
-        return { status: 404, json: { message: "Quizzes not found" }, text: "Not Found", headers: {} };
-      }
-      if (url.includes("/announcements") || url.includes("only_announcements=true")) {
-        return { status: 200, json: [], text: "[]", headers: {} };
-      }
-      if (url.includes("/staff_contacts") || url.includes("enrollment_type[]=teacher")) {
-        throw new Error("Canvas API returned status 500: Internal Server Error");
-      }
-      return { status: 200, json: [{ id: 1 }], text: "", headers: {} };
     });
+    expect(rangeWithDates.startDate).toBe("2026-07-03");
+    expect(rangeWithDates.endDate).toBe("2027-02-13");
 
-    const report = await restrictedClient.probeCourseCapabilities(99999);
-    expect(report.courseId).toBe("99999");
-    expect(report.courseName).toBe("Restricted Course");
+    const rangeWithTerm = resolveCourseDateRange({
+      courseSummary: {
+        term: {
+          start_at: "2026-01-10T00:00:00Z",
+          end_at: "2026-05-20T00:00:00Z"
+        }
+      }
+    });
+    expect(rangeWithTerm.startDate).toBe("2025-11-11");
+    expect(rangeWithTerm.endDate).toBe("2026-07-19");
 
-    expect(report.capabilities.modules.status).toBe("restricted");
-    expect(report.capabilities.modules.statusCode).toBe(403);
+    const defaultRange = resolveCourseDateRange({});
+    expect(defaultRange.startDate).toBe("2000-01-01");
+    expect(defaultRange.endDate).toBe("2099-12-31");
+  });
 
-    expect(report.capabilities.quizzes.status).toBe("unsupported");
-    expect(report.capabilities.quizzes.statusCode).toBe(404);
-
-    expect(report.capabilities.announcements.status).toBe("empty");
-    expect(report.capabilities.announcements.count).toBe(0);
-
-    expect(report.capabilities.staff_contacts.status).toBe("error");
+  it("fetches calendar events with dynamic course date range", async () => {
+    const events = await client.getCalendarEvents(28335, [], {
+      courseSummary: {
+        start_at: "2026-01-01T00:00:00Z",
+        end_at: "2026-06-01T00:00:00Z"
+      }
+    });
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    expect(events[0].title).toBe("Office Hours");
   });
 });
 

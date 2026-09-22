@@ -27,6 +27,7 @@ import type {
   CanvasUserSummary,
   CourseCapabilityReport
 } from "../types";
+import { resolveCourseDateRange } from "../utils";
 import { probeCourseEndpoints } from "./capability-probe";
 
 export interface BinaryDownloadResult {
@@ -623,45 +624,17 @@ export class CanvasApiClient {
     const syncReplies = options?.syncReplies ?? true;
     const cId = String(courseId);
 
-    // Compute dynamic date range from course metadata (with 60-day buffer for early welcome / wrap-up posts)
-    let startDateParam = options?.startDate;
-    let endDateParam = options?.endDate;
-
-    if (!startDateParam && options?.courseSummary) {
-      const summary = options.courseSummary;
-      const rawStart = summary.start_at || summary.term?.start_at || summary.created_at;
-      if (rawStart) {
-        try {
-          const d = new Date(rawStart);
-          d.setDate(d.getDate() - 60);
-          startDateParam = d.toISOString().slice(0, 10);
-        } catch {
-          // Ignore parse failure
-        }
-      }
-      const rawEnd = summary.end_at || summary.term?.end_at;
-      if (rawEnd) {
-        try {
-          const d = new Date(rawEnd);
-          d.setDate(d.getDate() + 60);
-          endDateParam = d.toISOString().slice(0, 10);
-        } catch {
-          // Ignore parse failure
-        }
-      }
-    }
-
-    if (!startDateParam) {
-      startDateParam = "2000-01-01";
-    }
-    if (!endDateParam) {
-      endDateParam = "2099-12-31";
-    }
+    const range = resolveCourseDateRange({
+      startDate: options?.startDate,
+      endDate: options?.endDate,
+      courseSummary: options?.courseSummary,
+      bufferDays: 60
+    });
 
     let list: Array<Record<string, unknown>> = [];
     try {
       list = await this.requestPaged<Record<string, unknown>>(
-        `/api/v1/announcements?context_codes[]=course_${cId}&start_date=${encodeURIComponent(startDateParam)}&end_date=${encodeURIComponent(endDateParam)}&per_page=100`
+        `/api/v1/announcements?context_codes[]=course_${cId}&start_date=${encodeURIComponent(range.startDate)}&end_date=${encodeURIComponent(range.endDate)}&per_page=100`
       );
       if (list.length === 0) {
         // Fallback to course discussion topics with only_announcements=true
@@ -768,14 +741,31 @@ export class CanvasApiClient {
 
   public async getCalendarEvents(
     courseId: string | number,
-    assignments?: CanvasAssignmentPayload[]
+    assignments?: CanvasAssignmentPayload[],
+    options?: {
+      startDate?: string;
+      endDate?: string;
+      courseSummary?: {
+        start_at?: string | null;
+        end_at?: string | null;
+        term?: { start_at?: string | null; end_at?: string | null };
+        created_at?: string | null;
+      };
+    }
   ): Promise<CanvasEventPayload[]> {
     const events: CanvasEventPayload[] = [];
     const seenEventKeys = new Set<string>();
 
+    const range = resolveCourseDateRange({
+      startDate: options?.startDate,
+      endDate: options?.endDate,
+      courseSummary: options?.courseSummary,
+      bufferDays: 60
+    });
+
     try {
       const list = await this.requestPaged<Record<string, unknown>>(
-        `/api/v1/calendar_events?context_codes[]=course_${courseId}&all_events=true&per_page=100`
+        `/api/v1/calendar_events?context_codes[]=course_${courseId}&all_events=true&start_date=${encodeURIComponent(range.startDate)}&end_date=${encodeURIComponent(range.endDate)}&per_page=100`
       );
 
       for (const item of list) {
@@ -948,7 +938,9 @@ export class CanvasApiClient {
     }
 
     onProgress?.("Fetching calendar events & milestones...", 8, totalSteps);
-    const events = await this.getCalendarEvents(cId, assignments);
+    const events = await this.getCalendarEvents(cId, assignments, {
+      courseSummary: details
+    });
 
     onProgress?.("Discovering course files & attachments...", 9, totalSteps);
     const filesResult = await this.getFiles(cId);
