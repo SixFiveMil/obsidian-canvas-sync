@@ -1,5 +1,17 @@
-import type { CanvasSyncEnvelope } from "./types";
+/**
+ * @module utils/security-utils
+ * @description Security and sanitization utilities for origin verification,
+ * filename and path traversal prevention, and extension envelope validation.
+ */
 
+import type { CanvasSyncEnvelope } from "../types";
+
+/**
+ * Validates the schema and structure of an incoming browser extension sync envelope.
+ * Throws an error if any required properties are missing or corrupted.
+ *
+ * @param envelope - Raw parsed JSON object.
+ */
 export function validateEnvelopeShape(envelope: unknown): asserts envelope is CanvasSyncEnvelope {
   if (!envelope || typeof envelope !== "object") {
     throw new Error("Invalid payload: payload is not an object.");
@@ -23,6 +35,11 @@ export function validateEnvelopeShape(envelope: unknown): asserts envelope is Ca
   }
 }
 
+/**
+ * Verifies if an HTTP request Origin header matches an allowed browser extension scheme.
+ *
+ * @param originHeader - Origin header string from incoming request.
+ */
 export function isAllowedOrigin(originHeader?: string | null): boolean {
   if (!originHeader) {
     // Background service workers on localhost do not send Origin header; allowed
@@ -31,6 +48,9 @@ export function isAllowedOrigin(originHeader?: string | null): boolean {
   return originHeader.startsWith("chrome-extension://") || originHeader.startsWith("moz-extension://");
 }
 
+/**
+ * Extracts and returns the authorized extension origin URL if valid.
+ */
 export function getAllowedExtensionOrigin(originHeader?: string | null): string | null {
   if (typeof originHeader !== "string") {
     return null;
@@ -43,6 +63,12 @@ export function getAllowedExtensionOrigin(originHeader?: string | null): string 
   return null;
 }
 
+/**
+ * Strips forbidden filesystem characters and caps title length to prevent ENAMETOOLONG errors.
+ *
+ * @param input - Raw file title or segment.
+ * @param maxLength - Maximum permitted character length (default 100).
+ */
 export function sanitizeFileName(input: string, maxLength = 100): string {
   if (!input || typeof input !== "string") {
     return "Untitled";
@@ -57,6 +83,12 @@ export function sanitizeFileName(input: string, maxLength = 100): string {
   return truncated || "Untitled";
 }
 
+/**
+ * Normalizes and sanitizes a complete vault path, stripping path traversal sequences (`../`, `./`).
+ *
+ * @param input - Raw path string.
+ * @param maxSegmentLength - Maximum permitted length for any individual folder or file segment.
+ */
 export function sanitizePath(input: string, maxSegmentLength = 100): string {
   return input
     .replace(/\\/g, "/")

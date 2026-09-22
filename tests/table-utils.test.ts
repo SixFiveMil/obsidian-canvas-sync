@@ -1,6 +1,6 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { createCustomTurndown } from "../src/table-utils";
+import { createCustomTurndown } from "../src/utils";
 
 describe("HTML to Markdown table conversion", () => {
   const turndown = createCustomTurndown();

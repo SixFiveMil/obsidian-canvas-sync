@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { CanvasApiClient } from "../src/canvas-api-client";
+import { CanvasApiClient } from "../src/api";
 
 // Mock Obsidian's requestUrl module
 vi.mock("obsidian", () => {
