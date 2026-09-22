@@ -407,6 +407,7 @@ describe("CanvasApiClient", () => {
       "discussions",
       "quizzes",
       "assignment_groups",
+      "module_files",
       "files",
       "calendar_events",
       "staff_contacts",

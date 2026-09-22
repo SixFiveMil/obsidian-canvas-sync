@@ -113,8 +113,13 @@ export async function probeCourseEndpoints(
       path: `/api/v1/courses/${cId}/assignment_groups?per_page=1`
     },
     {
+      key: "module_files",
+      label: "Module Files & Downloads",
+      path: `/api/v1/courses/${cId}/modules?include[]=items&per_page=10`
+    },
+    {
       key: "files",
-      label: "Files & Attachments",
+      label: "Root Files Tab",
       path: `/api/v1/courses/${cId}/files?per_page=1`
     },
     {
@@ -164,6 +169,43 @@ export async function probeCourseEndpoints(
       const statusCode = response.status;
       if (statusCode >= 200 && statusCode < 300) {
         const json = response.json;
+
+        // Custom inspection for module files discovery
+        if (key === "module_files" && Array.isArray(json)) {
+          let fileCount = 0;
+          for (const mod of json) {
+            if (mod && Array.isArray((mod as Record<string, unknown>).items)) {
+              for (const item of (mod as Record<string, unknown>).items as Array<Record<string, unknown>>) {
+                if (item && String(item.type).toLowerCase() === "file") {
+                  fileCount++;
+                }
+              }
+            }
+          }
+
+          if (fileCount > 0) {
+            return {
+              key,
+              label,
+              status: "available",
+              count: fileCount,
+              statusCode,
+              errorMessage: `Verified ${fileCount} downloadable file(s) in course modules.`,
+              endpoint: "/api/v1/courses/:id/modules (items: file)"
+            };
+          } else {
+            return {
+              key,
+              label,
+              status: "empty",
+              count: 0,
+              statusCode,
+              errorMessage: "No file attachments found in probed modules.",
+              endpoint: "/api/v1/courses/:id/modules"
+            };
+          }
+        }
+
         if (Array.isArray(json)) {
           if (json.length > 0) {
             return {
@@ -210,6 +252,55 @@ export async function probeCourseEndpoints(
 
       return mapStatusToCapability(key, label, path, statusCode, response.text);
     } catch (err: unknown) {
+      // Fallback for staff contacts if /users endpoint is 403 Forbidden
+      if (key === "staff_contacts") {
+        try {
+          const fallbackCourseUrl = `${baseUrl}/api/v1/courses/${cId}?include[]=teachers`;
+          const fbResp = await requestUrl({
+            url: fallbackCourseUrl,
+            method: "GET",
+            headers: { Accept: "application/json", Authorization: `Bearer ${apiToken}` }
+          });
+          if (fbResp.status >= 200 && fbResp.status < 300) {
+            const teachers = (fbResp.json as Record<string, unknown>)?.teachers;
+            if (Array.isArray(teachers) && teachers.length > 0) {
+              return {
+                key,
+                label,
+                status: "available",
+                count: teachers.length,
+                statusCode: fbResp.status,
+                errorMessage: `Discovered ${teachers.length} teacher(s) via course summary payload.`,
+                endpoint: "/api/v1/courses/:id?include[]=teachers"
+              };
+            }
+          }
+        } catch {
+          // Fallback failed; try conversations recipient search
+          try {
+            const inboxUrl = `${baseUrl}/api/v1/conversations/find_recipients?context=course_${cId}&types[]=teacher`;
+            const inboxResp = await requestUrl({
+              url: inboxUrl,
+              method: "GET",
+              headers: { Accept: "application/json", Authorization: `Bearer ${apiToken}` }
+            });
+            if (inboxResp.status >= 200 && inboxResp.status < 300 && Array.isArray(inboxResp.json) && inboxResp.json.length > 0) {
+              return {
+                key,
+                label,
+                status: "available",
+                count: inboxResp.json.length,
+                statusCode: inboxResp.status,
+                errorMessage: `Discovered ${inboxResp.json.length} staff contact(s) via Canvas Inbox directory.`,
+                endpoint: "/api/v1/conversations/find_recipients"
+              };
+            }
+          } catch {
+            // All fallbacks exhausted
+          }
+        }
+      }
+
       const errorObj = err as { status?: number; message?: string; response?: { status?: number; text?: string } };
       let statusCode = typeof errorObj?.status === "number"
         ? errorObj.status
