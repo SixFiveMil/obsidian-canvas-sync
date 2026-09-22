@@ -172,6 +172,51 @@ vi.mock("obsidian", () => {
         };
       }
 
+      if (url.includes("/api/v1/announcements")) {
+        return {
+          status: 200,
+          json: [
+            {
+              id: 901,
+              title: "Welcome to Class & Course Logistics",
+              message: "<p>Welcome to the term! Please read the syllabus.</p>",
+              posted_at: "2026-09-01T08:00:00Z",
+              user_name: "Professor Alice",
+              html_url: "https://canvas.example.edu/courses/28335/announcements/901",
+              attachments: [
+                {
+                  id: 998,
+                  display_name: "syllabus-addendum.pdf",
+                  url: "https://canvas.example.edu/courses/28335/files/998/download",
+                  size: 102400
+                }
+              ]
+            }
+          ],
+          text: "",
+          headers: {}
+        };
+      }
+
+      if (url.includes("/api/v1/courses/28335/discussion_topics/901/view")) {
+        return {
+          status: 200,
+          json: {
+            participants: [{ id: 101, display_name: "Alice Smith" }],
+            view: [
+              {
+                id: 8501,
+                user_id: 101,
+                message: "<p>Thank you Professor!</p>",
+                created_at: "2026-09-01T09:00:00Z"
+              }
+            ]
+          },
+          text: "",
+          headers: {}
+        };
+      }
+
       if (url.includes("/api/v1/courses/28335/discussion_topics/701/view")) {
         return {
           status: 200,
@@ -285,7 +330,21 @@ describe("CanvasApiClient", () => {
     expect(courses[0].course_code).toBe("CSOL-510");
   });
 
-  it("fetches complete course payload with modules, pages, assignments, submissions, discussion entries, and calendar milestones", async () => {
+  it("fetches announcements directly with fallback support and replies", async () => {
+    const announcements = await client.getAnnouncements(28335, { syncReplies: true });
+    expect(announcements).toHaveLength(1);
+    const ann = announcements[0];
+    expect(ann.id).toBe("901");
+    expect(ann.title).toBe("Welcome to Class & Course Logistics");
+    expect(ann.author).toBe("Professor Alice");
+    expect(ann.postedAt).toBe("2026-09-01T08:00:00Z");
+    expect(ann.attachments).toHaveLength(1);
+    expect(ann.attachments?.[0].displayName).toBe("syllabus-addendum.pdf");
+    expect(ann.entries).toHaveLength(1);
+    expect(ann.entries?.[0].userName).toBe("Alice Smith");
+  });
+
+  it("fetches complete course payload with modules, pages, assignments, submissions, discussion entries, announcements, and calendar milestones", async () => {
     const payload = await client.fetchCompleteCoursePayload(28335);
     expect(payload.courseId).toBe("28335");
     expect(payload.courseName).toBe("Applied Cryptography");
@@ -316,6 +375,11 @@ describe("CanvasApiClient", () => {
     expect(disc.entries?.[0].userName).toBe("Alice Smith");
     expect(disc.entries?.[0].replies).toHaveLength(1);
     expect(disc.entries?.[0].replies?.[0].userName).toBe("Bob Jones");
+
+    expect(payload.announcements).toBeDefined();
+    expect(payload.announcements).toHaveLength(1);
+    expect(payload.announcements![0].title).toBe("Welcome to Class & Course Logistics");
+    expect(payload.announcements![0].entries).toHaveLength(1);
 
     expect(payload.events).toBeDefined();
     // 1 direct event + 1 synthesized assignment milestone
