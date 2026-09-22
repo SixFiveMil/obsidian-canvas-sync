@@ -18,12 +18,18 @@ export function mapStatusToCapability(
   rawMessage?: string
 ): DataCategoryCapability {
   if (statusCode === 401 || statusCode === 403) {
+    let customMsg = rawMessage || "Access restricted or unauthorized by Canvas permission policies.";
+    if (key === "files") {
+      customMsg = "Root Files tab is locked by instructor. Individual module documents & assignment attachments will still download normally.";
+    } else if (key === "staff_contacts") {
+      customMsg = "People/Roster list is hidden by instructor for student privacy.";
+    }
     return {
       key,
       label,
       status: "restricted",
       statusCode,
-      errorMessage: rawMessage || "Access restricted or unauthorized by Canvas permission policies.",
+      errorMessage: customMsg,
       endpoint
     };
   }

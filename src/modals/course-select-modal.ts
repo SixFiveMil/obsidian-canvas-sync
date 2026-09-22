@@ -249,7 +249,7 @@ export class CourseSelectModal extends Modal {
       });
 
       const checkboxWrap = row.createDiv("canvas-course-checkbox-wrap");
-      const checkbox = checkboxWrap.createEl("input", { type: "checkbox" });
+      const checkbox = checkboxWrap.createEl("input", { type: "checkbox", cls: "canvas-course-checkbox" });
       checkbox.checked = isSelected;
       checkbox.addEventListener("change", (e) => {
         const target = e.target as HTMLInputElement;
@@ -270,22 +270,26 @@ export class CourseSelectModal extends Modal {
         titleLine.createEl("span", { text: course.course_code, cls: "canvas-course-code-badge" });
       }
 
-      const metaLine = infoWrap.createDiv("canvas-course-meta-line");
-      if (course.term?.name) {
-        metaLine.createEl("span", { text: `Term: ${course.term.name}`, cls: "canvas-meta-item" });
-      }
-      if (course.total_students !== undefined) {
-        metaLine.createEl("span", { text: `Students: ${course.total_students}`, cls: "canvas-meta-item" });
-      }
-
       const isConcluded =
         course.concluded ||
         course.workflow_state === "completed" ||
         (course.term?.end_at ? new Date(course.term.end_at).getTime() < Date.now() : false);
-      metaLine.createEl("span", {
+      titleLine.createEl("span", {
         text: isConcluded ? "Concluded" : "Active",
         cls: `canvas-status-badge ${isConcluded ? "status-inactive" : "status-active"}`
       });
+
+      const metaLine = infoWrap.createDiv("canvas-course-meta-line");
+      const metaParts: string[] = [];
+      if (course.term?.name) {
+        metaParts.push(`Term: ${course.term.name}`);
+      }
+      if (course.total_students !== undefined) {
+        metaParts.push(`Students: ${course.total_students}`);
+      }
+      if (metaParts.length > 0) {
+        metaLine.createEl("span", { text: metaParts.join("  •  "), cls: "canvas-meta-item" });
+      }
     }
   }
 
