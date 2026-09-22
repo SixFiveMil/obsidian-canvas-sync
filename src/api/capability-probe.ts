@@ -23,6 +23,8 @@ export function mapStatusToCapability(
       customMsg = "Root Files tab is locked by instructor. Individual module documents & assignment attachments will still download normally.";
     } else if (key === "staff_contacts") {
       customMsg = "People/Roster list is hidden by instructor for student privacy.";
+    } else if (key === "pages") {
+      customMsg = "Global Pages index tab is hidden by instructor. Lecture pages linked in Modules will still sync normally.";
     }
     return {
       key,
@@ -34,12 +36,16 @@ export function mapStatusToCapability(
     };
   }
   if (statusCode === 404 || statusCode === 501) {
+    let customMsg = rawMessage || "Endpoint not supported or not found on this Canvas instance.";
+    if (key === "pages") {
+      customMsg = "Global Pages index tab is hidden by instructor. Lecture pages linked in Modules will still sync normally.";
+    }
     return {
       key,
       label,
       status: "unsupported",
       statusCode,
-      errorMessage: rawMessage || "Endpoint not supported or not found on this Canvas instance.",
+      errorMessage: customMsg,
       endpoint
     };
   }
@@ -252,6 +258,62 @@ export async function probeCourseEndpoints(
 
       return mapStatusToCapability(key, label, path, statusCode, response.text);
     } catch (err: unknown) {
+      // Fallback for pages if global /pages index endpoint returns 404/403 (e.g. instructor hid Pages tab)
+      if (key === "pages") {
+        try {
+          const fpResp = await requestUrl({
+            url: `${baseUrl}/api/v1/courses/${cId}/front_page`,
+            method: "GET",
+            headers: { Accept: "application/json", Authorization: `Bearer ${apiToken}` }
+          });
+          if (fpResp.status >= 200 && fpResp.status < 300) {
+            return {
+              key,
+              label,
+              status: "available",
+              count: 1,
+              statusCode: fpResp.status,
+              errorMessage: "Accessible via course home & module links (global Pages tab is hidden).",
+              endpoint: "/api/v1/courses/:id/front_page"
+            };
+          }
+        } catch {
+          // Front page not set; try module pages
+          try {
+            const modResp = await requestUrl({
+              url: `${baseUrl}/api/v1/courses/${cId}/modules?include[]=items&per_page=10`,
+              method: "GET",
+              headers: { Accept: "application/json", Authorization: `Bearer ${apiToken}` }
+            });
+            if (modResp.status >= 200 && modResp.status < 300 && Array.isArray(modResp.json)) {
+              let pageCount = 0;
+              for (const mod of modResp.json as Array<Record<string, unknown>>) {
+                if (mod && Array.isArray(mod.items)) {
+                  for (const item of mod.items as Array<Record<string, unknown>>) {
+                    if (item && String(item.type).toLowerCase() === "wikipage") {
+                      pageCount++;
+                    }
+                  }
+                }
+              }
+              if (pageCount > 0) {
+                return {
+                  key,
+                  label,
+                  status: "available",
+                  count: pageCount,
+                  statusCode: 200,
+                  errorMessage: `Accessible via module links (${pageCount} wiki page(s) found in modules; global Pages tab is hidden).`,
+                  endpoint: "/api/v1/courses/:id/pages/:slug (via modules)"
+                };
+              }
+            }
+          } catch {
+            // Module query failed
+          }
+        }
+      }
+
       // Fallback for staff contacts if /users endpoint is 403 Forbidden
       if (key === "staff_contacts") {
         try {
