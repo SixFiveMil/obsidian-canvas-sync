@@ -107,6 +107,7 @@ export class CourseSelectModal extends Modal {
     const controlsEl = contentEl.createDiv("canvas-modal-controls");
 
     new Setting(controlsEl)
+      .setClass("canvas-search-filter-setting")
       .setName("Search & filter")
       .addText((text) =>
         text
@@ -149,6 +150,7 @@ export class CourseSelectModal extends Modal {
       );
 
     new Setting(controlsEl)
+      .setClass("canvas-interval-setting")
       .setName("Auto-sync interval")
       .setDesc("How often Canvas should automatically resync the courses selected below.")
       .addDropdown((dropdown) =>
@@ -175,14 +177,23 @@ export class CourseSelectModal extends Modal {
 
     // Footer actions
     const footerEl = contentEl.createDiv("canvas-modal-footer");
-    const countSpan = footerEl.createSpan({ text: `${this.selectedCourseIds.size} course(s) selected` });
+    const countSpan = footerEl.createSpan({
+      text: `${this.selectedCourseIds.size} course(s) selected`,
+      cls: "canvas-modal-selected-count"
+    });
 
     const btnContainer = footerEl.createDiv("canvas-modal-button-container");
 
-    const cancelBtn = btnContainer.createEl("button", { text: "Cancel" });
+    const cancelBtn = btnContainer.createEl("button", {
+      text: "Cancel",
+      cls: "canvas-btn-cancel"
+    });
     cancelBtn.onclick = () => this.close();
 
-    const saveScheduledBtn = btnContainer.createEl("button", { text: "Save for Auto-Sync" });
+    const saveScheduledBtn = btnContainer.createEl("button", {
+      text: "Save for Auto-Sync",
+      cls: "canvas-btn-save-scheduled"
+    });
     saveScheduledBtn.onclick = async () => {
       const selectedIds = Array.from(this.selectedCourseIds);
       await this.plugin.updateSettings({
@@ -199,9 +210,12 @@ export class CourseSelectModal extends Modal {
       this.close();
     };
 
+    const formatSyncBtnText = (count: number) =>
+      count > 0 ? `Sync Selected Courses (${count})` : "Sync Selected Courses";
+
     const syncBtn = btnContainer.createEl("button", {
-      text: "Sync Selected",
-      cls: "mod-cta"
+      text: formatSyncBtnText(this.selectedCourseIds.size),
+      cls: "mod-cta canvas-btn-sync"
     });
     syncBtn.onclick = async () => {
       if (this.selectedCourseIds.size === 0) {
@@ -216,6 +230,7 @@ export class CourseSelectModal extends Modal {
 
     this.onSelectionChanged = () => {
       countSpan.setText(`${this.selectedCourseIds.size} course(s) selected`);
+      syncBtn.setText(formatSyncBtnText(this.selectedCourseIds.size));
     };
   }
 
@@ -252,7 +267,7 @@ export class CourseSelectModal extends Modal {
       const row = this.courseListEl.createDiv("canvas-course-row");
       const leftContainer = row.createDiv("canvas-course-row-left");
 
-      const cb = leftContainer.createEl("input", { type: "checkbox" });
+      const cb = leftContainer.createEl("input", { type: "checkbox", cls: "canvas-course-checkbox" });
       cb.checked = this.selectedCourseIds.has(course.id);
 
       cb.onchange = () => {
@@ -276,6 +291,19 @@ export class CourseSelectModal extends Modal {
           cls: "canvas-course-subtext"
         });
       }
+
+      // Allow clicking anywhere on row to toggle selection
+      row.onclick = (e) => {
+        if (e.target !== cb) {
+          cb.checked = !cb.checked;
+          if (cb.checked) {
+            this.selectedCourseIds.add(course.id);
+          } else {
+            this.selectedCourseIds.delete(course.id);
+          }
+          this.onSelectionChanged();
+        }
+      };
 
       // Status badge
       const active = this.isCourseActive(course);

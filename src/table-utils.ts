@@ -16,7 +16,13 @@ export function canvasTablePlugin(turndownService: TurndownService): void {
       const el = node;
       let clean = content
         .replace(/&nbsp;/gi, " ")
-        .replace(/(?<!\\)\|/g, "\\|")
+        .replace(/\\*\|/g, (match) => {
+          const slashes = match.length - 1;
+          if (slashes % 2 === 1) {
+            return match;
+          }
+          return "\\".repeat(slashes) + "\\|";
+        })
         .replace(/\r?\n+/g, "<br>")
         .replace(/\s*<br\s*\/?>\s*/gi, "<br>")
         .replace(/^(?:<br>)+|(?:<br>)+$/gi, "")

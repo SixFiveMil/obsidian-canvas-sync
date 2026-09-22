@@ -73,7 +73,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     await this.loadSettings();
     this.initApiClient();
 
-    if (this.settings.enableBridgeServer) {
+    if (this.settings.enableBridgeServer && !Platform.isMobile) {
       await this.startServer();
     }
 
@@ -111,19 +111,21 @@ export default class CanvasSyncBridgePlugin extends Plugin {
       }
     });
 
-    this.addCommand({
-      id: "canvas-sync-restart-bridge-server",
-      name: "Restart browser bridge listener",
-      callback: () => {
-        void this.restartServer().then(() => {
-          if (this.settings.enableBridgeServer) {
-            new Notice(`Canvas Sync Bridge listening on localhost:${this.settings.listenPort}`);
-          } else {
-            new Notice("Canvas Sync Bridge is currently disabled in settings.");
-          }
-        });
-      }
-    });
+    if (!Platform.isMobile) {
+      this.addCommand({
+        id: "canvas-sync-restart-bridge-server",
+        name: "Restart browser bridge listener",
+        callback: () => {
+          void this.restartServer().then(() => {
+            if (this.settings.enableBridgeServer) {
+              new Notice(`Canvas Sync Bridge listening on localhost:${this.settings.listenPort}`);
+            } else {
+              new Notice("Canvas Sync Bridge is currently disabled in settings.");
+            }
+          });
+        }
+      });
+    }
   }
 
   onunload(): void {
@@ -159,12 +161,12 @@ export default class CanvasSyncBridgePlugin extends Plugin {
     await this.saveSettings();
 
     if (patch.enableBridgeServer !== undefined && patch.enableBridgeServer !== prevBridgeEnabled) {
-      if (this.settings.enableBridgeServer) {
+      if (this.settings.enableBridgeServer && !Platform.isMobile) {
         await this.startServer();
       } else {
         await this.stopServer();
       }
-    } else if (patch.listenPort !== undefined && patch.listenPort !== prevBridgePort && this.settings.enableBridgeServer) {
+    } else if (patch.listenPort !== undefined && patch.listenPort !== prevBridgePort && this.settings.enableBridgeServer && !Platform.isMobile) {
       await this.restartServer();
     }
 
@@ -182,7 +184,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 
   private getHttpModule(): typeof import("http") | null {
-    if (!Platform.isDesktop) {
+    if (Platform.isMobile || !Platform.isDesktop) {
       return null;
     }
     try {
@@ -197,7 +199,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
   }
 
   public async startServer(): Promise<void> {
-    if (!Platform.isDesktop) {
+    if (Platform.isMobile || !Platform.isDesktop) {
       return;
     }
     if (this.server) {
@@ -248,7 +250,7 @@ export default class CanvasSyncBridgePlugin extends Plugin {
 
   public async restartServer(): Promise<void> {
     await this.stopServer();
-    if (this.settings.enableBridgeServer) {
+    if (this.settings.enableBridgeServer && !Platform.isMobile) {
       await this.startServer();
     }
   }
@@ -2113,40 +2115,47 @@ class CanvasSyncSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(containerEl).setName("Browser extension bridge (optional)").setHeading();
+    if (!Platform.isMobile) {
+      new Setting(containerEl).setName("Browser extension bridge (optional)").setHeading();
 
-    new Setting(containerEl)
-      .setName("Enable browser bridge listener")
-      .setDesc("Open a local listener on 127.0.0.1 to receive course data from the companion browser extension (required for session-based sync).")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getSettings().enableBridgeServer).onChange(async (value) => {
-          await this.plugin.updateSettings({ enableBridgeServer: value });
-          if (value) {
-            await this.plugin.startServer();
-          } else {
-            await this.plugin.stopServer();
-          }
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Bridge listen port")
-      .setDesc("Localhost port that receives data from the browser extension.")
-      .addText((text) =>
-        text
-          .setPlaceholder("27125")
-          .setValue(String(this.plugin.getSettings().listenPort))
-          .onChange(async (value) => {
-            const next = Number.parseInt(value, 10);
-            if (!Number.isFinite(next) || next < 1 || next > 65535) {
-              return;
-            }
-            await this.plugin.updateSettings({ listenPort: next });
-            if (this.plugin.getSettings().enableBridgeServer) {
-              await this.plugin.restartServer();
+      new Setting(containerEl)
+        .setName("Enable browser bridge listener")
+        .setDesc("Open a local listener on 127.0.0.1 to receive course data from the companion browser extension (required for session-based sync).")
+        .addToggle((toggle) =>
+          toggle.setValue(this.plugin.getSettings().enableBridgeServer).onChange(async (value) => {
+            await this.plugin.updateSettings({ enableBridgeServer: value });
+            if (value) {
+              await this.plugin.startServer();
+            } else {
+              await this.plugin.stopServer();
             }
           })
-      );
+        );
+
+      new Setting(containerEl)
+        .setName("Bridge listen port")
+        .setDesc("Localhost port that receives data from the browser extension.")
+        .addText((text) =>
+          text
+            .setPlaceholder("27125")
+            .setValue(String(this.plugin.getSettings().listenPort))
+            .onChange(async (value) => {
+              const next = Number.parseInt(value, 10);
+              if (!Number.isFinite(next) || next < 1 || next > 65535) {
+                return;
+              }
+              await this.plugin.updateSettings({ listenPort: next });
+              if (this.plugin.getSettings().enableBridgeServer) {
+                await this.plugin.restartServer();
+              }
+            })
+        );
+    } else {
+      new Setting(containerEl).setName("Browser extension bridge (desktop only)").setHeading();
+      new Setting(containerEl)
+        .setName("Direct REST API active")
+        .setDesc("The local browser extension bridge requires a Node.js desktop environment. Mobile Obsidian uses direct Canvas REST API synchronization seamlessly.");
+    }
 
     new Setting(containerEl).setName("Vault & organization").setHeading();
 
