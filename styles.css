@@ -387,3 +387,247 @@
 .canvas-sync-error {
   color: var(--text-error);
 }
+
+/* Tabbed Settings Navigation */
+.canvas-settings-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.canvas-settings-tab-btn {
+  padding: 6px 14px;
+  font-size: 0.9em;
+  border-radius: 6px;
+  cursor: pointer;
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.canvas-settings-tab-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.canvas-settings-tab-btn.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+.canvas-settings-tab-content {
+  margin-top: 8px;
+}
+
+/* Diagnostics & Capability Modal */
+.canvas-diagnostics-modal {
+  display: flex;
+  flex-direction: column;
+  max-width: 760px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.canvas-diagnostics-modal h2 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.canvas-diagnostics-desc {
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  font-size: 0.9em;
+}
+
+.canvas-diagnostics-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.canvas-diagnostics-summary {
+  margin-top: 14px;
+  margin-bottom: 10px;
+  padding: 10px 14px;
+  background-color: var(--background-secondary);
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.canvas-diagnostics-summary h3 {
+  margin-top: 0;
+  margin-bottom: 4px;
+  font-size: 1.1em;
+}
+
+.canvas-diagnostics-table-wrap {
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 12px 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background-color: var(--background-secondary);
+}
+
+.canvas-diagnostics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88em;
+}
+
+.canvas-diagnostics-table th {
+  background-color: var(--background-secondary-alt, var(--background-secondary));
+  padding: 8px 12px;
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-weight: 600;
+}
+
+.canvas-diagnostics-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border-focus, var(--background-modifier-border));
+  vertical-align: middle;
+}
+
+.canvas-diagnostics-table tr:last-child td {
+  border-bottom: none;
+}
+
+.canvas-diag-cat {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.canvas-diag-status {
+  white-space: nowrap;
+}
+
+.canvas-diag-endpoint code {
+  font-size: 0.82em;
+  padding: 2px 4px;
+  background-color: var(--background-primary);
+  border-radius: 4px;
+}
+
+.canvas-diag-details {
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.canvas-badge-diag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.canvas-badge-available {
+  background-color: rgba(46, 160, 67, 0.15);
+  color: var(--text-success);
+  border: 1px solid rgba(46, 160, 67, 0.3);
+}
+
+.canvas-badge-restricted {
+  background-color: rgba(210, 153, 34, 0.15);
+  color: var(--text-warning);
+  border: 1px solid rgba(210, 153, 34, 0.3);
+}
+
+.canvas-badge-empty {
+  background-color: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.canvas-badge-unsupported {
+  background-color: rgba(248, 81, 73, 0.1);
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.canvas-badge-error {
+  background-color: rgba(248, 81, 73, 0.15);
+  color: var(--text-error);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+}
+
+.canvas-diagnostics-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.canvas-diagnostics-actions button {
+  min-height: 36px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+/* Mobile Settings & Diagnostics rules */
+@media (max-width: 600px), (max-device-width: 600px) {
+  .canvas-settings-nav {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .canvas-settings-tab-btn {
+    flex-shrink: 0;
+    min-height: 40px;
+    font-size: 0.85em;
+    padding: 6px 10px;
+  }
+
+  .canvas-diagnostics-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .canvas-diagnostics-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+.is-mobile .canvas-settings-nav {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.is-mobile .canvas-settings-tab-btn {
+  flex-shrink: 0;
+  min-height: 40px;
+  font-size: 0.85em;
+  padding: 6px 10px;
+}
+
+.is-mobile .canvas-diagnostics-actions {
+  flex-direction: column;
+  width: 100%;
+}
+
+.is-mobile .canvas-diagnostics-actions button {
+  width: 100%;
+  min-height: 44px;
+}
