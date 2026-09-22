@@ -104,6 +104,8 @@ export class Setting {
     this.nameEl = createMockElement("div", "setting-item-name");
     this.descEl = createMockElement("div", "setting-item-description");
     this.controlEl = createMockElement("div", "setting-item-control");
+    this.infoEl.children.push(this.nameEl, this.descEl);
+    this.settingEl.children.push(this.infoEl, this.controlEl);
     if (containerEl && typeof containerEl.children !== "undefined") {
       containerEl.children.push(this.settingEl);
     }
@@ -158,6 +160,7 @@ export class Setting {
   addButton(cb: (btn: any) => void): this {
     const btnObj = {
       setButtonText: () => btnObj,
+      setTooltip: () => btnObj,
       setCta: () => btnObj,
       onClick: () => btnObj
     };

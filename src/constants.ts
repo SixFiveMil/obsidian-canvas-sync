@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: CanvasSyncSettings = {
   syncStudentSubmissions: true,
   enableBridgeServer: false,
   listenPort: 27125,
+  bridgePairingToken: "",
   rootFolder: "Canvas",
   courseFolderTemplate: "{{courseCode}} - {{courseName}}",
   enableYamlFrontmatter: true,
@@ -43,3 +44,8 @@ export const DEFAULT_SETTINGS: CanvasSyncSettings = {
  * Header key used to identify trusted bridge client requests from companion browser extensions.
  */
 export const TRUSTED_CLIENT_HEADER = "x-canvas-sync-client";
+
+/**
+ * Header key used to authenticate bridge requests using a shared pairing token.
+ */
+export const BRIDGE_PAIRING_HEADER = "x-canvas-bridge-token";

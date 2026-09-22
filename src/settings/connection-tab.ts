@@ -4,7 +4,7 @@
  * and desktop browser bridge listener configuration.
  */
 
-import { Platform, Setting } from "obsidian";
+import { Notice, Platform, Setting, type TextComponent } from "obsidian";
 import type CanvasSyncBridgePlugin from "../main";
 
 /**
@@ -104,6 +104,59 @@ export function renderConnectionTab(containerEl: HTMLElement, plugin: CanvasSync
             await plugin.updateSettings({ listenPort: next });
             if (plugin.getSettings().enableBridgeServer) {
               await plugin.restartServer();
+            }
+          })
+      );
+
+    let tokenTextComponent: TextComponent | null = null;
+
+    new Setting(containerEl)
+      .setName("Bridge pairing token (optional)")
+      .setDesc("Optional shared secret token to authenticate requests from the companion browser extension. Leave blank for backwards compatibility with older extension versions.")
+      .addText((text) => {
+        tokenTextComponent = text;
+        text.inputEl.type = "password";
+        text
+          .setPlaceholder("Enter or generate pairing token...")
+          .setValue(plugin.getSettings().bridgePairingToken)
+          .onChange(async (value) => {
+            await plugin.updateSettings({ bridgePairingToken: value.trim() });
+          });
+      })
+      .addButton((btn) =>
+        btn
+          .setButtonText("Generate token")
+          .setTooltip("Generate secure 32-character pairing token")
+          .onClick(async () => {
+            const randomBytes = new Uint8Array(16);
+            if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
+              window.crypto.getRandomValues(randomBytes);
+            } else if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+              crypto.getRandomValues(randomBytes);
+            }
+            const generatedToken = Array.from(randomBytes)
+              .map((b) => b.toString(16).padStart(2, "0"))
+              .join("");
+            await plugin.updateSettings({ bridgePairingToken: generatedToken });
+            tokenTextComponent?.setValue(generatedToken);
+            new Notice("Bridge pairing token generated.");
+          })
+      )
+      .addButton((btn) =>
+        btn
+          .setButtonText("Copy token")
+          .setTooltip("Copy pairing token to clipboard")
+          .onClick(async () => {
+            const token = plugin.getSettings().bridgePairingToken;
+            if (!token) {
+              new Notice("No bridge pairing token to copy.");
+              return;
+            }
+            try {
+              await navigator.clipboard.writeText(token);
+              new Notice("Bridge pairing token copied to clipboard.");
+            } catch (err) {
+              new Notice(`Failed to copy token: ${err instanceof Error ? err.message : String(err)}`);
             }
           })
       );
