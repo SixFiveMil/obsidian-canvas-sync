@@ -120,5 +120,43 @@ describe("Obsidian guideline guardrails", () => {
       expect(src).not.toMatch(/console\.log\(/);
     }
   });
+
+  it("avoids regex lookbehinds across all plugin source files for iOS/Safari WebKit compatibility", () => {
+    const pluginDir = path.resolve(here, "../src");
+    for (const file of [
+      "main.ts",
+      "course-select-modal.ts",
+      "canvas-api-client.ts",
+      "link-utils.ts",
+      "table-utils.ts",
+      "template-utils.ts",
+      "note-utils.ts",
+      "security-utils.ts",
+      "types.ts"
+    ]) {
+      const src = readText(path.resolve(pluginDir, file));
+      expect(src).not.toMatch(/\(\?<[=!]/);
+    }
+  });
+
+  it("guards Desktop-only bridge features with Platform.isMobile", () => {
+    const source = readText(pluginMainPath);
+    expect(source).toMatch(/Platform\.isMobile/);
+    expect(source).toMatch(/!Platform\.isMobile/);
+    expect(source).toContain("Direct REST API active");
+  });
+
+  it("includes responsive mobile modal CSS rules and 44px touch targets in styles.css", () => {
+    const cssPath = path.resolve(here, "../styles.css");
+    const css = readText(cssPath);
+    expect(css).toContain(".is-mobile");
+    expect(css).toContain("@media (max-width: 600px)");
+    expect(css).toContain("min(45vh, 340px)");
+    expect(css).toContain("min-height: 44px");
+    expect(css).toContain(".canvas-course-row");
+    expect(css).toContain(".canvas-modal-footer");
+    expect(css).toContain(".canvas-search-filter-setting");
+  });
 });
+
 
